@@ -1,26 +1,287 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400;0,600;0,700;0,800;0,900;1,700&family=Baloo+2:wght@700;800;900&family=Fredoka+One&family=Syne:wght@700;800&family=Bangers&display=swap');
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* ── Fonts ── */
+  --font-nunito: 'Nunito', sans-serif;
+  --font-fredoka: 'Fredoka One', sans-serif;
+  --font-baloo: 'Baloo 2', sans-serif;
+  --font-syne: 'Syne', sans-serif;
+  --font-bangers: 'Bangers', sans-serif;
+
+  /* ── Named animations (used in inline styles via CSS var) ── */
+  --animate-float:          float 3s ease-in-out infinite;
+  --animate-float-slow:     float 4s ease-in-out infinite;
+  --animate-float0:         float0 3.2s ease-in-out infinite;
+  --animate-float1:         float1 3.8s ease-in-out infinite;
+  --animate-float2:         float2 4.2s ease-in-out infinite;
+  --animate-float3:         float3 3.6s ease-in-out infinite;
+  --animate-sheet-up:       sheetUp 0.3s cubic-bezier(0.34,1.1,0.64,1);
+  --animate-slide-up:       slideUp 0.25s ease;
+  --animate-slide-down:     slideDown 0.25s ease;
+  --animate-slide-in:       slideIn 0.2s ease;
+  --animate-fade-in:        fadeIn 0.2s ease;
+  --animate-pop:            pop 0.2s ease;
+  --animate-twinkle:        twinkle 2.5s ease-in-out infinite;
+  --animate-badge-bob:      badgeBob 2.2s ease-in-out infinite;
+  --animate-badge-earn:     badgeEarn 0.5s ease;
+  --animate-node-in:        nodeIn 0.3s ease;
+  --animate-correct-pop:    correctPop 0.3s ease;
+  --animate-pulse-out:      pulseOut 2s ease-out infinite;
+  --animate-road:           roadAnim 0.6s linear infinite;
+  --animate-ankara-scroll:  ankaraScroll 6s linear infinite;
+  --animate-comic-pop:      comicPop 0.35s ease;
+  --animate-shake:          shake 0.4s ease;
+  --animate-dot-bounce:     dotBounce 2.5s ease-in-out infinite;
+  --animate-bob:            bob 2.8s ease-in-out infinite;
+  --animate-combo:          combo 0.3s ease;
+  --animate-spin:           spin 1s linear infinite;
+  --animate-pulse:          pulse 0.3s ease;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ── Reset ── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Nunito', Arial, sans-serif;
+  background: #fff;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: #f0f4f0; }
+::-webkit-scrollbar-thumb { background: #c8e6a0; border-radius: 10px; }
+
+/* ── Keyframes ── */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-8px); }
+}
+
+@keyframes float0 {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50%       { transform: translateY(-12px) rotate(4deg); }
+}
+
+@keyframes float1 {
+  0%, 100% { transform: translateY(0px) rotate(-3deg); }
+  50%       { transform: translateY(-16px) rotate(3deg); }
+}
+
+@keyframes float2 {
+  0%, 100% { transform: translateY(0px) rotate(5deg); }
+  50%       { transform: translateY(-8px) rotate(-2deg); }
+}
+
+@keyframes float3 {
+  0%, 100% { transform: translateY(0px) rotate(-6deg); }
+  50%       { transform: translateY(-14px) rotate(4deg); }
+}
+
+@keyframes sheetUp {
+  from { transform: translateX(-50%) translateY(110%); }
+  to   { transform: translateX(-50%) translateY(0); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes tIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+@keyframes pop {
+  from { opacity: 0; transform: scale(0.88); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: 0.15; }
+  50%       { opacity: 0.9; }
+}
+
+@keyframes badgeBob {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-5px); }
+}
+
+@keyframes badgeEarn {
+  0%   { transform: scale(0) rotate(-12deg); opacity: 0; }
+  60%  { transform: scale(1.15) rotate(3deg); }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+@keyframes nodeIn {
+  from { opacity: 0; transform: scale(0.5); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes correctPop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+@keyframes pulseOut {
+  0%   { opacity: 0.6; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.8); }
+}
+
+@keyframes pulse {
+  0%   { opacity: 0.6; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(2); }
+}
+
+@keyframes roadAnim {
+  to { stroke-dashoffset: -16; }
+}
+
+@keyframes ankaraScroll {
+  from { background-position: 0 0; }
+  to   { background-position: 60px 0; }
+}
+
+@keyframes comicPop {
+  0%   { transform: scale(0) rotate(-20deg); }
+  70%  { transform: scale(1.15) rotate(4deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%       { transform: translateX(-8px); }
+  40%       { transform: translateX(8px); }
+  60%       { transform: translateX(-5px); }
+  80%       { transform: translateX(5px); }
+}
+
+@keyframes dotBounce {
+  0%, 100% { transform: translateY(0); }
+  45%       { transform: translateY(-9px); }
+  65%       { transform: translateY(-5px); }
+}
+
+@keyframes bob {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50%       { transform: translateY(-10px) rotate(2deg); }
+}
+
+@keyframes combo {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.25); }
+  100% { transform: scale(1); }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* ── Interactive utility classes ── */
+.opt-btn {
+  transition: transform 0.1s, box-shadow 0.1s, background 0.1s;
+}
+.opt-btn:hover:not([disabled]) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 0 rgba(0, 0, 0, 0.12) !important;
+}
+.opt-btn:active:not([disabled]) {
+  transform: translateY(2px) !important;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.12) !important;
+}
+
+.nav-tab {
+  transition: all 0.15s;
+}
+.nav-tab:hover {
+  opacity: 0.8;
+  transform: translateY(-1px);
+}
+
+.card-hover {
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.card-hover:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1) !important;
+}
+
+.setting-row {
+  transition: background 0.12s;
+}
+.setting-row:hover {
+  background: #f8fdf4 !important;
+}
+
+.node-btn {
+  transition: transform 0.08s;
+}
+.node-btn:hover {
+  filter: brightness(1.05);
+}
+
+/* ── Desktop layout ── */
+@media (min-width: 768px) {
+  .desktop-layout {
+    display: flex !important;
+    flex-direction: row !important;
+    height: 100vh !important;
+  }
+  .mobile-bottom-nav {
+    display: none !important;
+  }
+  .desktop-sidebar {
+    display: flex !important;
+  }
+  .desktop-content {
+    flex: 1 !important;
+    overflow: hidden !important;
+    height: 100vh !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .desktop-sidebar {
+    display: none !important;
+  }
+  .mobile-bottom-nav {
+    display: flex !important;
+  }
+  .desktop-layout {
+    flex-direction: column !important;
+    height: 100vh !important;
+  }
+  .desktop-content {
+    flex: 1 !important;
+    overflow: hidden !important;
+  }
 }
