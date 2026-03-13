@@ -9,16 +9,21 @@ export default async function LessonPage({ params }) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')
 
-  // Subtopic + topic
+  // Subtopic + topic + all sibling subtopics (to find next)
   const { data: subtopic } = await supabase
     .from('subtopics')
-    .select('*, topic:topics(*)')
+    .select('*, topic:topics(*, subtopics(id, order_index, title))')
     .eq('id', subtopicId)
     .single()
 
   if (!subtopic) redirect('/learn')
 
-  // Lesson row
+  // Determine next subtopic in this topic
+  const siblings = (subtopic.topic?.subtopics || []).sort((a, b) => a.order_index - b.order_index)
+  const myIdx = siblings.findIndex(s => s.id === subtopicId)
+  const nextSubtopicId = myIdx >= 0 && myIdx + 1 < siblings.length ? siblings[myIdx + 1].id : null
+
+  // Lesson
   const { data: lesson } = await supabase
     .from('lessons')
     .select('*')
@@ -41,7 +46,6 @@ export default async function LessonPage({ params }) {
       .eq('lesson_id', lesson.id)
       .order('order_index', { ascending: true })
 
-    // Parse steps JSON string back to array if stored as text
     slides = (slidesData || []).map(s => ({
       ...s,
       steps: s.steps
@@ -54,10 +58,9 @@ export default async function LessonPage({ params }) {
     questions = questionsData || []
   }
 
-  // Student
   const { data: student } = await supabase
     .from('students')
-    .select('*, profile:profiles!students_profile_id_fkey(*)')
+    .select('*')
     .eq('profile_id', user.id)
     .single()
 
@@ -69,6 +72,7 @@ export default async function LessonPage({ params }) {
       subtopic={subtopic}
       topic={subtopic?.topic}
       student={student}
+      nextSubtopicId={nextSubtopicId}
     />
   )
 }

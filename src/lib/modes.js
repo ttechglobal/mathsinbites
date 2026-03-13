@@ -349,6 +349,84 @@ export const MODES = {
     floatColor: 'rgba(230,57,70,0.07)',
     floatFont: "'Bangers',sans-serif",
   },
+  halima: {
+    id: 'halima', name: 'Northern Mode', emoji: '📚',
+    tagline: 'From Kano to the top of the class',
+    description: 'Warm terracotta and sandy gold. For students who know hard work wins.',
+    font: 'Sora, Nunito, sans-serif', headingFont: 'Sora, sans-serif',
+    fontClass: 'font-sora', headingFontClass: 'font-sora',
+
+    // Backgrounds — warm sandy tones of Northern Nigeria
+    mapBg: 'linear-gradient(180deg,#FDF6EC 0%,#F5E6CC 60%,#EDD5A8 100%)',
+    lessonBg: '#FDF6EC', hudBg: 'rgba(253,246,236,0.95)',
+    homeBg: 'linear-gradient(180deg,#FDF6EC 0%,#F5E6CC 100%)',
+    hookBg: '#FFF8EE',
+
+    // Cards
+    cardBg: '#FFFFFF', cardBorder: '1.5px solid #E8D5B0',
+    cardRadius: 14, cardShadow: '0 3px 12px rgba(196,100,40,0.08)',
+    lessonCard: '#FFFFFF', lessonBorder: '1.5px solid #E8D5B0',
+
+    // Text
+    textPrimary: '#2A1505', textSecondary: '#8A6A45', textOnAccent: '#ffffff',
+
+    // Accents — terracotta + school navy
+    accentColor: '#C46428', accent2: '#2A5298',
+    correctColor: '#2A7A3B', wrongColor: '#C0392B',
+
+    // Nav
+    navBg: '#FDF6EC', navBorder: '#E8D5B0',
+    navActive: '#C46428', navActiveText: '#ffffff',
+    navText: '#C4A882', navActivePill: 'rgba(196,100,40,0.12)',
+
+    // Sidebar
+    sidebarBg: '#FDF6EC', sidebarBorder: '#E8D5B0',
+    sidebarText: '#2A1505', sidebarDim: '#8A6A45',
+    sidebarActive: 'rgba(196,100,40,0.09)', sidebarActiveBorder: '#C46428',
+
+    // Lesson internals
+    mathBg: '#FFF8EE', hintBg: 'rgba(196,100,40,0.06)',
+    progressTrack: '#E8D5B0',
+    correctOverlay: 'rgba(253,246,236,0.97)', wrongBg: '#FFF0EE',
+
+    // HUD badges
+    badgeBg: 'rgba(212,168,83,0.15)', badgeBorder: 'rgba(212,168,83,0.35)',
+    badgeText: '#2A1505',
+
+    // Phrases — warm, encouraging, school-proud
+    correctPhrase: 'Na gode! Correct! Keep going! 📚',
+    wrongPhrase: "No wahala — here's the working:",
+    hookPhrase: "Halima dey here! This topic is easier than you think — let's break it down together! 🌟",
+    welcomeTitle: "HalimaShine is ready! Let's make maths shine! 📚",
+
+    // Buttons
+    primaryBtn: {
+      background: 'linear-gradient(135deg,#C46428,#A0480E)', color: '#fff',
+      border: 'none', borderRadius: 12, padding: '12px 18px',
+      fontFamily: 'Fredoka One, sans-serif', fontSize: 14, fontWeight: 900,
+      cursor: 'pointer', textAlign: 'center',
+    },
+    ghostBtn: {
+      background: 'transparent', color: '#8A6A45',
+      border: '1.5px solid #E8D5B0', borderRadius: 12, padding: '12px 18px',
+      fontFamily: 'Nunito, sans-serif', fontSize: 13, fontWeight: 700,
+      cursor: 'pointer', textAlign: 'center',
+    },
+
+    // Quest map
+    termAccents: ['#C46428', '#2A5298', '#D4A853'],
+    nodeNext: 'linear-gradient(145deg,#D4A853,#C46428)',
+    nodeLocked: 'linear-gradient(145deg,#E8D5B0,#D5C4A0)',
+    nodeNextGlow: '#D4A853',
+    pathStroke: 'rgba(196,100,40,0.22)',
+
+    chestDone: '🏆', chestLocked: '🎁',
+    endText: 'More topics coming — keep shining! 📚',
+    floatSyms: ['x²', '∑', 'π', '√', '∫', 'θ', '∞', '±', 'Δ'],
+    floatColor: 'rgba(196,100,40,0.09)',
+    floatFont: "'Fredoka One',sans-serif",
+  },
+
 }
 
 export const MODE_IDS = Object.keys(MODES)

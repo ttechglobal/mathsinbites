@@ -1,10 +1,12 @@
 'use client'
 
 import { useMode } from '@/lib/ModeContext'
-import KolaNova from '@/components/mascots/KolaNova'
-import AdeSpark from '@/components/mascots/AdeSpark'
+import KolaNova    from '@/components/mascots/KolaNova'
+import AdeSpark    from '@/components/mascots/AdeSpark'
 import ChinweRoots from '@/components/mascots/ChinweRoots'
-import ZapBlaze from '@/components/mascots/ZapBlaze'
+import ZapBlaze    from '@/components/mascots/ZapBlaze'
+import HalimaShine from '@/components/mascots/HalimaShine'
+import TayoSteady  from '@/components/mascots/TayoSteady'
 
 // ── BiteMarkIcon — the MIB shield logo SVG ──────────────────────────────────
 export function BiteMarkIcon({ size = 48, animate = false }) {
@@ -84,14 +86,15 @@ export function BicPencil({ pose = 'idle', size = 80, style: extraStyle = {} }) 
   const { mode } = useMode()
 
   const MASCOTS = {
-    normal: KolaNova,
+    normal: TayoSteady,
     nova:   KolaNova,
     spark:  AdeSpark,
     roots:  ChinweRoots,
     blaze:  ZapBlaze,
+    halima: HalimaShine,
   }
 
-  const Mascot = MASCOTS[mode] || KolaNova
+  const Mascot = MASCOTS[mode] || TayoSteady
 
   // Normalise pose aliases
   const normPose = pose === 'celebrate' ? 'correct'

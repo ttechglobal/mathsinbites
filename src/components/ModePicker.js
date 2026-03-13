@@ -2,10 +2,12 @@
 
 import { MODES } from '@/lib/modes'
 import { useMode } from '@/lib/ModeContext'
-import KolaNova from '@/components/mascots/KolaNova'
-import AdeSpark from '@/components/mascots/AdeSpark'
+import KolaNova    from '@/components/mascots/KolaNova'
+import AdeSpark    from '@/components/mascots/AdeSpark'
 import ChinweRoots from '@/components/mascots/ChinweRoots'
-import ZapBlaze from '@/components/mascots/ZapBlaze'
+import ZapBlaze    from '@/components/mascots/ZapBlaze'
+import HalimaShine from '@/components/mascots/HalimaShine'
+import TayoSteady  from '@/components/mascots/TayoSteady'
 
 // Design concept colours
 const N = {
@@ -26,11 +28,12 @@ const N = {
 }
 
 const MASCOTS = {
-  normal: KolaNova,
-  nova:   KolaNova,
-  spark:  AdeSpark,
-  roots:  ChinweRoots,
-  blaze:  ZapBlaze,
+  normal:  TayoSteady,
+  nova:    KolaNova,
+  spark:   AdeSpark,
+  roots:   ChinweRoots,
+  blaze:   ZapBlaze,
+  halima:  HalimaShine,
 }
 
 // Per-mode accent + gradient for the card
@@ -40,11 +43,12 @@ const MODE_STYLE = {
   spark:  { accent: '#FF8C42', grad: 'linear-gradient(135deg,#FF8C42,#FFD93D)', glow: '#FF8C4250' },
   roots:  { accent: '#C0392B', grad: 'linear-gradient(135deg,#C0392B,#8B1A1A)', glow: '#C0392B50' },
   blaze:  { accent: '#E63946', grad: 'linear-gradient(135deg,#E63946,#FFD700)', glow: '#E6394650' },
+  halima: { accent: '#C46428', grad: 'linear-gradient(135deg,#C46428,#D4A853)',  glow: '#C4642850' },
 }
 
 export default function ModePicker({ onPick, onClose }) {
   const { setMode, mode: currentMode } = useMode()
-  const modeList = [MODES.normal, MODES.nova, MODES.spark, MODES.roots, MODES.blaze]
+  const modeList = [MODES.normal, MODES.nova, MODES.spark, MODES.roots, MODES.blaze, MODES.halima]
 
   function handlePick(modeId) {
     setMode(modeId)
