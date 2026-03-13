@@ -601,70 +601,112 @@ export default function LearnDashboard({ student: initialStudent, level, progres
   // ══════════════════════════════════════════════════════════════════════════
   // PRACTICE TAB
   // ══════════════════════════════════════════════════════════════════════════
+  const allTopics = (level?.terms || []).flatMap(t => (t.units || []).flatMap(u => (u.topics || [])))
+
   const PracticeTab = (
-    <div style={{ padding: '24px 20px 120px', maxWidth: 520, margin: '0 auto' }}>
-      <div style={{ marginBottom: 20 }}>
-        <h2 style={{ fontFamily: M.headingFont, fontSize: 22, fontWeight: 800, color: M.textPrimary, marginBottom: 6 }}>
-          ✏️ Practice Mode
+    <div style={{ padding: '20px 20px 120px', maxWidth: 520, margin: '0 auto' }}>
+
+      {/* Header */}
+      <div style={{ marginBottom: 18 }}>
+        <h2 style={{ fontFamily: M.headingFont, fontSize: 22, fontWeight: 800, color: M.textPrimary, marginBottom: 4 }}>
+          ✏️ Practice
         </h2>
         <p style={{ fontSize: 13, color: bodyColor, fontFamily: 'Nunito, sans-serif', fontWeight: 500, lineHeight: 1.5 }}>
-          Revisit completed lessons and drill your skills.
+          {isRoots ? 'Practise your maths — no lesson needed, just go!' : isBlaze ? 'DRILL YOUR SKILLS. NO EXCUSES.' : 'Jump into any topic — no need to finish the lesson first!'}
         </p>
       </div>
 
-      {/* Completed topics you can practice */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {(level?.terms || []).flatMap(t => (t.units || []).flatMap(u => (u.topics || []))).filter(topic => {
-          const topicSubs = topic.subtopics || []
-          return topicSubs.some(s => completedIds.has(s.id))
-        }).slice(0, 10).map(topic => {
+      {/* Mixed practice card */}
+      <button
+        onClick={() => router.push('/learn/practice')}
+        style={{
+          width: '100%', marginBottom: 14, padding: '18px 20px', cursor: 'pointer', textAlign: 'left',
+          borderRadius: isBlaze ? 10 : 18,
+          background: isBlaze ? '#FFD700'
+            : isNova ? 'linear-gradient(135deg,rgba(124,58,237,0.3),rgba(76,29,149,0.2))'
+            : `linear-gradient(135deg,${M.accentColor}22,${M.accent2 || M.accentColor}10)`,
+          border: isBlaze ? '2px solid #0d0d0d' : `1.5px solid ${M.accentColor}40`,
+          boxShadow: isBlaze ? '3px 3px 0 #0d0d0d' : M.cardShadow,
+          display: 'flex', alignItems: 'center', gap: 14,
+          fontFamily: 'Nunito, sans-serif',
+        }}>
+        <div style={{
+          width: 52, height: 52, borderRadius: isBlaze ? 10 : '50%', flexShrink: 0,
+          background: isBlaze ? 'rgba(0,0,0,0.08)' : `${M.accentColor}20`,
+          border: isBlaze ? '2px solid rgba(0,0,0,0.15)' : `2px solid ${M.accentColor}35`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24,
+        }}>🎲</div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: isBlaze ? '#0d0d0d' : isNova ? '#F8F7FF' : M.textPrimary, marginBottom: 3 }}>
+            {isBlaze ? 'MIXED DRILL' : isRoots ? 'Random Mix' : 'Mixed Practice'}
+          </div>
+          <div style={{ fontSize: 11, color: isBlaze ? '#444' : bodyColor, fontWeight: 500 }}>
+            Questions from all {student?.class_level || ''} topics · shuffled
+          </div>
+        </div>
+        <div style={{
+          fontSize: 11, fontWeight: 900, color: isBlaze ? '#0d0d0d' : '#fff',
+          background: isBlaze ? '#0d0d0d' : M.accentColor,
+          borderRadius: isBlaze ? 6 : 20, padding: '5px 12px', fontFamily: 'Nunito, sans-serif',
+        }}>GO →</div>
+      </button>
+
+      {/* By topic */}
+      <div style={{ fontSize: 10, fontWeight: 800, color: M.textSecondary, letterSpacing: '0.12em', textTransform: 'uppercase', fontFamily: 'Nunito, sans-serif', marginBottom: 10 }}>
+        By Topic
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {allTopics.map(topic => {
           const topicSubs = topic.subtopics || []
           const doneCount = topicSubs.filter(s => completedIds.has(s.id)).length
-          // Navigate to first completed subtopic for practice
-          const firstDone = topicSubs.find(s => completedIds.has(s.id))
+          const hasDone = doneCount > 0
           return (
             <button key={topic.id}
-              onClick={() => firstDone && router.push(`/learn/lesson/${firstDone.id}?mode=practice`)}
+              onClick={() => router.push(`/learn/practice?topicId=${topic.id}`)}
               style={{
-                display: 'flex', alignItems: 'center', gap: 14, padding: '15px 16px',
-                background: M.cardBg, border: M.cardBorder, borderRadius: M.cardRadius,
-                boxShadow: M.cardShadow, cursor: 'pointer', textAlign: 'left', width: '100%',
-                transition: 'transform 0.1s',
+                display: 'flex', alignItems: 'center', gap: 12, padding: '13px 14px',
+                background: M.cardBg,
+                border: hasDone ? `1.5px solid ${M.accentColor}28` : M.cardBorder,
+                borderRadius: M.cardRadius, boxShadow: M.cardShadow,
+                cursor: 'pointer', textAlign: 'left', width: '100%',
+                fontFamily: 'Nunito, sans-serif',
               }}>
               <div style={{
-                width: 44, height: 44, borderRadius: isBlaze ? '30%' : '50%', flexShrink: 0,
-                background: `${M.accentColor}18`, border: `1.5px solid ${M.accentColor}30`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20,
-              }}>✏️</div>
+                width: 38, height: 38, borderRadius: isBlaze ? '30%' : '50%', flexShrink: 0,
+                background: hasDone ? `${M.accentColor}18` : isNova ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
+                border: hasDone ? `1.5px solid ${M.accentColor}30` : `1.5px solid ${isNova ? 'rgba(255,255,255,0.08)' : '#eee'}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
+              }}>{hasDone ? '✏️' : '📖'}</div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: isNova ? '#F8F7FF' : M.textPrimary, fontFamily: 'Nunito, sans-serif', marginBottom: 3 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: isNova ? '#F8F7FF' : M.textPrimary, marginBottom: 2 }}>
                   {topic.title}
                 </div>
-                <div style={{ fontSize: 11, color: bodyColor, fontFamily: 'Nunito, sans-serif', fontWeight: 500 }}>
-                  {doneCount}/{topicSubs.length} subtopics complete
+                <div style={{ fontSize: 10, color: bodyColor, fontWeight: 500 }}>
+                  {hasDone
+                    ? <span style={{ color: M.correctColor }}>✓ {doneCount}/{topicSubs.length} subtopics done</span>
+                    : `${topicSubs.length} subtopic${topicSubs.length !== 1 ? 's' : ''}`}
                 </div>
               </div>
-              <div style={{ fontSize: 11, fontWeight: 800, color: M.accentColor, fontFamily: 'Nunito, sans-serif', background: `${M.accentColor}12`, borderRadius: 20, padding: '3px 10px' }}>
-                Practice
-              </div>
+              <span style={{
+                fontSize: 10, fontWeight: 800,
+                color: hasDone ? M.accentColor : M.textSecondary,
+                background: hasDone ? `${M.accentColor}12` : isNova ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
+                borderRadius: 20, padding: '3px 9px',
+              }}>Practice</span>
             </button>
           )
         })}
 
-        {(level?.terms || []).flatMap(t => (t.units || []).flatMap(u => (u.topics || []))).filter(topic =>
-          (topic.subtopics || []).some(s => completedIds.has(s.id))
-        ).length === 0 && (
+        {allTopics.length === 0 && (
           <div style={{ textAlign: 'center', padding: '48px 0' }}>
             <BicPencil pose="think" size={90} style={{ display: 'inline-block', marginBottom: 16 }} />
             <p style={{ fontFamily: M.headingFont, fontSize: 16, fontWeight: 800, color: M.textPrimary, marginBottom: 6 }}>
-              Complete a lesson first!
+              No content yet!
             </p>
             <p style={{ fontSize: 13, color: bodyColor, fontFamily: 'Nunito, sans-serif', fontWeight: 500 }}>
-              Finish your first lesson to unlock practice mode.
+              Content for {student?.class_level} is on the way.
             </p>
-            <button onClick={() => setActiveTab('learn')} style={{ ...M.primaryBtn, marginTop: 20 }}>
-              Go to Learn →
-            </button>
           </div>
         )}
       </div>
@@ -672,96 +714,47 @@ export default function LearnDashboard({ student: initialStudent, level, progres
   )
 
   // ══════════════════════════════════════════════════════════════════════════
-  // CHALLENGE TAB
+  // CHALLENGE TAB — Daily Challenge only
   // ══════════════════════════════════════════════════════════════════════════
   const ChallengeTab = (
-    <div style={{ padding: '24px 20px 120px', maxWidth: 520, margin: '0 auto' }}>
-      <div style={{ marginBottom: 20 }}>
-        <h2 style={{ fontFamily: M.headingFont, fontSize: 22, fontWeight: 800, color: M.textPrimary, marginBottom: 6 }}>
-          ⚡ Challenge Mode
-        </h2>
-        <p style={{ fontSize: 13, color: bodyColor, fontFamily: 'Nunito, sans-serif', fontWeight: 500, lineHeight: 1.5 }}>
-          Test yourself under pressure. No hints, timed questions!
-        </p>
+    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', minHeight:'70vh', padding:'32px 20px 120px', maxWidth:520, margin:'0 auto' }}>
+
+      <div style={{ animation:'float 2.5s ease-in-out infinite', marginBottom:20 }}>
+        <BicPencil pose="celebrate" size={110} />
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {/* Daily challenge card */}
-        <div style={{
-          padding: '20px', borderRadius: isBlaze ? 10 : 18,
-          background: isBlaze ? '#FFD700' : isNova ? 'linear-gradient(135deg,rgba(124,58,237,0.25),rgba(76,29,149,0.15))'
-            : `linear-gradient(135deg,${M.accentColor}20,${M.accent2 || M.accentColor}10)`,
-          border: isBlaze ? '2px solid #0d0d0d' : isNova ? '1px solid rgba(124,58,237,0.3)' : `1.5px solid ${M.accentColor}30`,
-          boxShadow: isBlaze ? '3px 3px 0 #0d0d0d' : M.cardShadow,
-          marginBottom: 6,
-        }}>
-          <div style={{ fontSize: 28, marginBottom: 10 }}>🏆</div>
-          <div style={{ fontSize: 16, fontWeight: 800, color: isBlaze ? '#0d0d0d' : isNova ? '#F8F7FF' : M.textPrimary, fontFamily: M.headingFont, marginBottom: 6 }}>
-            Daily Challenge
-          </div>
-          <div style={{ fontSize: 12, color: isBlaze ? '#333' : bodyColor, fontFamily: 'Nunito, sans-serif', fontWeight: 500, lineHeight: 1.5, marginBottom: 14 }}>
-            Beat today&apos;s 5-question speed challenge and climb the leaderboard!
-          </div>
-          <button
-            onClick={() => router.push('/learn/challenge/daily')}
-            style={{ ...M.primaryBtn, fontSize: 13 }}>
-            {isBlaze ? '⚡ ACCEPT CHALLENGE' : isSpark ? '✨ Start Challenge!' : isRoots ? '🇳🇬 Take Challenge' : 'Start Daily Challenge →'}
-          </button>
-        </div>
-
-        {/* Topic challenges from completed topics */}
-        {(level?.terms || []).flatMap(t => (t.units || []).flatMap(u => (u.topics || []))).filter(topic =>
-          (topic.subtopics || []).some(s => completedIds.has(s.id))
-        ).slice(0, 6).map(topic => {
-          const firstDone = (topic.subtopics || []).find(s => completedIds.has(s.id))
-          return (
-            <button key={topic.id}
-              onClick={() => firstDone && router.push(`/learn/lesson/${firstDone.id}?mode=challenge`)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px',
-                background: M.cardBg, border: M.cardBorder, borderRadius: M.cardRadius,
-                boxShadow: M.cardShadow, cursor: 'pointer', textAlign: 'left', width: '100%',
-              }}>
-              <div style={{
-                width: 44, height: 44, borderRadius: isBlaze ? '30%' : '50%', flexShrink: 0,
-                background: `${M.accentColor}18`, border: `1.5px solid ${M.accentColor}30`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20,
-              }}>⚡</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: isNova ? '#F8F7FF' : M.textPrimary, fontFamily: 'Nunito, sans-serif', marginBottom: 3 }}>
-                  {topic.title}
-                </div>
-                <div style={{ fontSize: 11, color: bodyColor, fontFamily: 'Nunito, sans-serif', fontWeight: 500 }}>
-                  Timed · No hints
-                </div>
-              </div>
-              <div style={{ fontSize: 11, fontWeight: 800, color: M.accentColor, background: `${M.accentColor}12`, borderRadius: 20, padding: '3px 10px', fontFamily: 'Nunito, sans-serif' }}>
-                Go!
-              </div>
-            </button>
-          )
-        })}
-
-        {(level?.terms || []).flatMap(t => (t.units || []).flatMap(u => (u.topics || []))).filter(topic =>
-          (topic.subtopics || []).some(s => completedIds.has(s.id))
-        ).length === 0 && (
-          <div style={{ textAlign: 'center', padding: '40px 0' }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>⚡</div>
-            <p style={{ fontFamily: M.headingFont, fontSize: 16, fontWeight: 800, color: M.textPrimary, marginBottom: 6 }}>
-              Unlock challenges by learning!
-            </p>
-            <p style={{ fontSize: 13, color: bodyColor, fontFamily: 'Nunito, sans-serif', fontWeight: 500 }}>
-              Complete lessons to unlock topic challenges.
-            </p>
-            <button onClick={() => setActiveTab('learn')} style={{ ...M.primaryBtn, marginTop: 20 }}>
-              Start Learning →
-            </button>
-          </div>
-        )}
+      <div style={{ fontFamily:M.headingFont, fontSize:26, fontWeight:900, color:M.textPrimary, textAlign:'center', marginBottom:8, lineHeight:1.2 }}>
+        🏆 Daily Challenge
       </div>
+      <div style={{ fontSize:13, color:bodyColor, fontFamily:'Nunito,sans-serif', fontWeight:500, lineHeight:1.7, textAlign:'center', maxWidth:300, marginBottom:28 }}>
+        {isRoots
+          ? `5 questions every day. Get all correct — collect 50 XP and climb the leaderboard! New set drops at midnight. 🇳🇬`
+          : isBlaze
+          ? `5 QUESTIONS. TIMED. NO HINTS. ALL CORRECT = 50 XP. CLOCK RESETS AT MIDNIGHT.`
+          : `5 personalised questions every day. Get them all right to earn 50 XP and boost your leaderboard position! New challenge drops at midnight.`}
+      </div>
+
+      <div style={{ display:'flex', gap:10, marginBottom:28 }}>
+        {[
+          { icon:'⚡', label:'5 questions', color:M.accentColor },
+          { icon:'⏱', label:'30s per Q',   color:'#FFC933'     },
+          { icon:'🏆', label:'+50 XP bonus',color:M.correctColor},
+        ].map(({ icon, label, color }) => (
+          <div key={label} style={{ background:`${color}12`, border:`1px solid ${color}30`, borderRadius:12, padding:'10px 12px', textAlign:'center', flex:1 }}>
+            <div style={{ fontSize:18, marginBottom:4 }}>{icon}</div>
+            <div style={{ fontSize:10, fontWeight:800, color, fontFamily:'Nunito,sans-serif', lineHeight:1.3 }}>{label}</div>
+          </div>
+        ))}
+      </div>
+
+      <button
+        onClick={() => router.push('/learn/challenge?mode=daily')}
+        style={{ ...M.primaryBtn, fontSize:16, padding:'16px 40px', width:'100%', maxWidth:300 }}>
+        {isBlaze ? '⚡ ACCEPT CHALLENGE' : isSpark ? '✨ Start Today\'s Challenge!' : isRoots ? '🇳🇬 Take Today\'s Challenge' : 'Start Daily Challenge →'}
+      </button>
     </div>
   )
-
+  
   // ══════════════════════════════════════════════════════════════════════════
   // LEADERBOARD TAB
   // ══════════════════════════════════════════════════════════════════════════

@@ -28,6 +28,8 @@ const NAV = [
   { href:'/admin',            icon:'▣',  emoji:'📊', label:'Overview',   color: A.electric },
   { href:'/admin/curriculum', icon:'≡',  emoji:'📚', label:'Curriculum', color: A.cyan    },
   { href:'/admin/generate',   icon:'⚡', emoji:'⚡', label:'Generate',   color: A.gold    },
+  { href:'/admin/lessons',    icon:'📘', emoji:'📘', label:'Lessons',    color:'#A599FF'  },
+  { href:'/admin/practice',   icon:'✏️', emoji:'✏️', label:'Practice',   color:'#C8F135'  },
   { href:'/admin/students',   icon:'◉',  emoji:'👥', label:'Students',   color: A.teal    },
   { href:'/admin/analytics',  icon:'↗',  emoji:'📈', label:'Analytics',  color:'#A3E635'  },
   { href:'/admin/flags',      icon:'⚑',  emoji:'🚩', label:'Flagged',    color: A.coral   },
