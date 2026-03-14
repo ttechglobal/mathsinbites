@@ -73,6 +73,7 @@ export default async function LessonPage({ params }) {
       topic={subtopic?.topic}
       student={student}
       nextSubtopicId={nextSubtopicId}
+      userId={user.id}
     />
   )
 }

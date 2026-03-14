@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useMode } from '@/lib/ModeContext'
 import { BicPencil } from '@/components/BiteMarkIcon'
 import { createClient } from '@/lib/supabase/client'
+import ExitConfirmModal from './ExitConfirmModal'
 
 const DIFF_COLOR = { easy: '#C8F135', medium: '#FFC933', hard: '#FF6B6B' }
 const TIMER_SECS = 60   // 60 seconds per question
@@ -23,40 +24,44 @@ function StepExplanation({ text, M }) {
   const steps = parseSteps(text)
   const accent = M.accentColor
   if (steps.length === 1) {
-    return <div style={{ fontSize:13, color:M.textSecondary, lineHeight:1.9, fontFamily:'Nunito,sans-serif', whiteSpace:'pre-wrap', overflowWrap:'break-word' }}>{text}</div>
+    return (
+      <div style={{ background:'#FEFDE8', borderRadius:8, padding:'10px 14px', fontSize:13, fontWeight:600, color:'#333', lineHeight:1.8, fontFamily:'Nunito,sans-serif' }}>
+        {text}
+      </div>
+    )
   }
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
       {steps.map((step, i) => (
-        <div key={i} style={{ display:'table', width:'100%', tableLayout:'fixed' }}>
-          <div style={{ display:'table-cell', verticalAlign:'top', width:32, paddingTop:8, paddingRight:6 }}>
-            <div style={{ width:22, height:22, borderRadius:'50%', background:accent, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:900 }}>{i+1}</div>
-          </div>
-          <div style={{ display:'table-cell', verticalAlign:'top', background:M.mathBg||'rgba(0,0,0,0.03)', borderRadius:8, padding:'8px 12px', fontSize:13, fontWeight:700, color:M.textPrimary, lineHeight:1.85, fontFamily:'Nunito,sans-serif', whiteSpace:'pre-wrap', overflowWrap:'break-word', wordBreak:'break-word' }}>{step}</div>
+        <div key={i} style={{ display:'flex', flexDirection:'row', alignItems:'flex-start', gap:10 }}>
+          <div style={{ width:28, height:28, minWidth:28, minHeight:28, flexShrink:0, borderRadius:'50%', background:accent, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:900, fontFamily:'Nunito,sans-serif', marginTop:6 }}>{i+1}</div>
+          <div style={{ flex:1, minWidth:0, background:'#FEFDE8', border:'1px solid #F0EAC0', borderRadius:8, padding:'10px 14px', fontSize:13, fontWeight:600, color:'#2D2D2D', lineHeight:1.8, fontFamily:'Nunito,sans-serif', wordWrap:'break-word', overflowWrap:'break-word', whiteSpace:'normal' }}>{step.trim()}</div>
         </div>
       ))}
     </div>
   )
 }
 
-export default function ChallengeMode({ questions, topicTitle, topicId, student, isDaily, dailyDone }) {
+export default function ChallengeMode({ questions, topicTitle, topicId, student, isDaily, dailyDone, userId }) {
   const router   = useRouter()
   const { M, mode } = useMode()
   const supabase = createClient()
 
   // answers: array of { correct, timeTaken } — only recorded when user submits
   const [qIdx,         setQIdx]         = useState(0)
-  const [phase,        setPhase]        = useState('question')  // question | selected | done
+  const [phase,        setPhase]        = useState('question')
   const [streak,       setStreak]       = useState(0)
-  const [results,      setResults]      = useState([])          // { correct, timeTaken, questionId }
+  const [results,      setResults]      = useState([])
   const [xpEarned,     setXpEarned]     = useState(0)
   const [timeLeft,     setTimeLeft]     = useState(TIMER_SECS)
   const [selectedOpt,  setSelectedOpt]  = useState(null)
+  const [answerMap,    setAnswerMap]    = useState({})
+  const [showExitModal, setShowExitModal] = useState(false)
   const [dailyAwarded, setDailyAwarded] = useState(false)
   const [reviewIdx,    setReviewIdx]    = useState(0)
   const [showWhy,      setShowWhy]      = useState({})
   const timerRef  = useRef(null)
-  const startRef  = useRef(Date.now())   // track when question started
+  const startRef  = useRef(Date.now())
 
   const currentQ = questions[qIdx]
   const accent   = M.accentColor
@@ -108,13 +113,15 @@ export default function ChallengeMode({ questions, topicTitle, topicId, student,
       completed:      true,
     }, { onConflict: 'student_id,challenge_date' })
     if (bonus > 0) {
-      supabase.from('students').select('xp, monthly_xp').eq('id', student.id).single()
-        .then(({ data: fresh }) => {
-          supabase.from('students').update({
-            xp:         (fresh?.xp        || 0) + bonus,
-            monthly_xp: (fresh?.monthly_xp || 0) + bonus,
-          }).eq('id', student.id)
-        })
+      if (userId) {
+        supabase.from('students').select('xp, monthly_xp').eq('profile_id', userId).single()
+          .then(({ data: fresh }) => {
+            supabase.from('students').update({
+              xp:         (fresh?.xp        || 0) + bonus,
+              monthly_xp: (fresh?.monthly_xp || 0) + bonus,
+            }).eq('profile_id', userId)
+          })
+      }
     }
   }, [phase])
 
@@ -132,6 +139,7 @@ export default function ChallengeMode({ questions, topicTitle, topicId, student,
     const correct   = selectedOpt.is_correct
     const newResults = [...results, { correct, timeTaken, questionId: currentQ?.id }]
     setResults(newResults)
+    setAnswerMap(m => ({ ...m, [qIdx]: selectedOpt }))  // save for back nav
 
     if (correct) setStreak(s => s + 1)
     else setStreak(0)
@@ -139,13 +147,15 @@ export default function ChallengeMode({ questions, topicTitle, topicId, student,
     const xp = correct ? 3 : 0
     if (xp > 0) {
       setXpEarned(p => p + xp)
-      supabase.from('students').select('xp, monthly_xp').eq('id', student.id).single()
-        .then(({ data: fresh }) => {
-          supabase.from('students').update({
-            xp:         (fresh?.xp        || 0) + xp,
-            monthly_xp: (fresh?.monthly_xp || 0) + xp,
-          }).eq('id', student.id)
-        })
+      if (userId) {
+        supabase.from('students').select('xp, monthly_xp').eq('profile_id', userId).single()
+          .then(({ data: fresh }) => {
+            supabase.from('students').update({
+              xp:         (fresh?.xp        || 0) + xp,
+              monthly_xp: (fresh?.monthly_xp || 0) + xp,
+            }).eq('profile_id', userId)
+          })
+      }
     }
 
     if (student?.id && currentQ?.id) {
@@ -161,7 +171,7 @@ export default function ChallengeMode({ questions, topicTitle, topicId, student,
   function resetSession() {
     setQIdx(0); setPhase('question'); setStreak(0)
     setResults([]); setXpEarned(0); setSelectedOpt(null)
-    setTimeLeft(TIMER_SECS); setReviewIdx(0); setShowWhy({})
+    setAnswerMap({}); setTimeLeft(TIMER_SECS); setReviewIdx(0); setShowWhy({})
   }
 
   // ── Already done today ──────────────────────────────────────────────────────
@@ -347,6 +357,13 @@ export default function ChallengeMode({ questions, topicTitle, topicId, student,
 
   return (
     <div style={{ minHeight:'100vh', background:M.lessonBg, fontFamily:M.font, display:'flex', flexDirection:'column' }}>
+      <ExitConfirmModal
+        open={showExitModal}
+        onStay={() => setShowExitModal(false)}
+        onExit={() => { setShowExitModal(false); router.push('/learn') }}
+        M={M}
+        mode={mode}
+      />
       {/* Timer bar */}
       <div style={{ height:6, background:M.progressTrack, flexShrink:0 }}>
         <div style={{ width:`${phase==='question'||phase==='selected'?timerPct:0}%`, height:'100%', background:timerColor, transition:'width 1s linear, background 0.3s' }} />
@@ -354,7 +371,7 @@ export default function ChallengeMode({ questions, topicTitle, topicId, student,
 
       {/* Top bar */}
       <div style={{ padding:'10px 16px', display:'flex', alignItems:'center', gap:10, borderBottom:`1px solid ${accent}18`, background:M.hudBg }}>
-        <button onClick={() => router.back()} style={{ width:32, height:32, borderRadius:'50%', background:M.lessonCard, border:M.lessonBorder, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:M.textSecondary, fontSize:14 }}>←</button>
+        <button onClick={() => setShowExitModal(true)} style={{ width:32, height:32, borderRadius:'50%', background:M.lessonCard, border:M.lessonBorder, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:M.textSecondary, fontSize:14 }}>←</button>
         <div style={{ flex:1 }}>
           <div style={{ display:'flex', alignItems:'center', gap:6 }}>
             <div style={{ fontSize:12, fontWeight:800, color:M.textPrimary, fontFamily:M.headingFont }}>{topicTitle}</div>
@@ -419,14 +436,42 @@ export default function ChallengeMode({ questions, topicTitle, topicId, student,
           })}
         </div>
 
-        {/* Submit — only visible when something selected */}
-        {phase === 'selected' && (
-          <button onClick={handleSubmit} style={{ ...M.primaryBtn, fontSize:15 }}>
-            {qIdx+1 < questions.length
-              ? (mode==='blaze'?'⚡ SUBMIT & NEXT':'Submit →')
-              : (mode==='blaze'?'⚡ SUBMIT & SEE RESULTS':'Submit & See Results →')}
+        {/* Submit + Back row */}
+        <div style={{ display:'flex', gap:10 }}>
+          {/* Back button — always visible */}
+          <button
+            onClick={() => {
+              clearInterval(timerRef.current)
+              if (selectedOpt) setAnswerMap(m => ({ ...m, [qIdx]: selectedOpt }))
+              if (qIdx > 0) {
+                const prevIdx = qIdx - 1
+                const prevOpt = answerMap[prevIdx] || null
+                setQIdx(prevIdx)
+                setSelectedOpt(prevOpt)
+                setPhase(prevOpt ? 'selected' : 'question')
+              } else {
+                setShowExitModal(true)
+              }
+            }}
+            style={{
+              ...M.ghostBtn,
+              flex: phase === 'selected' ? '0 0 auto' : 1,
+              fontSize: 14,
+              padding: '14px 18px',
+            }}>
+            {qIdx > 0 ? '← Back' : '← Exit'}
           </button>
-        )}
+
+          {/* Submit — only when option selected */}
+          {phase === 'selected' && (
+            <button onClick={handleSubmit} style={{ ...M.primaryBtn, flex: 1, fontSize: 15 }}>
+              {qIdx+1 < questions.length
+                ? (mode==='blaze' ? '⚡ SUBMIT & NEXT' : 'Submit →')
+                : (mode==='blaze' ? '⚡ SEE RESULTS' : 'Submit & See Results →')}
+            </button>
+          )}
+        </div>
+
         {phase === 'question' && (
           <div style={{ fontSize:11, color:M.textSecondary, textAlign:'center', fontFamily:'Nunito,sans-serif', opacity:0.6 }}>
             Tap an answer to select it

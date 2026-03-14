@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMode } from '@/lib/ModeContext'
 import { BicPencil } from '@/components/BiteMarkIcon'
@@ -9,6 +9,36 @@ import { createClient } from '@/lib/supabase/client'
 // ─── helpers ─────────────────────────────────────────────────────────────────
 const slideText = s => s?.explanation || s?.content || ''
 const slideType = s => s?.type || 'concept'
+
+// Renders math strings: 2^8 → 2⁸  x_2 → x₂  — no raw ^ shown to students
+function MathText({ text, style }) {
+  if (!text) return null
+  const parts = []
+  const re = /(\^\{[^}]+\}|\^[\w\d]+|_\{[^}]+\}|_[\w\d]+)/g
+  let last = 0, m
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) parts.push({ t: 'text', v: text.slice(last, m.index) })
+    const raw = m[0]
+    if (raw.startsWith('^')) {
+      const val = raw.startsWith('^{') ? raw.slice(2, -1) : raw.slice(1)
+      parts.push({ t: 'sup', v: val })
+    } else {
+      const val = raw.startsWith('_{') ? raw.slice(2, -1) : raw.slice(1)
+      parts.push({ t: 'sub', v: val })
+    }
+    last = m.index + raw.length
+  }
+  if (last < text.length) parts.push({ t: 'text', v: text.slice(last) })
+  return (
+    <span style={style}>
+      {parts.map((p, i) =>
+        p.t === 'sup' ? <sup key={i} style={{ fontSize: '0.72em', verticalAlign: 'super', lineHeight: 0 }}>{p.v}</sup>
+        : p.t === 'sub' ? <sub key={i} style={{ fontSize: '0.72em', verticalAlign: 'sub', lineHeight: 0 }}>{p.v}</sub>
+        : <span key={i}>{p.v}</span>
+      )}
+    </span>
+  )
+}
 
 function SvgIllustration({ svg_code, M }) {
   if (!svg_code) return null
@@ -34,7 +64,7 @@ function FormulaBlock({ formula, formula_note, M }) {
     }}>
       <div style={{ fontSize: 9, fontWeight: 800, color: M.accentColor, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 6 }}>FORMULA</div>
       <div style={{ fontFamily: 'monospace', fontSize: 16, fontWeight: 700, color: M.accentColor, whiteSpace: 'pre-line', lineHeight: 1.8 }}>
-        {formula}
+        <MathText text={formula} />
       </div>
       {formula_note && (
         <div style={{ fontSize: 11, color: M.textSecondary, marginTop: 8, lineHeight: 1.6, fontFamily: 'Nunito, sans-serif' }}>
@@ -46,15 +76,30 @@ function FormulaBlock({ formula, formula_note, M }) {
 }
 
 function HintBox({ hint, M }) {
+  const [open, setOpen] = React.useState(false)
   if (!hint) return null
   return (
-    <div style={{
-      padding: '10px 14px', background: M.hintBg, borderRadius: 10,
-      borderLeft: `3px solid ${M.accentColor}`, margin: '8px 0',
-    }}>
-      <span style={{ fontSize: 12, color: M.textSecondary, lineHeight: 1.55, fontFamily: 'Nunito, sans-serif' }}>
-        💡 <strong style={{ color: M.textPrimary }}>Key insight:</strong> {hint}
-      </span>
+    <div style={{ margin: '8px 0' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          background: 'none', border: `1.5px dashed ${M.accentColor}50`,
+          borderRadius: 10, padding: '7px 14px', cursor: 'pointer',
+          fontSize: 12, color: M.accentColor, fontWeight: 800,
+          fontFamily: 'Nunito, sans-serif', display: 'flex', alignItems: 'center', gap: 6,
+        }}>
+        💡 {open ? 'Hide hint' : 'Show hint'}
+      </button>
+      {open && (
+        <div style={{
+          marginTop: 6, padding: '10px 14px', background: M.hintBg, borderRadius: 10,
+          borderLeft: `3px solid ${M.accentColor}`,
+        }}>
+          <span style={{ fontSize: 12, color: M.textSecondary, lineHeight: 1.55, fontFamily: 'Nunito, sans-serif' }}>
+            {hint}
+          </span>
+        </div>
+      )}
     </div>
   )
 }
@@ -83,7 +128,7 @@ function StepList({ steps, M, hidden = false }) {
               background: M.mathBg, borderRadius: 9, padding: '9px 12px',
               fontFamily: 'monospace', fontSize: 13, color: M.textPrimary, lineHeight: 1.75, whiteSpace: 'pre-line',
             }}>
-              {s.text || s.content || String(s)}
+              <MathText text={s.text || s.content || String(s)} />
             </div>
           </div>
         </div>
@@ -102,18 +147,16 @@ export default function LessonPlayer({ lesson, subtopic, topic, student, nextSub
   const questions = lesson?.questions || []
   const hook      = lesson?.hook      || slideText(slides[0])?.slice(0, 250)
 
-  // Partition slides by type
   const conceptSlides = slides.filter(s => ['concept', 'definition', 'introduction'].includes(slideType(s)))
   const exampleSlides = slides.filter(s => slideType(s) === 'worked_example')
   const youTrySlide   = slides.find(s => slideType(s) === 'you_try')
 
-  // Steps:  0=hook  1=concept  2=examples  3=you_try  4=practice  5=complete
   const [step,          setStep]          = useState(0)
   const [slideIdx,      setSlideIdx]      = useState(0)
   const [exIdx,         setExIdx]         = useState(0)
   const [solutionShown, setSolutionShown] = useState(false)
   const [qIdx,          setQIdx]          = useState(0)
-  const [phase,         setPhase]         = useState('question') // question | correct | wrong
+  const [phase,         setPhase]         = useState('question')
   const [combo,         setCombo]         = useState(0)
   const [results,       setResults]       = useState([])
   const [completed,     setCompleted]     = useState(false)
@@ -122,8 +165,6 @@ export default function LessonPlayer({ lesson, subtopic, topic, student, nextSub
   const currentExample = exampleSlides[exIdx]
   const currentQ       = questions[qIdx]
 
-  // Progress bar
-  const STEPS = [0, 1, 2, 3, 4, 5]
   const progressPct =
     step === 0 ? 3
     : step === 1 ? Math.round(5  + (slideIdx / Math.max(conceptSlides.length, 1)) * 35)
@@ -132,23 +173,19 @@ export default function LessonPlayer({ lesson, subtopic, topic, student, nextSub
     : step === 4 ? Math.round(62 + (qIdx / Math.max(questions.length, 1)) * 35)
     : 100
 
-  // ── answer handler ──────────────────────────────────────────────────────────
   function handleAnswer(opt) {
     const correct = opt.is_correct
     const newResults = [...results, correct]
     setResults(newResults)
     if (correct) {
       setCombo(c => c + 1)
-      setPhase('correct')
-      setTimeout(() => {
-        setPhase('question')
-        if (qIdx + 1 < questions.length) {
-          setQIdx(i => i + 1)
-        } else {
-          const accuracy = Math.round(newResults.filter(Boolean).length / newResults.length * 100)
-          completeLesson(accuracy)
-        }
-      }, 1600)
+      // Advance immediately — no delay animation
+      if (qIdx + 1 < questions.length) {
+        setQIdx(i => i + 1)
+      } else {
+        const accuracy = Math.round(newResults.filter(Boolean).length / newResults.length * 100)
+        completeLesson(accuracy)
+      }
     } else {
       setCombo(0)
       setPhase('wrong')
@@ -168,7 +205,6 @@ export default function LessonPlayer({ lesson, subtopic, topic, student, nextSub
       completed_at: new Date().toISOString(),
     }, { onConflict: 'student_id,subtopic_id' })
 
-    // Fetch current XP using auth user to satisfy RLS
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
@@ -183,7 +219,6 @@ export default function LessonPlayer({ lesson, subtopic, topic, student, nextSub
     } catch (e) { console.error('[lesson] XP error:', e.message) }
   }
 
-  // ── Shared styles ───────────────────────────────────────────────────────────
   const card = {
     background: M.lessonCard,
     border: M.lessonBorder,
@@ -193,7 +228,7 @@ export default function LessonPlayer({ lesson, subtopic, topic, student, nextSub
   }
   const accent = M.accentColor
 
-  // ── TOP BAR ─────────────────────────────────────────────────────────────────
+  // ── TOP BAR ──────────────────────────────────────────────────────────────────
   const TopBar = (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', flexShrink: 0,
@@ -226,10 +261,9 @@ export default function LessonPlayer({ lesson, subtopic, topic, student, nextSub
     </div>
   )
 
-  // ── STEP 0: Hook ─────────────────────────────────────────────────────────────
+  // ── STEP 0: Hook ──────────────────────────────────────────────────────────────
   const HookStep = (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '16px 16px 14px', gap: 12, overflowY: 'auto', animation: 'slideUp 0.3s ease' }}>
-      {/* Title card */}
       <div style={{ ...card, background: `linear-gradient(135deg,${accent}15,${accent}08)`, borderColor: `${accent}40` }}>
         <div style={{ fontSize: 10, fontWeight: 800, color: accent, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 8 }}>
           Today's Lesson
@@ -242,7 +276,6 @@ export default function LessonPlayer({ lesson, subtopic, topic, student, nextSub
         </div>
       </div>
 
-      {/* Mascot + hook */}
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12 }}>
         <BicPencil pose="happy" size={64} style={{ flexShrink: 0 }} />
         <div style={{ ...card, flex: 1, padding: '12px 14px', borderLeft: `3px solid ${accent}` }}>
@@ -250,22 +283,6 @@ export default function LessonPlayer({ lesson, subtopic, topic, student, nextSub
             {hook || M.hookPhrase}
           </div>
         </div>
-      </div>
-
-      {/* Stats row */}
-      <div style={{ display: 'flex', gap: 8 }}>
-        {[
-          { label: 'Slides',     value: conceptSlides.length, icon: '📖' },
-          { label: 'Examples',   value: exampleSlides.length + (youTrySlide ? 1 : 0), icon: '✍️' },
-          { label: 'Questions',  value: questions.length, icon: '🎯' },
-          { label: 'XP',         value: '+10', icon: '⚡' },
-        ].map(({ label, value, icon }) => (
-          <div key={label} style={{ ...card, flex: 1, textAlign: 'center', padding: '10px 4px' }}>
-            <div style={{ fontSize: 15, marginBottom: 2 }}>{icon}</div>
-            <div style={{ fontFamily: M.headingFont, fontSize: 15, fontWeight: 900, color: M.textPrimary }}>{value}</div>
-            <div style={{ fontSize: 9, color: M.textSecondary, fontFamily: 'Nunito, sans-serif' }}>{label}</div>
-          </div>
-        ))}
       </div>
 
       <button onClick={() => setStep(conceptSlides.length > 0 ? 1 : exampleSlides.length > 0 ? 2 : 4)}
@@ -279,7 +296,7 @@ export default function LessonPlayer({ lesson, subtopic, topic, student, nextSub
     </div>
   )
 
-  // ── STEP 1: Concept slides ───────────────────────────────────────────────────
+  // ── STEP 1: Concept slides ────────────────────────────────────────────────────
   const typeLabel = { concept: 'The Big Idea', definition: 'Key Terms', introduction: 'Introduction', summary: 'Key Takeaway' }
 
   const ConceptStep = conceptSlides.length > 0 ? (
@@ -332,7 +349,7 @@ export default function LessonPlayer({ lesson, subtopic, topic, student, nextSub
     </div>
   ) : null
 
-  // ── STEP 2: Worked examples ──────────────────────────────────────────────────
+  // ── STEP 2: Worked examples ───────────────────────────────────────────────────
   const ExampleStep = (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '12px 16px', gap: 10, animation: 'slideUp 0.3s ease', overflowY: 'auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
@@ -354,7 +371,6 @@ export default function LessonPlayer({ lesson, subtopic, topic, student, nextSub
           {currentExample?.title}
         </div>
 
-        {/* Problem statement */}
         <div style={{ background: `${accent}0D`, border: `1.5px solid ${accent}25`, borderRadius: 10, padding: '12px 14px' }}>
           <div style={{ fontSize: 10, fontWeight: 800, color: accent, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>Problem</div>
           <div style={{ fontSize: 13, color: M.textPrimary, lineHeight: 1.7, fontFamily: 'Nunito, sans-serif' }}>
@@ -364,7 +380,6 @@ export default function LessonPlayer({ lesson, subtopic, topic, student, nextSub
 
         <SvgIllustration svg_code={currentExample?.svg_code} M={M} />
 
-        {/* Solution steps */}
         <div>
           <div style={{ fontSize: 10, fontWeight: 800, color: M.textSecondary, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>Solution</div>
           <StepList steps={currentExample?.steps} M={M} />
@@ -391,7 +406,7 @@ export default function LessonPlayer({ lesson, subtopic, topic, student, nextSub
     </div>
   )
 
-  // ── STEP 3: You Try ──────────────────────────────────────────────────────────
+  // ── STEP 3: You Try ───────────────────────────────────────────────────────────
   const YouTryStep = youTrySlide ? (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '12px 16px', gap: 10, animation: 'slideUp 0.3s ease', overflowY: 'auto' }}>
       <div style={{ fontSize: 10, fontWeight: 800, color: '#EF5350', letterSpacing: 1.2, textTransform: 'uppercase', fontFamily: M.headingFont, flexShrink: 0 }}>
@@ -403,7 +418,6 @@ export default function LessonPlayer({ lesson, subtopic, topic, student, nextSub
           {youTrySlide.title}
         </div>
 
-        {/* Problem */}
         <div style={{ background: 'rgba(239,83,80,0.07)', border: '1.5px solid rgba(239,83,80,0.25)', borderRadius: 10, padding: '12px 14px' }}>
           <div style={{ fontSize: 10, fontWeight: 800, color: '#EF5350', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>Your Problem</div>
           <div style={{ fontSize: 13, color: M.textPrimary, lineHeight: 1.7, fontFamily: 'Nunito, sans-serif' }}>
@@ -413,10 +427,8 @@ export default function LessonPlayer({ lesson, subtopic, topic, student, nextSub
 
         <SvgIllustration svg_code={youTrySlide?.svg_code} M={M} />
 
-        {/* Hint always visible */}
         <HintBox hint={youTrySlide?.hint} M={M} />
 
-        {/* Solution reveal */}
         {!solutionShown ? (
           <button onClick={() => setSolutionShown(true)} style={{
             ...M.ghostBtn, borderStyle: 'dashed',
@@ -445,7 +457,7 @@ export default function LessonPlayer({ lesson, subtopic, topic, student, nextSub
     </div>
   ) : null
 
-  // ── STEP 4: Practice (MCQ) ──────────────────────────────────────────────────
+  // ── STEP 4: Practice (MCQ) ────────────────────────────────────────────────────
   const diffColor = { easy: '#26A69A', medium: '#FFA726', hard: '#EF5350' }
 
   const PracticeStep = questions.length > 0 ? (
@@ -476,48 +488,38 @@ export default function LessonPlayer({ lesson, subtopic, topic, student, nextSub
           </div>
         )}
         <div style={{ fontSize: 14, fontWeight: 800, color: M.textPrimary, lineHeight: 1.6, fontFamily: 'Nunito, sans-serif' }}>
-          {currentQ?.question_text}
+          <MathText text={currentQ?.question_text} />
         </div>
-        {currentQ?.hint && phase === 'question' && (
-          <div style={{ marginTop: 8, fontSize: 11, color: M.textSecondary, fontFamily: 'Nunito, sans-serif' }}>
-            💡 {currentQ.hint}
-          </div>
-        )}
+        {phase === 'question' && <HintBox hint={currentQ?.hint} M={M} />}
       </div>
 
-      {/* Mascot speech */}
+      {/* Mascot */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-        <BicPencil pose={phase === 'correct' ? 'celebrate' : phase === 'wrong' ? 'wrong' : 'think'} size={52} style={{ flexShrink: 0 }} />
+        <BicPencil pose={phase === 'wrong' ? 'wrong' : 'think'} size={44} style={{ flexShrink: 0 }} />
         <div style={{
-          flex: 1, padding: '8px 14px',
-          background: phase === 'correct' ? `${M.correctColor}15`
-            : phase === 'wrong' ? `${M.wrongColor}12` : M.lessonCard,
-          border: `1.5px solid ${phase === 'correct' ? M.correctColor
-            : phase === 'wrong' ? M.wrongColor : `${accent}20`}`,
-          borderRadius: 14,
+          flex: 1, padding: '7px 12px',
+          background: phase === 'wrong' ? `${M.wrongColor}10` : M.lessonCard,
+          border: `1.5px solid ${phase === 'wrong' ? M.wrongColor : `${accent}20`}`,
+          borderRadius: 12,
           fontSize: 12, fontWeight: 700, fontFamily: 'Nunito, sans-serif',
-          color: phase === 'correct' ? M.correctColor : phase === 'wrong' ? M.wrongColor : M.textSecondary,
+          color: phase === 'wrong' ? M.wrongColor : M.textSecondary,
         }}>
-          {phase === 'correct' ? M.correctPhrase
-            : phase === 'wrong' ? M.wrongPhrase
-            : 'Pick the correct answer'}
+          {phase === 'wrong' ? M.wrongPhrase : 'Pick the correct answer 👆'}
         </div>
       </div>
 
-      {/* Wrong answer — step-by-step explanation, shown immediately */}
+      {/* Wrong answer — explanation */}
       {phase === 'wrong' && currentQ?.explanation && (
         <div style={{ ...card, background: `${M.wrongColor}06`, borderColor: `${M.wrongColor}30`, flexShrink: 0, padding: '14px' }}>
-          {/* Correct answer highlighted first */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, padding: '8px 12px', background: `${M.correctColor}12`, borderRadius: 8, border: `1px solid ${M.correctColor}30` }}>
             <span style={{ fontSize: 14 }}>✅</span>
             <div>
               <div style={{ fontSize: 9, fontWeight: 800, color: M.correctColor, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>Correct Answer</div>
               <div style={{ fontSize: 13, fontWeight: 800, color: M.correctColor, fontFamily: 'Nunito, sans-serif' }}>
-                {(currentQ.options || []).find(o => o.is_correct)?.option_text}
+                <MathText text={(currentQ.options || []).find(o => o.is_correct)?.option_text} />
               </div>
             </div>
           </div>
-          {/* Step-by-step solution */}
           <div style={{ fontSize: 10, fontWeight: 800, color: M.wrongColor, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
             Solution — step by step
           </div>
@@ -567,7 +569,7 @@ export default function LessonPlayer({ lesson, subtopic, topic, student, nextSub
                   fontSize: 11, fontWeight: 900,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>{letters[i]}</span>
-                <span style={{ fontSize: 12, lineHeight: 1.3 }}>{opt.option_text || opt.text}</span>
+                <MathText text={opt.option_text || opt.text} style={{ fontSize: 12, lineHeight: 1.3 }} />
               </button>
             )
           })}
@@ -575,10 +577,27 @@ export default function LessonPlayer({ lesson, subtopic, topic, student, nextSub
       )}
 
       {phase === 'wrong' && (
-        <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-          <button onClick={() => setPhase('question')} style={{ ...M.primaryBtn, flex: 1 }}>
-            Got it — try again ↩
-          </button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setPhase('question')} style={{ ...M.ghostBtn, flex: 1, fontSize: 13 }}>
+              ↩ Try again
+            </button>
+            <button
+              onClick={() => {
+                setPhase('question')
+                const newResults = [...results, false]
+                setResults(newResults)
+                if (qIdx + 1 < questions.length) {
+                  setQIdx(i => i + 1)
+                } else {
+                  const accuracy = Math.round(newResults.filter(Boolean).length / newResults.length * 100)
+                  completeLesson(accuracy)
+                }
+              }}
+              style={{ ...M.primaryBtn, flex: 1, fontSize: 13 }}>
+              Next Question →
+            </button>
+          </div>
           <button
             onClick={async () => {
               if (!currentQ?.id) return
@@ -589,23 +608,22 @@ export default function LessonPlayer({ lesson, subtopic, topic, student, nextSub
                 status: 'open',
               })
             }}
-            title="Report this question"
             style={{
-              background: 'none', border: `1px solid ${M.wrongColor}40`, borderRadius: M.cardRadius,
-              padding: '8px 12px', color: M.wrongColor, cursor: 'pointer', fontSize: 13, flexShrink: 0,
-            }}>🚩</button>
+              background: 'none', border: `1px solid ${M.wrongColor}30`, borderRadius: M.cardRadius,
+              padding: '6px 12px', color: M.wrongColor, cursor: 'pointer', fontSize: 12,
+              fontFamily: 'Nunito, sans-serif',
+            }}>🚩 Report question</button>
         </div>
       )}
     </div>
   ) : null
 
-  // ── STEP 5: Complete ─────────────────────────────────────────────────────────
+  // ── STEP 5: Complete ──────────────────────────────────────────────────────────
   const accuracy = results.length > 0
     ? Math.round(results.filter(Boolean).length / results.length * 100)
     : 100
 
   const xpEarned = 10
-  const isNova  = mode === 'nova'
   const isBlaze = mode === 'blaze'
   const isRoots = mode === 'roots'
   const isSpark = mode === 'spark'
@@ -622,8 +640,6 @@ export default function LessonPlayer({ lesson, subtopic, topic, student, nextSub
       justifyContent: 'center', padding: '0 24px 24px',
       background: M.lessonBg, overflow: 'hidden', position: 'relative',
     }}>
-
-      {/* Confetti dots — pure CSS */}
       {accuracy >= 60 && [
         { left: '10%', top: '12%', color: '#C8F135', size: 10, delay: 0 },
         { left: '85%', top: '8%',  color: '#FFC933', size: 8,  delay: 0.1 },
@@ -642,12 +658,10 @@ export default function LessonPlayer({ lesson, subtopic, topic, student, nextSub
         }} />
       ))}
 
-      {/* Trophy / mascot */}
       <div style={{ animation: 'float 2.5s ease-in-out infinite', marginBottom: 8 }}>
         <BicPencil pose={accuracy >= 60 ? 'celebrate' : 'think'} size={110} />
       </div>
 
-      {/* Lesson complete heading */}
       <div style={{
         fontFamily: M.headingFont, fontSize: 28, fontWeight: 900,
         color: M.textPrimary, textAlign: 'center', lineHeight: 1.15, marginBottom: 4,
@@ -661,7 +675,6 @@ export default function LessonPlayer({ lesson, subtopic, topic, student, nextSub
         {completeMsg}
       </div>
 
-      {/* Big XP display — Brilliant style */}
       <div style={{
         display: 'flex', flexDirection: 'column', alignItems: 'center',
         background: isBlaze ? '#FFD700' : `${accent}12`,
@@ -675,7 +688,7 @@ export default function LessonPlayer({ lesson, subtopic, topic, student, nextSub
           fontSize: 11, fontWeight: 800, letterSpacing: 1.5,
           textTransform: 'uppercase', color: isBlaze ? '#0d0d0d' : M.textSecondary,
           fontFamily: 'Nunito, sans-serif', marginBottom: 4,
-        }}>TOTAL XP</div>
+        }}>XP EARNED</div>
         <div style={{
           fontSize: 52, fontWeight: 900, color: isBlaze ? '#0d0d0d' : '#FFC933',
           fontFamily: M.headingFont, lineHeight: 1, letterSpacing: -1,
@@ -685,7 +698,6 @@ export default function LessonPlayer({ lesson, subtopic, topic, student, nextSub
         </div>
       </div>
 
-      {/* Stats row */}
       <div style={{ display: 'flex', gap: 10, width: '100%', maxWidth: 300, marginBottom: 24 }}>
         {[
           { label: 'Accuracy', value: `${accuracy}%`, color: accuracy >= 80 ? M.correctColor : '#FFA726' },
@@ -702,7 +714,6 @@ export default function LessonPlayer({ lesson, subtopic, topic, student, nextSub
         ))}
       </div>
 
-      {/* Action buttons */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 320 }}>
         {nextSubtopicId ? (
           <button
@@ -724,28 +735,9 @@ export default function LessonPlayer({ lesson, subtopic, topic, student, nextSub
     </div>
   )
 
-  // ── Correct flash overlay ────────────────────────────────────────────────────
-  const CorrectOverlay = phase === 'correct' && step === 4 && (
-    <div style={{
-      position: 'absolute', inset: 0, zIndex: 20, pointerEvents: 'none',
-      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      background: `${M.correctColor}18`, animation: 'pop 0.3s ease',
-    }}>
-      <div style={{ fontFamily: M.headingFont, fontSize: 28, fontWeight: 900, color: M.correctColor, animation: 'float 0.5s ease' }}>
-        {M.correctPhrase}
-      </div>
-      <div style={{ fontSize: 13, color: M.textSecondary, fontFamily: 'Nunito, sans-serif', marginTop: 6 }}>+10 XP!</div>
-    </div>
-  )
-
-  // ── Root render ──────────────────────────────────────────────────────────────
+  // ── Root render ───────────────────────────────────────────────────────────────
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', fontFamily: M.font, background: M.lessonBg, position: 'relative', overflow: 'hidden' }}>
-      {/* Flash overlays */}
-      {phase === 'correct' && <div style={{ position: 'absolute', inset: 0, background: `${M.correctColor}12`, zIndex: 10, pointerEvents: 'none', animation: 'pulse 0.3s ease' }} />}
-      {phase === 'wrong'   && <div style={{ position: 'absolute', inset: 0, background: `${M.wrongColor}08`,   zIndex: 10, pointerEvents: 'none', animation: 'pulse 0.3s ease' }} />}
-
-      {/* Top progress strip */}
       <div style={{ height: 4, background: M.progressTrack, flexShrink: 0 }}>
         <div style={{ width: `${progressPct}%`, height: '100%', background: accent, transition: 'width 0.4s ease', borderRadius: '0 2px 2px 0' }} />
       </div>
@@ -759,7 +751,6 @@ export default function LessonPlayer({ lesson, subtopic, topic, student, nextSub
         {step === 3 && (YouTryStep || <div style={{ flex: 1 }} />)}
         {step === 4 && (PracticeStep || CompleteStep)}
         {step === 5 && CompleteStep}
-        {CorrectOverlay}
       </div>
     </div>
   )
