@@ -159,17 +159,28 @@ export default function LessonPlayer({ lesson, subtopic, topic, student, nextSub
     setStep(5)
     setCompleted(true)
     if (!student?.id || !subtopic?.id) return
+
     await supabase.from('student_progress').upsert({
-      student_id:  student.id,
-      subtopic_id: subtopic.id,
-      status:      'completed',
-      score:       accuracy,
+      student_id:   student.id,
+      subtopic_id:  subtopic.id,
+      status:       'completed',
+      score:        accuracy,
       completed_at: new Date().toISOString(),
     }, { onConflict: 'student_id,subtopic_id' })
-    await supabase.from('students').update({
-      xp:         (student.xp || 0) + 10,
-      monthly_xp: (student.monthly_xp || 0) + 10,
-    }).eq('id', student.id)
+
+    // Fetch current XP using auth user to satisfy RLS
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: fresh } = await supabase
+          .from('students').select('xp, monthly_xp').eq('profile_id', user.id).single()
+        const { error: xpErr } = await supabase.from('students').update({
+          xp:         (fresh?.xp        || 0) + 10,
+          monthly_xp: (fresh?.monthly_xp || 0) + 10,
+        }).eq('profile_id', user.id)
+        if (xpErr) console.error('[lesson] XP update error:', xpErr.message)
+      }
+    } catch (e) { console.error('[lesson] XP error:', e.message) }
   }
 
   // ── Shared styles ───────────────────────────────────────────────────────────
@@ -493,12 +504,37 @@ export default function LessonPlayer({ lesson, subtopic, topic, student, nextSub
         </div>
       </div>
 
-      {/* Wrong answer explanation */}
+      {/* Wrong answer — step-by-step explanation, shown immediately */}
       {phase === 'wrong' && currentQ?.explanation && (
-        <div style={{ ...card, background: `${M.wrongColor}08`, borderColor: `${M.wrongColor}30`, flexShrink: 0 }}>
-          <div style={{ fontSize: 10, fontWeight: 800, color: M.wrongColor, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Explanation</div>
-          <div style={{ fontSize: 12, color: M.textSecondary, lineHeight: 1.7, fontFamily: 'Nunito, sans-serif' }}>
-            {currentQ.explanation}
+        <div style={{ ...card, background: `${M.wrongColor}06`, borderColor: `${M.wrongColor}30`, flexShrink: 0, padding: '14px' }}>
+          {/* Correct answer highlighted first */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, padding: '8px 12px', background: `${M.correctColor}12`, borderRadius: 8, border: `1px solid ${M.correctColor}30` }}>
+            <span style={{ fontSize: 14 }}>✅</span>
+            <div>
+              <div style={{ fontSize: 9, fontWeight: 800, color: M.correctColor, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>Correct Answer</div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: M.correctColor, fontFamily: 'Nunito, sans-serif' }}>
+                {(currentQ.options || []).find(o => o.is_correct)?.option_text}
+              </div>
+            </div>
+          </div>
+          {/* Step-by-step solution */}
+          <div style={{ fontSize: 10, fontWeight: 800, color: M.wrongColor, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+            Solution — step by step
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {(currentQ.explanation.split(/\n+/).filter(Boolean).length > 1
+              ? currentQ.explanation.split(/\n+/).filter(Boolean)
+              : currentQ.explanation.split(/(?<=\.\s)(?=[A-Z1-9])|(?=\d+\.\s)/).filter(s => s.trim())
+            ).map((step, i) => (
+              <div key={i} style={{ display: 'table', width: '100%', tableLayout: 'fixed' }}>
+                <div style={{ display: 'table-cell', verticalAlign: 'top', width: 30, paddingTop: 8, paddingRight: 6 }}>
+                  <div style={{ width: 22, height: 22, borderRadius: '50%', background: accent, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 900 }}>{i + 1}</div>
+                </div>
+                <div style={{ display: 'table-cell', verticalAlign: 'top', background: M.mathBg || 'rgba(0,0,0,0.03)', borderRadius: 8, padding: '8px 12px', fontSize: 12, fontWeight: 700, color: M.textPrimary, lineHeight: 1.8, fontFamily: 'Nunito, sans-serif', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}>
+                  {step.trim()}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -539,9 +575,26 @@ export default function LessonPlayer({ lesson, subtopic, topic, student, nextSub
       )}
 
       {phase === 'wrong' && (
-        <button onClick={() => setPhase('question')} style={{ ...M.primaryBtn, flexShrink: 0 }}>
-          Got it — try again ↩
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+          <button onClick={() => setPhase('question')} style={{ ...M.primaryBtn, flex: 1 }}>
+            Got it — try again ↩
+          </button>
+          <button
+            onClick={async () => {
+              if (!currentQ?.id) return
+              await supabase.from('flagged_questions').insert({
+                question_id: currentQ.id,
+                student_id: student?.id || null,
+                reason: 'Seems incorrect or unclear',
+                status: 'open',
+              })
+            }}
+            title="Report this question"
+            style={{
+              background: 'none', border: `1px solid ${M.wrongColor}40`, borderRadius: M.cardRadius,
+              padding: '8px 12px', color: M.wrongColor, cursor: 'pointer', fontSize: 13, flexShrink: 0,
+            }}>🚩</button>
+        </div>
       )}
     </div>
   ) : null
@@ -551,42 +604,120 @@ export default function LessonPlayer({ lesson, subtopic, topic, student, nextSub
     ? Math.round(results.filter(Boolean).length / results.length * 100)
     : 100
 
+  const xpEarned = 10
+  const isNova  = mode === 'nova'
+  const isBlaze = mode === 'blaze'
+  const isRoots = mode === 'roots'
+  const isSpark = mode === 'spark'
+
+  const completeMsg =
+    accuracy === 100 ? (isRoots ? 'You sabi! Perfect score! 🇳🇬' : isBlaze ? 'PERFECT. FLAWLESS.' : 'Perfect score! 🏆')
+    : accuracy >= 80 ? (isRoots ? 'You do well! Keep going! 💪' : isBlaze ? 'SOLID WORK. KEEP GOING.' : 'Excellent work!')
+    : accuracy >= 60 ? (isRoots ? 'Good try! Practice more!' : 'Good effort — keep going!')
+    : (isRoots ? 'No worry — try again! 💪' : 'Keep practising — you\'ll get there!')
+
   const CompleteStep = (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      padding: '24px 20px', gap: 16, animation: 'slideUp 0.4s ease', textAlign: 'center' }}>
-      <div style={{ animation: 'float 2s ease-in-out infinite' }}>
-        <BicPencil pose="celebrate" size={100} />
+    <div style={{
+      flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
+      justifyContent: 'center', padding: '0 24px 24px',
+      background: M.lessonBg, overflow: 'hidden', position: 'relative',
+    }}>
+
+      {/* Confetti dots — pure CSS */}
+      {accuracy >= 60 && [
+        { left: '10%', top: '12%', color: '#C8F135', size: 10, delay: 0 },
+        { left: '85%', top: '8%',  color: '#FFC933', size: 8,  delay: 0.1 },
+        { left: '25%', top: '18%', color: accent,    size: 12, delay: 0.2 },
+        { left: '70%', top: '20%', color: '#FF6B6B', size: 7,  delay: 0.15 },
+        { left: '50%', top: '6%',  color: '#C8F135', size: 9,  delay: 0.05 },
+        { left: '90%', top: '30%', color: accent,    size: 6,  delay: 0.25 },
+        { left: '5%',  top: '35%', color: '#FFC933', size: 11, delay: 0.18 },
+      ].map((c, i) => (
+        <div key={i} style={{
+          position: 'absolute', left: c.left, top: c.top,
+          width: c.size, height: c.size, borderRadius: '50%',
+          background: c.color, opacity: 0.7,
+          animation: `float ${1.5 + i * 0.3}s ease-in-out ${c.delay}s infinite alternate`,
+          pointerEvents: 'none',
+        }} />
+      ))}
+
+      {/* Trophy / mascot */}
+      <div style={{ animation: 'float 2.5s ease-in-out infinite', marginBottom: 8 }}>
+        <BicPencil pose={accuracy >= 60 ? 'celebrate' : 'think'} size={110} />
       </div>
-      <div style={{ fontFamily: M.headingFont, fontSize: 26, fontWeight: 900, color: M.textPrimary, lineHeight: 1.2 }}>
-        {accuracy >= 80 ? '🎉 Lesson Complete!' : accuracy >= 60 ? '✅ Good effort!' : '📚 Keep practising!'}
+
+      {/* Lesson complete heading */}
+      <div style={{
+        fontFamily: M.headingFont, fontSize: 28, fontWeight: 900,
+        color: M.textPrimary, textAlign: 'center', lineHeight: 1.15, marginBottom: 4,
+      }}>
+        {accuracy >= 60 ? (isBlaze ? 'LESSON COMPLETE' : 'Lesson Complete!') : 'Lesson Done'}
       </div>
-      <div style={{ fontSize: 14, color: M.textSecondary, fontFamily: 'Nunito, sans-serif', lineHeight: 1.6 }}>
-        You scored <strong style={{ color: accent }}>{accuracy}%</strong> on the quiz and earned <strong style={{ color: '#FFC933' }}>+10 XP</strong>!
+      <div style={{
+        fontSize: 13, color: M.textSecondary, fontFamily: 'Nunito, sans-serif',
+        textAlign: 'center', lineHeight: 1.6, marginBottom: 20, maxWidth: 280,
+      }}>
+        {completeMsg}
+      </div>
+
+      {/* Big XP display — Brilliant style */}
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        background: isBlaze ? '#FFD700' : `${accent}12`,
+        border: isBlaze ? '2px solid #0d0d0d' : `1.5px solid ${accent}30`,
+        borderRadius: isBlaze ? 12 : 20,
+        padding: '18px 40px', marginBottom: 20,
+        boxShadow: isBlaze ? '3px 3px 0 #0d0d0d' : `0 4px 20px ${accent}20`,
+        minWidth: 160,
+      }}>
+        <div style={{
+          fontSize: 11, fontWeight: 800, letterSpacing: 1.5,
+          textTransform: 'uppercase', color: isBlaze ? '#0d0d0d' : M.textSecondary,
+          fontFamily: 'Nunito, sans-serif', marginBottom: 4,
+        }}>TOTAL XP</div>
+        <div style={{
+          fontSize: 52, fontWeight: 900, color: isBlaze ? '#0d0d0d' : '#FFC933',
+          fontFamily: M.headingFont, lineHeight: 1, letterSpacing: -1,
+        }}>
+          +{xpEarned}
+          <span style={{ fontSize: 22, marginLeft: 6 }}>✨</span>
+        </div>
       </div>
 
       {/* Stats row */}
-      <div style={{ display: 'flex', gap: 12, width: '100%', maxWidth: 320 }}>
+      <div style={{ display: 'flex', gap: 10, width: '100%', maxWidth: 300, marginBottom: 24 }}>
         {[
           { label: 'Accuracy', value: `${accuracy}%`, color: accuracy >= 80 ? M.correctColor : '#FFA726' },
-          { label: 'XP Earned', value: '+10', color: '#FFC933' },
-          { label: 'Combo', value: `×${combo}`, color: accent },
+          { label: 'Questions', value: `${results.filter(Boolean).length}/${results.length || questions.length}`, color: accent },
+          { label: 'Streak',   value: `×${combo}`,   color: combo >= 3 ? '#FFC933' : M.textSecondary },
         ].map(({ label, value, color }) => (
-          <div key={label} style={{ flex: 1, ...card, textAlign: 'center', padding: '12px 6px' }}>
-            <div style={{ fontSize: 18, fontWeight: 900, color, fontFamily: M.headingFont }}>{value}</div>
-            <div style={{ fontSize: 10, color: M.textSecondary, fontFamily: 'Nunito, sans-serif' }}>{label}</div>
+          <div key={label} style={{
+            flex: 1, background: M.lessonCard, border: M.lessonBorder,
+            borderRadius: M.cardRadius, textAlign: 'center', padding: '10px 4px',
+          }}>
+            <div style={{ fontSize: 16, fontWeight: 900, color, fontFamily: M.headingFont }}>{value}</div>
+            <div style={{ fontSize: 9, color: M.textSecondary, fontFamily: 'Nunito, sans-serif', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
           </div>
         ))}
       </div>
 
+      {/* Action buttons */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 320 }}>
-        {nextSubtopicId && (
-          <button onClick={() => router.push(`/learn/lesson/${nextSubtopicId}`)}
-            style={{ ...M.primaryBtn, fontSize: 15 }}>
-            {mode === 'blaze' ? '⚡ NEXT MISSION!' : 'Next Lesson →'}
+        {nextSubtopicId ? (
+          <button
+            onClick={() => router.push(`/learn/lesson/${nextSubtopicId}`)}
+            style={{ ...M.primaryBtn, fontSize: 16, padding: '16px' }}>
+            {isBlaze ? '⚡ NEXT MISSION!' : isSpark ? '✨ Continue!' : isRoots ? '🇳🇬 Next Lesson' : 'Continue →'}
+          </button>
+        ) : (
+          <button
+            onClick={() => router.push('/learn')}
+            style={{ ...M.primaryBtn, fontSize: 16, padding: '16px' }}>
+            {isBlaze ? '⚡ BACK TO MAP' : '🗺️ Back to Learn Map'}
           </button>
         )}
-        <button onClick={() => router.push('/learn')}
-          style={{ ...M.ghostBtn, fontSize: 14 }}>
+        <button onClick={() => router.push('/learn')} style={{ ...M.ghostBtn, fontSize: 14 }}>
           Back to Learn Map
         </button>
       </div>

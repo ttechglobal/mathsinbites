@@ -7,14 +7,36 @@ import { BicPencil } from '@/components/BiteMarkIcon'
 import { createClient } from '@/lib/supabase/client'
 
 const DIFF_COLOR = { easy: '#C8F135', medium: '#FFC933', hard: '#FF6B6B' }
-const TIMER_SECS = 30
+const TIMER_SECS = 60   // 60 seconds per question
 
-function getMascotMsg(streak, timeLeft, wrongCount, mode) {
-  if (streak >= 5) return { pose:'celebrate', msg: mode==='blaze'?`⚡ ${streak} IN A ROW! UNSTOPPABLE!`:mode==='roots'?`🇳🇬 ${streak} correct! You too much!`:`🔥 ${streak} in a row — on fire!` }
-  if (streak >= 3) return { pose:'celebrate', msg: mode==='roots'?`Oya! ${streak} correct, you dey try!`:`${streak} correct — great momentum! 🎯` }
-  if (wrongCount >= 3) return { pose:'think', msg: mode==='roots'?`E dey hard, but you fit do am! 💪`:`Tough session — keep pushing! 💪` }
-  if (timeLeft <= 7 && timeLeft > 0) return { pose:'think', msg: mode==='blaze'?`HURRY!! RUNNING OUT OF TIME!`:`⏰ Hurry — ${timeLeft}s left!` }
-  return { pose:'idle', msg: mode==='blaze'?`ANSWER FAST! CLOCK IS TICKING!`:mode==='roots'?`Think am well, then answer! 🇳🇬`:`Think it through — ${TIMER_SECS}s per question! ⏱` }
+function parseSteps(text) {
+  if (!text) return []
+  const byNewline = text.split(/\n+/).map(s => s.trim()).filter(Boolean)
+  if (byNewline.length > 1) return byNewline
+  const numbered = text.split(/(?=(?:Step\s+)?\d+[\.\):\-]\s)/i).map(s => s.trim()).filter(Boolean)
+  if (numbered.length > 1) return numbered
+  const bySentence = text.split(/(?<=[.!?])\s+(?=[A-Z∴∵])/).map(s => s.trim()).filter(Boolean)
+  return bySentence.length > 1 ? bySentence : [text]
+}
+
+function StepExplanation({ text, M }) {
+  const steps = parseSteps(text)
+  const accent = M.accentColor
+  if (steps.length === 1) {
+    return <div style={{ fontSize:13, color:M.textSecondary, lineHeight:1.9, fontFamily:'Nunito,sans-serif', whiteSpace:'pre-wrap', overflowWrap:'break-word' }}>{text}</div>
+  }
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+      {steps.map((step, i) => (
+        <div key={i} style={{ display:'table', width:'100%', tableLayout:'fixed' }}>
+          <div style={{ display:'table-cell', verticalAlign:'top', width:32, paddingTop:8, paddingRight:6 }}>
+            <div style={{ width:22, height:22, borderRadius:'50%', background:accent, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:900 }}>{i+1}</div>
+          </div>
+          <div style={{ display:'table-cell', verticalAlign:'top', background:M.mathBg||'rgba(0,0,0,0.03)', borderRadius:8, padding:'8px 12px', fontSize:13, fontWeight:700, color:M.textPrimary, lineHeight:1.85, fontFamily:'Nunito,sans-serif', whiteSpace:'pre-wrap', overflowWrap:'break-word', wordBreak:'break-word' }}>{step}</div>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 export default function ChallengeMode({ questions, topicTitle, topicId, student, isDaily, dailyDone }) {
@@ -22,35 +44,45 @@ export default function ChallengeMode({ questions, topicTitle, topicId, student,
   const { M, mode } = useMode()
   const supabase = createClient()
 
+  // answers: array of { correct, timeTaken } — only recorded when user submits
   const [qIdx,         setQIdx]         = useState(0)
-  const [phase,        setPhase]        = useState('question')
+  const [phase,        setPhase]        = useState('question')  // question | selected | done
   const [streak,       setStreak]       = useState(0)
-  const [wrongCount,   setWrongCount]   = useState(0)
-  const [results,      setResults]      = useState([])
+  const [results,      setResults]      = useState([])          // { correct, timeTaken, questionId }
   const [xpEarned,     setXpEarned]     = useState(0)
   const [timeLeft,     setTimeLeft]     = useState(TIMER_SECS)
   const [selectedOpt,  setSelectedOpt]  = useState(null)
   const [dailyAwarded, setDailyAwarded] = useState(false)
-  const timerRef = useRef(null)
+  const [reviewIdx,    setReviewIdx]    = useState(0)
+  const [showWhy,      setShowWhy]      = useState({})
+  const timerRef  = useRef(null)
+  const startRef  = useRef(Date.now())   // track when question started
 
-  const currentQ   = questions[qIdx]
-  const accent     = M.accentColor
-  const card       = { background:M.lessonCard, border:M.lessonBorder, borderRadius:M.cardRadius, boxShadow:M.cardShadow }
-  const mascot     = getMascotMsg(streak, timeLeft, wrongCount, mode)
-  const letters    = ['A','B','C','D']
+  const currentQ = questions[qIdx]
+  const accent   = M.accentColor
+  const card     = { background:M.lessonCard, border:M.lessonBorder, borderRadius:M.cardRadius, boxShadow:M.cardShadow }
+  const letters  = ['A','B','C','D']
 
   // Per-question countdown timer
   useEffect(() => {
     if (phase !== 'question') return
     setTimeLeft(TIMER_SECS)
+    startRef.current = Date.now()
     timerRef.current = setInterval(() => {
       setTimeLeft(t => {
         if (t <= 1) {
           clearInterval(timerRef.current)
+          // Time up — record as wrong, auto-advance
+          const timeTaken = TIMER_SECS
+          setResults(r => [...r, { correct: false, timeTaken, questionId: questions[qIdx]?.id }])
           setStreak(0)
-          setWrongCount(w => w + 1)
-          setResults(r => [...r, false])
-          setPhase('wrong')
+          if (student?.id && questions[qIdx]?.id) {
+            supabase.from('practice_attempts').insert({ student_id:student.id, question_id:questions[qIdx].id, is_correct:false })
+          }
+          setSelectedOpt(null)
+          setPhase('question')
+          if (qIdx + 1 < questions.length) setQIdx(i => i + 1)
+          else setPhase('done')
           return 0
         }
         return t - 1
@@ -59,73 +91,77 @@ export default function ChallengeMode({ questions, topicTitle, topicId, student,
     return () => clearInterval(timerRef.current)
   }, [qIdx, phase])
 
-  // Award daily bonus once when session ends
+  // Award daily bonus once when done
   useEffect(() => {
     if (phase !== 'done' || dailyAwarded || !isDaily || !student?.id) return
     setDailyAwarded(true)
-    const allCorrect = results.length === questions.length && results.every(Boolean)
-    const bonus = allCorrect ? 50 : 0
-    const today = new Date().toISOString().split('T')[0]
+    const correct   = results.filter(r => r.correct).length
+    const allCorrect = correct === questions.length && questions.length > 0
+    const bonus      = allCorrect ? 50 : 0
+    const today      = new Date().toISOString().split('T')[0]
     supabase.from('daily_challenges').upsert({
       student_id:     student.id,
       challenge_date: today,
       question_ids:   questions.map(q => q.id),
-      score:          results.filter(Boolean).length,
+      score:          correct,
       xp_awarded:     xpEarned + bonus,
       completed:      true,
     }, { onConflict: 'student_id,challenge_date' })
     if (bonus > 0) {
-      supabase.from('students').update({
-        xp:        (student.xp||0) + bonus,
-        monthly_xp:(student.monthly_xp||0) + bonus,
-      }).eq('id', student.id)
+      supabase.from('students').select('xp, monthly_xp').eq('id', student.id).single()
+        .then(({ data: fresh }) => {
+          supabase.from('students').update({
+            xp:         (fresh?.xp        || 0) + bonus,
+            monthly_xp: (fresh?.monthly_xp || 0) + bonus,
+          }).eq('id', student.id)
+        })
     }
   }, [phase])
 
-  async function handleAnswer(opt) {
+  function handleSelect(opt) {
     if (phase !== 'question') return
-    clearInterval(timerRef.current)
+    // Just highlight — don't reveal answer yet
     setSelectedOpt(opt)
-    const correct = opt.is_correct
-    const newResults = [...results, correct]
-    setResults(newResults)
-
-    if (correct) {
-      const newStreak = streak + 1
-      setStreak(newStreak)
-      const xp = 3 + (newStreak % 5 === 0 ? 15 : 0)
-      setXpEarned(p => p + xp)
-      setPhase('correct')
-      if (student?.id && currentQ?.id) {
-        supabase.from('practice_attempts').insert({ student_id:student.id, question_id:currentQ.id, is_correct:true })
-        supabase.from('students').update({ xp:(student.xp||0)+xp, monthly_xp:(student.monthly_xp||0)+xp }).eq('id', student.id)
-      }
-      setTimeout(() => {
-        setPhase('question')
-        setSelectedOpt(null)
-        if (qIdx + 1 < questions.length) setQIdx(i => i + 1)
-        else setPhase('done')
-      }, 1200)
-    } else {
-      setStreak(0)
-      setWrongCount(w => w + 1)
-      setPhase('wrong')
-      if (student?.id && currentQ?.id) {
-        supabase.from('practice_attempts').insert({ student_id:student.id, question_id:currentQ.id, is_correct:false })
-      }
-    }
+    setPhase('selected')
   }
 
-  function nextQuestion() {
-    setPhase('question')
+  async function handleSubmit() {
+    if (!selectedOpt) return
+    clearInterval(timerRef.current)
+    const timeTaken = TIMER_SECS - timeLeft
+    const correct   = selectedOpt.is_correct
+    const newResults = [...results, { correct, timeTaken, questionId: currentQ?.id }]
+    setResults(newResults)
+
+    if (correct) setStreak(s => s + 1)
+    else setStreak(0)
+
+    const xp = correct ? 3 : 0
+    if (xp > 0) {
+      setXpEarned(p => p + xp)
+      supabase.from('students').select('xp, monthly_xp').eq('id', student.id).single()
+        .then(({ data: fresh }) => {
+          supabase.from('students').update({
+            xp:         (fresh?.xp        || 0) + xp,
+            monthly_xp: (fresh?.monthly_xp || 0) + xp,
+          }).eq('id', student.id)
+        })
+    }
+
+    if (student?.id && currentQ?.id) {
+      supabase.from('practice_attempts').insert({ student_id:student.id, question_id:currentQ.id, is_correct:correct })
+    }
+
     setSelectedOpt(null)
+    setPhase('question')
     if (qIdx + 1 < questions.length) setQIdx(i => i + 1)
     else setPhase('done')
   }
 
   function resetSession() {
-    setQIdx(0); setPhase('question'); setStreak(0); setWrongCount(0)
-    setResults([]); setXpEarned(0); setSelectedOpt(null); setTimeLeft(TIMER_SECS)
+    setQIdx(0); setPhase('question'); setStreak(0)
+    setResults([]); setXpEarned(0); setSelectedOpt(null)
+    setTimeLeft(TIMER_SECS); setReviewIdx(0); setShowWhy({})
   }
 
   // ── Already done today ──────────────────────────────────────────────────────
@@ -135,7 +171,7 @@ export default function ChallengeMode({ questions, topicTitle, topicId, student,
         <div style={{ animation:'float 2s ease-in-out infinite', marginBottom:16 }}><BicPencil pose="celebrate" size={100} /></div>
         <div style={{ fontFamily:M.headingFont, fontSize:22, fontWeight:900, color:M.textPrimary, textAlign:'center', marginBottom:8 }}>🏆 Already done today!</div>
         <div style={{ fontSize:13, color:M.textSecondary, textAlign:'center', maxWidth:300, lineHeight:1.7, fontFamily:'Nunito,sans-serif', marginBottom:24 }}>
-          {mode==='roots' ? `You don do today's challenge! Come back tomorrow for another one. 🇳🇬` : `You've already completed today's daily challenge. Come back tomorrow for a fresh set!`}
+          {mode==='roots' ? `You don do today's challenge! Come back tomorrow. 🇳🇬` : `You've completed today's daily challenge. Come back tomorrow for a fresh set!`}
         </div>
         <button onClick={() => router.push('/learn')} style={{ ...M.primaryBtn }}>Back to Map</button>
         <button onClick={() => router.push('/learn/practice')} style={{ ...M.ghostBtn, marginTop:10 }}>Practice instead →</button>
@@ -150,58 +186,156 @@ export default function ChallengeMode({ questions, topicTitle, topicId, student,
         <BicPencil pose="think" size={90} />
         <div style={{ fontFamily:M.headingFont, fontSize:18, fontWeight:900, color:M.textPrimary, margin:'16px 0 8px', textAlign:'center' }}>No questions yet!</div>
         <div style={{ fontSize:13, color:M.textSecondary, textAlign:'center', maxWidth:300, lineHeight:1.6, fontFamily:'Nunito,sans-serif', marginBottom:20 }}>
-          {mode==='roots'
-            ? `Challenge questions haven't been generated for this topic yet. Try a different one! 🇳🇬`
-            : `Challenge questions for this topic haven't been generated yet. Try mixed challenge or a different topic.`}
+          {mode==='roots' ? `Challenge questions haven't been generated yet. 🇳🇬` : `Challenge questions haven't been generated yet. Ask your teacher to add some.`}
         </div>
-        <button onClick={() => router.push('/learn/challenge')} style={{ ...M.primaryBtn }}>Mixed Challenge →</button>
+        <button onClick={() => router.push('/learn/practice')} style={{ ...M.primaryBtn }}>Go to Practice →</button>
         <button onClick={() => router.push('/learn')} style={{ ...M.ghostBtn, marginTop:10 }}>Back to Map</button>
       </div>
     )
   }
 
-  // ── Done screen ─────────────────────────────────────────────────────────────
+  // ── Done / Review screen ────────────────────────────────────────────────────
   if (phase === 'done') {
-    const correct   = results.filter(Boolean).length
-    const finalAcc  = Math.round((correct / Math.max(results.length, 1)) * 100)
+    const correct    = results.filter(r => r.correct).length
+    const finalAcc   = Math.round((correct / Math.max(results.length, 1)) * 100)
     const allCorrect = correct === questions.length && questions.length > 0
     const dailyBonus = (isDaily && allCorrect) ? 50 : 0
+    const avgTime    = results.length > 0
+      ? Math.round(results.reduce((s, r) => s + r.timeTaken, 0) / results.length)
+      : 0
+    const reviewQ    = questions[reviewIdx]
+    const reviewR    = results[reviewIdx]
+
     return (
-      <div style={{ minHeight:'100vh', background:M.lessonBg, fontFamily:M.font, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:24 }}>
-        <div style={{ animation:'float 2s ease-in-out infinite', marginBottom:16 }}><BicPencil pose={finalAcc>=70?'celebrate':'think'} size={100} /></div>
-        <div style={{ fontFamily:M.headingFont, fontSize:22, fontWeight:900, color:M.textPrimary, textAlign:'center', marginBottom:8 }}>
-          {finalAcc===100?'🏆 Perfect!':finalAcc>=80?'🎉 Excellent!':finalAcc>=60?'✅ Good effort!':'💪 Keep going!'}
-        </div>
-        {isDaily && allCorrect && (
-          <div style={{ background:'rgba(255,201,51,0.12)', border:'1px solid rgba(255,201,51,0.35)', borderRadius:12, padding:'10px 20px', marginBottom:14, textAlign:'center' }}>
-            <div style={{ fontSize:13, fontWeight:800, color:'#FFC933', fontFamily:'Nunito,sans-serif' }}>🏆 Daily Bonus: +50 XP!</div>
+      <div style={{ minHeight:'100vh', background:M.lessonBg, fontFamily:M.font, display:'flex', flexDirection:'column' }}>
+        {/* Header */}
+        <div style={{ padding:'10px 16px', display:'flex', alignItems:'center', gap:10, borderBottom:`1px solid ${accent}18`, background:M.hudBg, flexShrink:0 }}>
+          <button onClick={() => router.push('/learn')} style={{ width:32, height:32, borderRadius:'50%', background:M.lessonCard, border:M.lessonBorder, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:M.textSecondary, fontSize:14 }}>←</button>
+          <div style={{ flex:1, fontSize:13, fontWeight:800, color:M.textPrimary, fontFamily:M.headingFont }}>
+            {isDaily ? '🏆 Daily Challenge' : '⚡ Challenge'} · Results
           </div>
-        )}
-        <div style={{ display:'flex', gap:10, marginBottom:20 }}>
-          {[
-            { label:'Correct',  value:`${correct}/${results.length}`, color:M.correctColor },
-            { label:'Accuracy', value:`${finalAcc}%`,                 color:finalAcc>=70?M.correctColor:'#FFC933' },
-            { label:'XP',       value:`+${xpEarned+dailyBonus}`,      color:'#FFC933' },
-          ].map(({ label, value, color }) => (
-            <div key={label} style={{ ...card, textAlign:'center', padding:'12px 14px', minWidth:80 }}>
-              <div style={{ fontSize:18, fontWeight:900, color, fontFamily:M.headingFont }}>{value}</div>
-              <div style={{ fontSize:10, color:M.textSecondary, fontFamily:'Nunito,sans-serif' }}>{label}</div>
-            </div>
-          ))}
+          <div style={{ fontSize:13, fontWeight:900, color:finalAcc>=70?M.correctColor:'#FFC933' }}>{finalAcc}%</div>
         </div>
-        {finalAcc < 60 && (
-          <div style={{ ...card, padding:'12px 16px', marginBottom:16, maxWidth:320, textAlign:'center' }}>
-            <div style={{ fontSize:12, color:M.textSecondary, lineHeight:1.7, fontFamily:'Nunito,sans-serif' }}>
-              {mode==='roots' ? `No worry! Practice first, then come back and beat this challenge! 💪` : `Build your foundation in Practice Mode first, then come back and crush this! 📚`}
+
+        <div style={{ flex:1, overflowY:'auto', padding:'16px', maxWidth:560, margin:'0 auto', width:'100%' }}>
+
+          {/* Mascot + summary */}
+          <div style={{ display:'flex', alignItems:'flex-end', gap:12, marginBottom:16 }}>
+            <BicPencil pose={finalAcc>=70?'celebrate':'think'} size={74} style={{ flexShrink:0, animation:'float 2s ease-in-out infinite' }} />
+            <div style={{ flex:1 }}>
+              <div style={{ fontFamily:M.headingFont, fontSize:18, fontWeight:900, color:M.textPrimary, marginBottom:4 }}>
+                {finalAcc===100?'🏆 Perfect!':finalAcc>=80?'🎉 Excellent!':finalAcc>=60?'✅ Good effort!':'💪 Keep going!'}
+              </div>
+              <div style={{ fontSize:12, color:M.textSecondary, fontFamily:'Nunito,sans-serif', lineHeight:1.6 }}>
+                {mode==='roots'
+                  ? `${correct} out of ${questions.length} — ${finalAcc>=70?'you sabi! 🇳🇬':'no worry, try again! 💪'}`
+                  : `${correct} out of ${questions.length} — ${finalAcc>=70?'solid performance!':'keep practising!'}`}
+              </div>
             </div>
-            <button onClick={() => router.push(topicId?`/learn/practice?topicId=${topicId}`:'/learn/practice')} style={{ ...M.ghostBtn, marginTop:10, width:'100%' }}>
-              Try Practice Mode →
-            </button>
           </div>
-        )}
-        <div style={{ display:'flex', flexDirection:'column', gap:10, width:'100%', maxWidth:300 }}>
-          {!isDaily && <button onClick={resetSession} style={{ ...M.primaryBtn }}>{mode==='blaze'?'⚡ GO AGAIN!':'Try Again →'}</button>}
-          <button onClick={() => router.push('/learn')} style={{ ...M.ghostBtn }}>Back to Map</button>
+
+          {/* Daily bonus */}
+          {isDaily && allCorrect && (
+            <div style={{ background:'rgba(255,201,51,0.12)', border:'1px solid rgba(255,201,51,0.35)', borderRadius:12, padding:'10px 14px', marginBottom:12, textAlign:'center' }}>
+              <div style={{ fontSize:13, fontWeight:800, color:'#FFC933', fontFamily:'Nunito,sans-serif' }}>🏆 Daily Bonus: +50 XP!</div>
+            </div>
+          )}
+
+          {/* Stats row — includes speed */}
+          <div style={{ display:'flex', gap:8, marginBottom:16 }}>
+            {[
+              { label:'Score',    value:`${correct}/${results.length}`,  color:finalAcc>=70?M.correctColor:'#FFC933' },
+              { label:'Accuracy', value:`${finalAcc}%`,                  color:finalAcc>=70?M.correctColor:'#FFC933' },
+              { label:'XP',       value:`+${xpEarned+dailyBonus}`,       color:'#FFC933' },
+              { label:'Avg Speed', value:`${avgTime}s`,                  color:avgTime<=20?M.correctColor:avgTime<=40?'#FFC933':'#FF6B6B' },
+            ].map(({ label, value, color }) => (
+              <div key={label} style={{ flex:1, background:M.lessonCard, border:M.lessonBorder, borderRadius:M.cardRadius, textAlign:'center', padding:'10px 4px' }}>
+                <div style={{ fontSize:16, fontWeight:900, color, fontFamily:M.headingFont }}>{value}</div>
+                <div style={{ fontSize:9, color:M.textSecondary, fontFamily:'Nunito,sans-serif' }}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Per-question speed breakdown */}
+          <div style={{ background:M.lessonCard, border:M.lessonBorder, borderRadius:M.cardRadius, padding:'12px 14px', marginBottom:16 }}>
+            <div style={{ fontSize:10, fontWeight:800, color:M.textSecondary, textTransform:'uppercase', letterSpacing:0.8, marginBottom:10, fontFamily:'Nunito,sans-serif' }}>Your Speed per Question</div>
+            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+              {results.map((r, i) => (
+                <div key={i} style={{ display:'flex', alignItems:'center', gap:10 }}>
+                  <div style={{ width:20, height:20, borderRadius:'50%', background:r.correct?M.correctColor+'20':'#FF6B6B20', border:`1px solid ${r.correct?M.correctColor:'#FF6B6B'}40`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                    <span style={{ fontSize:10 }}>{r.correct?'✓':'✗'}</span>
+                  </div>
+                  <div style={{ fontSize:11, color:M.textSecondary, fontFamily:'Nunito,sans-serif', flex:1 }}>Q{i+1}</div>
+                  {/* Speed bar */}
+                  <div style={{ flex:2, height:6, background:M.progressTrack, borderRadius:3, overflow:'hidden' }}>
+                    <div style={{ width:`${Math.min((r.timeTaken/TIMER_SECS)*100, 100)}%`, height:'100%', background: r.timeTaken<=20?M.correctColor:r.timeTaken<=40?'#FFC933':'#FF6B6B', transition:'width 0.3s' }} />
+                  </div>
+                  <div style={{ fontSize:11, fontWeight:800, color:r.timeTaken<=20?M.correctColor:r.timeTaken<=40?'#FFC933':'#FF6B6B', fontFamily:'Nunito,sans-serif', minWidth:28, textAlign:'right' }}>{r.timeTaken}s</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Question review — dot nav + expandable */}
+          <div style={{ fontSize:10, fontWeight:800, color:M.textSecondary, textTransform:'uppercase', letterSpacing:0.8, marginBottom:10, fontFamily:'Nunito,sans-serif' }}>
+            Question Review
+          </div>
+          <div style={{ display:'flex', gap:6, marginBottom:12, flexWrap:'wrap' }}>
+            {questions.map((_, i) => (
+              <button key={i} onClick={() => { setReviewIdx(i); setShowWhy({}) }} style={{ width:28, height:28, borderRadius:'50%', border:'none', cursor:'pointer', background:i===reviewIdx?accent:results[i]?.correct?M.correctColor+'30':'#FF6B6B30', outline:i===reviewIdx?`2px solid ${accent}`:'none', outlineOffset:2, fontSize:10, fontWeight:900, color:i===reviewIdx?'#fff':results[i]?.correct?M.correctColor:'#FF6B6B', transition:'all 0.15s' }}>{i+1}</button>
+            ))}
+          </div>
+
+          {reviewQ && (
+            <div style={{ background:M.lessonCard, border:`1.5px solid ${results[reviewIdx]?.correct?M.correctColor+'35':'#FF6B6B35'}`, borderRadius:M.cardRadius, overflow:'visible', marginBottom:16 }}>
+              <div style={{ padding:'8px 14px', background:results[reviewIdx]?.correct?M.correctColor+'12':'#FF6B6B12', display:'flex', alignItems:'center', gap:8, borderRadius:`${M.cardRadius}px ${M.cardRadius}px 0 0` }}>
+                <span style={{ fontSize:16 }}>{results[reviewIdx]?.correct?'✅':'❌'}</span>
+                <span style={{ fontSize:11, fontWeight:800, color:results[reviewIdx]?.correct?M.correctColor:'#FF6B6B', fontFamily:'Nunito,sans-serif' }}>{results[reviewIdx]?.correct?'Correct!':'Incorrect'}</span>
+                <span style={{ marginLeft:'auto', fontSize:11, fontWeight:800, color:results[reviewIdx]?.timeTaken<=20?M.correctColor:results[reviewIdx]?.timeTaken<=40?'#FFC933':'#FF6B6B', fontFamily:'Nunito,sans-serif' }}>⏱ {results[reviewIdx]?.timeTaken}s</span>
+              </div>
+              <div style={{ padding:'12px 14px', borderBottom:`1px solid ${accent}15` }}>
+                <div style={{ fontSize:14, fontWeight:700, color:M.textPrimary, lineHeight:1.6, fontFamily:'Nunito,sans-serif' }}>{reviewQ.question_text}</div>
+              </div>
+              <div style={{ padding:'10px 14px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
+                {(reviewQ.options||[]).map((opt, j) => (
+                  <div key={j} style={{ padding:'8px 10px', borderRadius:8, fontSize:12, lineHeight:1.4, background:opt.is_correct?M.correctColor+'14':'rgba(0,0,0,0.02)', border:`1px solid ${opt.is_correct?M.correctColor+'40':accent+'15'}`, color:opt.is_correct?M.correctColor:M.textSecondary, fontFamily:'Nunito,sans-serif', fontWeight:opt.is_correct?800:500, overflowWrap:'break-word' }}>
+                    {opt.is_correct && <span style={{ marginRight:4 }}>✓</span>}{opt.option_text}
+                  </div>
+                ))}
+              </div>
+              {reviewQ.explanation && (
+                <div style={{ padding:'0 14px 14px', borderTop:`1px solid ${accent}12` }}>
+                  {!showWhy[reviewIdx] ? (
+                    <button onClick={() => setShowWhy(w => ({ ...w, [reviewIdx]:true }))} style={{ marginTop:10, background:'none', border:`1px dashed ${results[reviewIdx]?.correct?M.correctColor+'60':accent+'50'}`, borderRadius:8, padding:'7px 14px', width:'100%', textAlign:'left', color:results[reviewIdx]?.correct?M.correctColor:accent, cursor:'pointer', fontSize:12, fontWeight:700, fontFamily:'Nunito,sans-serif' }}>
+                      💡 {results[reviewIdx]?.correct ? 'Why is this correct?' : 'Show solution'}
+                    </button>
+                  ) : (
+                    <div style={{ marginTop:12 }}>
+                      <div style={{ fontSize:10, fontWeight:800, color:accent, marginBottom:8, textTransform:'uppercase', letterSpacing:0.8, fontFamily:'Nunito,sans-serif' }}>Solution — step by step</div>
+                      <StepExplanation text={reviewQ.explanation} M={M} />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Prev / Next */}
+          <div style={{ display:'flex', gap:10, marginBottom:16 }}>
+            <button onClick={() => { setReviewIdx(i => Math.max(0,i-1)); setShowWhy({}) }} disabled={reviewIdx===0} style={{ flex:1, ...M.ghostBtn, opacity:reviewIdx===0?0.3:1 }}>← Prev</button>
+            <button onClick={() => { setReviewIdx(i => Math.min(questions.length-1,i+1)); setShowWhy({}) }} disabled={reviewIdx===questions.length-1} style={{ flex:1, ...M.ghostBtn, opacity:reviewIdx===questions.length-1?0.3:1 }}>Next →</button>
+          </div>
+
+          {/* Actions */}
+          <div style={{ display:'flex', flexDirection:'column', gap:10, paddingBottom:24 }}>
+            {!isDaily && <button onClick={resetSession} style={{ ...M.primaryBtn }}>{mode==='blaze'?'⚡ GO AGAIN!':'Try Again →'}</button>}
+            {finalAcc < 60 && (
+              <button onClick={() => router.push(topicId?`/learn/practice?topicId=${topicId}`:'/learn/practice')} style={{ ...M.ghostBtn }}>
+                Practice this topic first →
+              </button>
+            )}
+            <button onClick={() => router.push('/learn')} style={{ ...M.ghostBtn }}>Back to Map</button>
+          </div>
         </div>
       </div>
     )
@@ -209,16 +343,13 @@ export default function ChallengeMode({ questions, topicTitle, topicId, student,
 
   // ── Question screen ─────────────────────────────────────────────────────────
   const timerPct   = (timeLeft / TIMER_SECS) * 100
-  const timerColor = timeLeft > 15 ? '#C8F135' : timeLeft > 7 ? '#FFC933' : '#FF6B6B'
+  const timerColor = timeLeft > 30 ? '#C8F135' : timeLeft > 15 ? '#FFC933' : '#FF6B6B'
 
   return (
     <div style={{ minHeight:'100vh', background:M.lessonBg, fontFamily:M.font, display:'flex', flexDirection:'column' }}>
-      {phase==='correct' && <div style={{ position:'fixed', inset:0, background:`${M.correctColor}10`, zIndex:10, pointerEvents:'none', animation:'pulse 0.3s ease' }} />}
-      {phase==='wrong'   && <div style={{ position:'fixed', inset:0, background:`${M.wrongColor}08`,   zIndex:10, pointerEvents:'none', animation:'pulse 0.3s ease' }} />}
-
       {/* Timer bar */}
       <div style={{ height:6, background:M.progressTrack, flexShrink:0 }}>
-        <div style={{ width:`${phase==='question'?timerPct:phase==='correct'?100:0}%`, height:'100%', background:timerColor, transition:'width 1s linear, background 0.3s' }} />
+        <div style={{ width:`${phase==='question'||phase==='selected'?timerPct:0}%`, height:'100%', background:timerColor, transition:'width 1s linear, background 0.3s' }} />
       </div>
 
       {/* Top bar */}
@@ -233,10 +364,10 @@ export default function ChallengeMode({ questions, topicTitle, topicId, student,
           </div>
           <div style={{ fontSize:10, color:M.textSecondary }}>{qIdx+1} / {questions.length}</div>
         </div>
-        {/* Countdown */}
-        <div style={{ background:timeLeft<=7?'rgba(255,107,107,0.12)':M.lessonCard, border:`1px solid ${timerColor}40`, borderRadius:20, padding:'4px 12px', display:'flex', alignItems:'center', gap:4 }}>
+        {/* Countdown display */}
+        <div style={{ background:timeLeft<=15?'rgba(255,107,107,0.12)':M.lessonCard, border:`1px solid ${timerColor}40`, borderRadius:20, padding:'4px 12px', display:'flex', alignItems:'center', gap:4 }}>
           <span style={{ fontSize:10 }}>⏱</span>
-          <span style={{ fontSize:13, fontWeight:900, color:timerColor, fontFamily:'Nunito,sans-serif', minWidth:20, textAlign:'center' }}>{phase==='question'?timeLeft:'—'}</span>
+          <span style={{ fontSize:13, fontWeight:900, color:timerColor, fontFamily:'Nunito,sans-serif', minWidth:24, textAlign:'center' }}>{phase==='question'||phase==='selected'?timeLeft:'—'}</span>
         </div>
         {/* Streak */}
         <div style={{ background:streak>=3?accent:M.lessonCard, border:M.lessonBorder, borderRadius:20, padding:'3px 10px', display:'flex', alignItems:'center', gap:4 }}>
@@ -250,90 +381,56 @@ export default function ChallengeMode({ questions, topicTitle, topicId, student,
 
         {/* Tags */}
         <div style={{ display:'flex', gap:6 }}>
-          {currentQ.difficulty && (
-            <span style={{ fontSize:9, fontWeight:900, color:DIFF_COLOR[currentQ.difficulty]||accent, background:(DIFF_COLOR[currentQ.difficulty]||accent)+'18', border:`1px solid ${(DIFF_COLOR[currentQ.difficulty]||accent)}30`, borderRadius:20, padding:'2px 9px', letterSpacing:1, textTransform:'uppercase' }}>
-              {currentQ.difficulty}
-            </span>
-          )}
-          {currentQ.exam_tag && (
-            <span style={{ fontSize:9, fontWeight:900, color:'#00D4C8', background:'#00D4C818', border:'1px solid #00D4C830', borderRadius:20, padding:'2px 9px', letterSpacing:1, textTransform:'uppercase' }}>
-              {currentQ.exam_tag}{currentQ.exam_year&&currentQ.exam_year!=='style'?` ${currentQ.exam_year}`:''}
-            </span>
-          )}
+          {currentQ.difficulty && <span style={{ fontSize:9, fontWeight:900, color:DIFF_COLOR[currentQ.difficulty]||accent, background:(DIFF_COLOR[currentQ.difficulty]||accent)+'18', border:`1px solid ${(DIFF_COLOR[currentQ.difficulty]||accent)}30`, borderRadius:20, padding:'2px 9px', letterSpacing:1, textTransform:'uppercase' }}>{currentQ.difficulty}</span>}
+          {currentQ.exam_tag && <span style={{ fontSize:9, fontWeight:900, color:'#00D4C8', background:'#00D4C818', border:'1px solid #00D4C830', borderRadius:20, padding:'2px 9px', letterSpacing:1, textTransform:'uppercase' }}>{currentQ.exam_tag}</span>}
         </div>
 
-        {/* Question — NO hint in challenge */}
+        {/* Question — NO hint */}
         <div style={{ ...card, padding:'16px' }}>
-          <div style={{ fontSize:15, fontWeight:800, color:M.textPrimary, lineHeight:1.6, fontFamily:'Nunito,sans-serif' }}>
-            {currentQ.question_text}
-          </div>
+          <div style={{ fontSize:15, fontWeight:800, color:M.textPrimary, lineHeight:1.6, fontFamily:'Nunito,sans-serif' }}>{currentQ.question_text}</div>
         </div>
 
-        {/* Mascot */}
+        {/* Mascot prompt */}
         <div style={{ display:'flex', alignItems:'flex-end', gap:10 }}>
-          <BicPencil pose={mascot.pose} size={52} style={{ flexShrink:0 }} />
-          <div style={{
-            flex:1, padding:'9px 13px',
-            background: phase==='correct'?`${M.correctColor}12`:phase==='wrong'?`${M.wrongColor}10`:`${accent}0A`,
-            border:`1.5px solid ${phase==='correct'?M.correctColor:phase==='wrong'?M.wrongColor:accent+'25'}`,
-            borderRadius:'14px 14px 14px 4px',
-            fontSize:12, fontFamily:'Nunito,sans-serif', fontWeight:600, lineHeight:1.6,
-            color: phase==='correct'?M.correctColor:phase==='wrong'?M.wrongColor:M.textSecondary,
-          }}>
-            {phase==='correct' && (mode==='roots'?'Correct! 🙌':mode==='blaze'?'⚡ CORRECT!':'Correct! 🎉')}
-            {phase==='wrong' && timeLeft===0 && '⏰ Time\'s up!'}
-            {phase==='wrong' && timeLeft>0 && mascot.msg}
-            {phase==='question' && mascot.msg}
+          <BicPencil pose={phase==='selected'?'happy':'idle'} size={48} style={{ flexShrink:0 }} />
+          <div style={{ flex:1, padding:'8px 12px', background:`${accent}0A`, border:`1.5px solid ${accent}25`, borderRadius:'12px 12px 12px 4px', fontSize:12, fontFamily:'Nunito,sans-serif', fontWeight:600, lineHeight:1.6, color:M.textSecondary }}>
+            {phase==='selected'
+              ? `✓ Selected — tap Submit to confirm`
+              : mode==='blaze' ? `ANSWER FAST! ${timeLeft}s LEFT!`
+              : mode==='roots' ? `Think am well, then answer! 🇳🇬`
+              : `Choose your answer — ${timeLeft}s remaining`}
           </div>
         </div>
 
-        {/* Wrong: show explanation + correct answer */}
-        {phase==='wrong' && (
-          <div style={{ ...card, padding:'12px 14px', background:`${M.wrongColor}06`, borderColor:`${M.wrongColor}25` }}>
-            <div style={{ fontSize:10, fontWeight:800, color:M.wrongColor, marginBottom:6, textTransform:'uppercase', letterSpacing:1 }}>
-              {timeLeft===0 ? '⏰ Time up — correct answer' : 'Wrong — here\'s why'}
-            </div>
-            {currentQ.explanation && (
-              <div style={{ fontSize:12, color:M.textSecondary, lineHeight:1.7, fontFamily:'Nunito,sans-serif', marginBottom:6 }}>{currentQ.explanation}</div>
-            )}
-            <div style={{ fontSize:11, color:M.correctColor, fontWeight:700, fontFamily:'Nunito,sans-serif' }}>
-              ✓ {(currentQ.options||[]).find(o=>o.is_correct)?.option_text}
-            </div>
-          </div>
-        )}
+        {/* Answer options — select & submit flow */}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+          {(currentQ.options||[]).map((opt, i) => {
+            const isSelected = selectedOpt?.option_text === opt.option_text
+            return (
+              <button key={i} onClick={() => { setSelectedOpt(opt); setPhase('selected') }}
+                style={{ background:isSelected?`${accent}18`:M.lessonCard, border:`2px solid ${isSelected?accent:accent+'22'}`, borderRadius:M.cardRadius, padding:'12px 10px', cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', gap:5, fontFamily:'Nunito,sans-serif', transition:'all 0.15s', minHeight:70, transform:isSelected?'translateY(-2px)':'none', boxShadow:isSelected?`0 4px 12px ${accent}25`:'none' }}
+                onMouseEnter={e=>{ e.currentTarget.style.borderColor=accent; e.currentTarget.style.transform='translateY(-2px)' }}
+                onMouseLeave={e=>{ e.currentTarget.style.borderColor=isSelected?accent:`${accent}22`; if(!isSelected) e.currentTarget.style.transform='' }}
+              >
+                <span style={{ width:22, height:22, borderRadius:'50%', background:isSelected?accent:`${accent}20`, color:isSelected?'#fff':accent, fontSize:10, fontWeight:900, display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s' }}>{letters[i]}</span>
+                <span style={{ fontSize:12, fontWeight:700, color:M.textPrimary, lineHeight:1.3, textAlign:'center' }}>{opt.option_text}</span>
+              </button>
+            )
+          })}
+        </div>
 
-        {/* Options */}
-        {phase!=='correct' && (
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-            {(currentQ.options||[]).map((opt, i) => {
-              const isSelected  = selectedOpt?.option_text === opt.option_text
-              const showCorrect = phase==='wrong' && opt.is_correct
-              const showWrong   = phase==='wrong' && isSelected && !opt.is_correct
-              return (
-                <button key={i} onClick={() => handleAnswer(opt)} disabled={phase!=='question'}
-                  style={{
-                    background: showCorrect?`${M.correctColor}18`:showWrong?`${M.wrongColor}18`:M.lessonCard,
-                    border:`2px solid ${showCorrect?M.correctColor:showWrong?M.wrongColor:`${accent}22`}`,
-                    borderRadius:M.cardRadius, padding:'12px 10px',
-                    cursor:phase==='question'?'pointer':'default',
-                    display:'flex', flexDirection:'column', alignItems:'center', gap:5,
-                    fontFamily:'Nunito,sans-serif', transition:'all 0.15s', minHeight:70,
-                  }}
-                  onMouseEnter={e=>{ if(phase!=='question') return; e.currentTarget.style.borderColor=accent; e.currentTarget.style.transform='translateY(-2px)' }}
-                  onMouseLeave={e=>{ e.currentTarget.style.borderColor=`${accent}22`; e.currentTarget.style.transform='' }}
-                >
-                  <span style={{ width:22, height:22, borderRadius:'50%', background:`${accent}20`, color:accent, fontSize:10, fontWeight:900, display:'flex', alignItems:'center', justifyContent:'center' }}>{letters[i]}</span>
-                  <span style={{ fontSize:12, fontWeight:700, color:M.textPrimary, lineHeight:1.3, textAlign:'center' }}>{opt.option_text}</span>
-                </button>
-              )
-            })}
-          </div>
-        )}
-
-        {phase==='wrong' && (
-          <button onClick={nextQuestion} style={{ ...M.primaryBtn }}>
-            {qIdx+1<questions.length?'Next Question →':'See Results →'}
+        {/* Submit — only visible when something selected */}
+        {phase === 'selected' && (
+          <button onClick={handleSubmit} style={{ ...M.primaryBtn, fontSize:15 }}>
+            {qIdx+1 < questions.length
+              ? (mode==='blaze'?'⚡ SUBMIT & NEXT':'Submit →')
+              : (mode==='blaze'?'⚡ SUBMIT & SEE RESULTS':'Submit & See Results →')}
           </button>
+        )}
+        {phase === 'question' && (
+          <div style={{ fontSize:11, color:M.textSecondary, textAlign:'center', fontFamily:'Nunito,sans-serif', opacity:0.6 }}>
+            Tap an answer to select it
+          </div>
         )}
       </div>
     </div>

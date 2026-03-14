@@ -13,25 +13,24 @@ export default async function PracticePage({ searchParams }) {
   const { data: student } = await supabase
     .from('students').select('*').eq('profile_id', user.id).single()
 
-  const { data: levels } = await supabase
-    .from('levels')
-    .select('*, terms(*, units(*, topics(id, title)))')
-    .order('name')
-
+  // Fetch ALL questions for student's class level — used for both mixed and topic mode
+  // The setup screen filters by topic_id client-side
   let questions  = []
   let topicTitle = 'Practice'
 
   if (topicId) {
-    const { data: topic } = await supabase.from('topics').select('title').eq('id', topicId).single()
+    const { data: topic } = await supabase
+      .from('topics').select('title').eq('id', topicId).single()
     topicTitle = topic?.title || 'Practice'
+
     const { data } = await supabase
       .from('practice_questions')
       .select('*, options:practice_question_options(*)')
       .eq('topic_id', topicId)
       .eq('is_active', true)
-      .order('difficulty')
     questions = data || []
   } else if (student?.class_level) {
+    // Mixed — fetch ALL questions for this class level
     const { data } = await supabase
       .from('practice_questions')
       .select('*, options:practice_question_options(*)')
@@ -41,13 +40,28 @@ export default async function PracticePage({ searchParams }) {
     topicTitle = 'Mixed Practice'
   }
 
+  // Get topic list — only topics that actually HAVE questions for this student's level
+  // so the topic picker doesn't show empty topics
+  const questionTopicIds = [...new Set(questions.map(q => q.topic_id))]
+
+  let levels = []
+  if (questionTopicIds.length > 0) {
+    // Fetch only levels/topics that have questions
+    const { data } = await supabase
+      .from('levels')
+      .select('*, terms(*, units(*, topics(id, title)))')
+      .eq('code', student?.class_level?.toLowerCase())
+    levels = data || []
+  }
+
   return (
     <PracticeMode
       questions={questions}
       topicTitle={topicTitle}
       topicId={topicId}
       student={student}
-      levels={levels || []}
+      levels={levels}
+      questionTopicIds={questionTopicIds}
     />
   )
 }

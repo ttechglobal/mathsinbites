@@ -16,41 +16,95 @@ const TIME_OPTIONS  = [
   { label: '10 min',   value: 600 },
 ]
 
+// ── Parse explanation into steps ──────────────────────────────────────────────
 function parseSteps(text) {
   if (!text) return []
-  const numbered = text.split(/(?=\b(?:Step\s+)?\d+[\.\)]\s)/i).map(s => s.trim()).filter(Boolean)
+
+  // 1. Explicit numbered steps: "1.", "Step 1:", "Step 1 -"
+  const numbered = text.split(/(?=(?:Step\s+)?\d+[\.\):\-]\s)/i).map(s => s.trim()).filter(Boolean)
   if (numbered.length > 1) return numbered
-  const bySeparator = text.split(/[;∴∵]|\.\s+(?=[A-Z∴∵]|So |Then |Therefore |Hence |Thus )/).map(s => s.trim()).filter(Boolean)
-  if (bySeparator.length > 1) return bySeparator
-  const sentences = text.split(/(?<=[.!?])\s+(?=[A-Z])/).map(s => s.trim()).filter(Boolean)
-  return sentences.length > 0 ? sentences : [text]
+
+  // 2. Newline-separated (already formatted line by line)
+  const byNewline = text.split(/\n+/).map(s => s.trim()).filter(Boolean)
+  if (byNewline.length > 1) return byNewline
+
+  // 3. Maths connectors: "∴", "∵", "So,", "Then,", "Therefore,", "Hence,", "Thus,"
+  const byConnector = text.split(/(?<=\.\s)(?=So\s|Then\s|Therefore\s|Hence\s|Thus\s|∴|∵)/).map(s => s.trim()).filter(Boolean)
+  if (byConnector.length > 1) return byConnector
+
+  // 4. Sentences ending with period followed by capital
+  const bySentence = text.split(/(?<=[.!?])\s+(?=[A-Z"∴∵])/).map(s => s.trim()).filter(Boolean)
+  if (bySentence.length > 1) return bySentence
+
+  // 5. Single block — return as-is
+  return [text]
 }
 
+// ── Step-by-step explanation component ───────────────────────────────────────
 function StepExplanation({ text, M }) {
-  const steps = parseSteps(text)
+  const steps  = parseSteps(text)
   const accent = M.accentColor
+
   if (steps.length === 1) {
     return (
-      <div style={{ fontSize:13, color:M.textSecondary, lineHeight:1.8, fontFamily:'Nunito,sans-serif', padding:'10px 0' }}>
+      <div style={{
+        fontSize: 13,
+        color: M.textSecondary,
+        lineHeight: 1.9,
+        fontFamily: 'Nunito, sans-serif',
+        padding: '6px 0',
+        whiteSpace: 'pre-wrap',
+        overflowWrap: 'break-word',
+        wordBreak: 'break-word',
+      }}>
         {text}
       </div>
     )
   }
+
   return (
-    <div style={{ display:'flex', flexDirection:'column', gap:8, padding:'4px 0' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '4px 0' }}>
       {steps.map((step, i) => (
-        <div key={i} style={{ display:'flex', gap:12, alignItems:'flex-start' }}>
+        // Use display:table-row / table-cell so the number NEVER wraps away from its content
+        <div key={i} style={{ display: 'table', width: '100%', tableLayout: 'fixed' }}>
+          {/* Number cell — fixed width, always stays at the top-left of its row */}
           <div style={{
-            flexShrink:0, width:26, height:26, borderRadius:'50%',
-            background: accent, color:'#fff',
-            display:'flex', alignItems:'center', justifyContent:'center',
-            fontSize:11, fontWeight:900, marginTop:2,
-          }}>{i + 1}</div>
+            display: 'table-cell',
+            verticalAlign: 'top',
+            width: 36,
+            paddingTop: 10,
+            paddingRight: 8,
+          }}>
+            <div style={{
+              width: 26,
+              height: 26,
+              borderRadius: '50%',
+              background: accent,
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 11,
+              fontWeight: 900,
+              flexShrink: 0,
+            }}>{i + 1}</div>
+          </div>
+
+          {/* Text cell — takes all remaining width, wraps cleanly */}
           <div style={{
-            flex:1, background: M.mathBg || 'rgba(0,0,0,0.03)',
-            borderRadius:9, padding:'9px 12px',
-            fontSize:13, color:M.textPrimary, lineHeight:1.75,
-            fontFamily:'Nunito, sans-serif', fontWeight:600,
+            display: 'table-cell',
+            verticalAlign: 'top',
+            background: M.mathBg || 'rgba(0,0,0,0.03)',
+            borderRadius: 9,
+            padding: '10px 14px',
+            fontSize: 13,
+            fontWeight: 700,
+            color: M.textPrimary,
+            lineHeight: 1.9,
+            fontFamily: 'Nunito, sans-serif',
+            whiteSpace: 'pre-wrap',
+            overflowWrap: 'break-word',
+            wordBreak: 'break-word',
           }}>{step}</div>
         </div>
       ))}
@@ -58,18 +112,23 @@ function StepExplanation({ text, M }) {
   )
 }
 
+// ── Setup screen ──────────────────────────────────────────────────────────────
 function SetupScreen({ allTopics, currentTopicId, allQuestions, M, mode, onStart }) {
-  const router = useRouter()
-  const [count, setCount] = useState(10)
-  const [timeSec, setTimeSec] = useState(0)
+  const router  = useRouter()
+  const [count,           setCount]           = useState(10)
+  const [timeSec,         setTimeSec]         = useState(0)
   const [selectedTopicIds, setSelectedTopicIds] = useState(
     currentTopicId ? new Set([currentTopicId]) : new Set(allTopics.map(t => t.id))
   )
-  const accent  = M.accentColor
-  const isMixed = !currentTopicId
-  const isTopic = !!currentTopicId
+  const accent   = M.accentColor
+  const isMixed  = !currentTopicId  // came from "Mixed Practice" — show topic picker
+  const isTopic  = !!currentTopicId // came from a specific topic — skip topic picker
 
-  const filteredQs  = isTopic ? allQuestions : allQuestions.filter(q => selectedTopicIds.has(q.topic_id))
+  // Filter questions based on selected topics
+  const filteredQs = isTopic
+    ? allQuestions
+    : allQuestions.filter(q => selectedTopicIds.has(q.topic_id))
+
   const max         = filteredQs.length
   const actualCount = count === 'All' ? max : Math.min(count, max)
 
@@ -82,14 +141,17 @@ function SetupScreen({ allTopics, currentTopicId, allQuestions, M, mode, onStart
   }
 
   function toggleAll() {
-    if (selectedTopicIds.size === allTopics.length) setSelectedTopicIds(new Set())
-    else setSelectedTopicIds(new Set(allTopics.map(t => t.id)))
+    if (selectedTopicIds.size === allTopics.length)
+      setSelectedTopicIds(new Set())
+    else
+      setSelectedTopicIds(new Set(allTopics.map(t => t.id)))
   }
 
   const topicName = isTopic ? (allTopics.find(t => t.id === currentTopicId)?.title || 'Practice') : null
 
   return (
     <div style={{ minHeight:'100vh', background:M.lessonBg, fontFamily:M.font, display:'flex', flexDirection:'column' }}>
+      {/* Top bar */}
       <div style={{ padding:'10px 16px', display:'flex', alignItems:'center', gap:10, borderBottom:`1px solid ${accent}18`, background:M.hudBg }}>
         <button onClick={() => router.back()} style={{ width:32, height:32, borderRadius:'50%', background:M.lessonCard, border:M.lessonBorder, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:M.textSecondary, fontSize:14 }}>←</button>
         <div style={{ flex:1, fontSize:14, fontWeight:800, color:M.textPrimary, fontFamily:M.headingFont }}>
@@ -99,6 +161,7 @@ function SetupScreen({ allTopics, currentTopicId, allQuestions, M, mode, onStart
 
       <div style={{ flex:1, overflowY:'auto', padding:'20px 16px 100px', maxWidth:520, margin:'0 auto', width:'100%', display:'flex', flexDirection:'column', gap:20 }}>
 
+        {/* Mascot greeting */}
         <div style={{ display:'flex', alignItems:'flex-end', gap:12 }}>
           <BicPencil pose="happy" size={68} style={{ flexShrink:0 }} />
           <div style={{ flex:1, padding:'12px 16px', background:`${accent}0A`, border:`1.5px solid ${accent}25`, borderRadius:'16px 16px 16px 4px', fontSize:13, fontFamily:'Nunito,sans-serif', fontWeight:600, lineHeight:1.6, color:M.textSecondary }}>
@@ -108,6 +171,7 @@ function SetupScreen({ allTopics, currentTopicId, allQuestions, M, mode, onStart
           </div>
         </div>
 
+        {/* Topic multi-select — only for mixed mode */}
         {isMixed && (
           <div style={{ background:M.lessonCard, border:M.lessonBorder, borderRadius:M.cardRadius, padding:'16px' }}>
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
@@ -127,9 +191,15 @@ function SetupScreen({ allTopics, currentTopicId, allQuestions, M, mode, onStart
                     padding:'10px 12px', borderRadius:10, cursor:'pointer', fontFamily:'Nunito,sans-serif',
                     background: isSelected ? `${accent}12` : 'transparent',
                     border:`1.5px solid ${isSelected ? accent : accent+'20'}`,
-                    display:'flex', alignItems:'center', gap:10, transition:'all 0.12s',
+                    display:'flex', alignItems:'center', gap:10,
+                    transition:'all 0.12s',
                   }}>
-                    <div style={{ width:18, height:18, borderRadius:5, flexShrink:0, background: isSelected ? accent : 'transparent', border:`2px solid ${isSelected ? accent : accent+'50'}`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                    <div style={{
+                      width:18, height:18, borderRadius:5, flexShrink:0,
+                      background: isSelected ? accent : 'transparent',
+                      border:`2px solid ${isSelected ? accent : accent+'50'}`,
+                      display:'flex', alignItems:'center', justifyContent:'center',
+                    }}>
                       {isSelected && <span style={{ color:'#fff', fontSize:11, fontWeight:900 }}>✓</span>}
                     </div>
                     <span style={{ flex:1, fontSize:13, fontWeight:700, color:isSelected ? M.textPrimary : M.textSecondary }}>{tp.title}</span>
@@ -140,12 +210,13 @@ function SetupScreen({ allTopics, currentTopicId, allQuestions, M, mode, onStart
             </div>
             {filteredQs.length === 0 && (
               <div style={{ marginTop:10, fontSize:11, color:'#FFC933', fontFamily:'Nunito,sans-serif' }}>
-                No questions for selected topics yet — generate practice questions in Admin.
+                No questions for the selected topics yet. Select more topics or generate practice questions in Admin.
               </div>
             )}
           </div>
         )}
 
+        {/* Question count */}
         <div style={{ background:M.lessonCard, border:M.lessonBorder, borderRadius:M.cardRadius, padding:'16px' }}>
           <div style={{ fontSize:11, fontWeight:800, color:M.textSecondary, letterSpacing:0.8, textTransform:'uppercase', marginBottom:12, fontFamily:'Nunito,sans-serif' }}>
             Number of Questions
@@ -164,6 +235,7 @@ function SetupScreen({ allTopics, currentTopicId, allQuestions, M, mode, onStart
           </div>
         </div>
 
+        {/* Timer */}
         <div style={{ background:M.lessonCard, border:M.lessonBorder, borderRadius:M.cardRadius, padding:'16px' }}>
           <div style={{ fontSize:11, fontWeight:800, color:M.textSecondary, letterSpacing:0.8, textTransform:'uppercase', marginBottom:12, fontFamily:'Nunito,sans-serif' }}>Timer (optional)</div>
           <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
@@ -184,6 +256,7 @@ function SetupScreen({ allTopics, currentTopicId, allQuestions, M, mode, onStart
           )}
         </div>
 
+        {/* Summary */}
         <div style={{ background:`${accent}0A`, border:`1px solid ${accent}25`, borderRadius:M.cardRadius, padding:'14px 16px', fontFamily:'Nunito,sans-serif' }}>
           <div style={{ fontSize:12, color:M.textSecondary, lineHeight:1.7 }}>
             📋 <strong style={{ color:M.textPrimary }}>{actualCount} question{actualCount!==1?'s':''}</strong>
@@ -192,7 +265,9 @@ function SetupScreen({ allTopics, currentTopicId, allQuestions, M, mode, onStart
           </div>
         </div>
 
-        <button disabled={actualCount === 0} onClick={() => onStart(filteredQs, actualCount, timeSec)}
+        <button
+          disabled={actualCount === 0}
+          onClick={() => onStart(filteredQs, actualCount, timeSec)}
           style={{ ...M.primaryBtn, fontSize:16, padding:'16px', opacity: actualCount===0 ? 0.4 : 1 }}>
           {mode==='blaze' ? '⚡ START DRILL' : mode==='roots' ? '🇳🇬 Start Practice' : 'Start Practice →'}
         </button>
@@ -201,17 +276,22 @@ function SetupScreen({ allTopics, currentTopicId, allQuestions, M, mode, onStart
   )
 }
 
-function ReviewScreen({ questions, answers, M, mode, topicId, onRetry }) {
-  const router = useRouter()
+// ── Review screen ─────────────────────────────────────────────────────────────
+function ReviewScreen({ questions, answers, M, mode, topicId, xpEarned, onRetry }) {
+  const router   = useRouter()
   const [reviewIdx, setReviewIdx] = useState(0)
+  const [showWhy,   setShowWhy]   = useState({}) // { [idx]: bool }
   const correct  = answers.filter(Boolean).length
   const accuracy = Math.round((correct / Math.max(questions.length, 1)) * 100)
   const accent   = M.accentColor
+
   const current    = questions[reviewIdx]
   const wasCorrect = answers[reviewIdx]
+  const correctOpt = current ? (current.options||[]).find(o => o.is_correct) : null
 
   return (
     <div style={{ minHeight:'100vh', background:M.lessonBg, fontFamily:M.font, display:'flex', flexDirection:'column' }}>
+      {/* Header */}
       <div style={{ padding:'10px 16px', display:'flex', alignItems:'center', gap:10, borderBottom:`1px solid ${accent}18`, background:M.hudBg, flexShrink:0 }}>
         <button onClick={() => router.push('/learn')} style={{ width:32, height:32, borderRadius:'50%', background:M.lessonCard, border:M.lessonBorder, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:M.textSecondary, fontSize:14 }}>←</button>
         <div style={{ flex:1, fontSize:13, fontWeight:800, color:M.textPrimary, fontFamily:M.headingFont }}>
@@ -221,6 +301,8 @@ function ReviewScreen({ questions, answers, M, mode, topicId, onRetry }) {
       </div>
 
       <div style={{ flex:1, overflowY:'auto', display:'flex', flexDirection:'column' }}>
+
+        {/* Mascot + result message */}
         <div style={{ padding:'16px 16px 0', maxWidth:560, margin:'0 auto', width:'100%' }}>
           <div style={{ display:'flex', alignItems:'flex-end', gap:12, marginBottom:16 }}>
             <BicPencil pose={accuracy>=70?'celebrate':'think'} size={74} style={{ flexShrink:0, animation:'float 2s ease-in-out infinite' }} />
@@ -235,17 +317,18 @@ function ReviewScreen({ questions, answers, M, mode, topicId, onRetry }) {
               </div>
               {accuracy < 60 && (
                 <button onClick={() => router.push('/learn')} style={{ marginTop:8, background:'none', border:`1px solid ${accent}40`, borderRadius:8, padding:'5px 12px', color:accent, cursor:'pointer', fontSize:11, fontWeight:800, fontFamily:'Nunito,sans-serif' }}>
-                  Go to Lesson →
+                  Review Lessons →
                 </button>
               )}
             </div>
           </div>
 
+          {/* Score stats — now includes XP */}
           <div style={{ display:'flex', gap:8, marginBottom:16 }}>
             {[
               { label:'Score',    value:`${correct}/${questions.length}`, color:accuracy>=70?M.correctColor:'#FFC933' },
               { label:'Accuracy', value:`${accuracy}%`,                   color:accuracy>=70?M.correctColor:'#FFC933' },
-              { label:'Missed',   value:`${questions.length-correct}`,    color:questions.length-correct===0?M.correctColor:'#FF6B6B' },
+              { label:'XP Earned', value:`+${xpEarned||0}`,              color:'#FFC933' },
             ].map(({ label, value, color }) => (
               <div key={label} style={{ flex:1, background:M.lessonCard, border:M.lessonBorder, borderRadius:M.cardRadius, textAlign:'center', padding:'12px 6px' }}>
                 <div style={{ fontSize:18, fontWeight:900, color, fontFamily:M.headingFont }}>{value}</div>
@@ -255,14 +338,16 @@ function ReviewScreen({ questions, answers, M, mode, topicId, onRetry }) {
           </div>
         </div>
 
+        {/* Question-by-question flipper */}
         <div style={{ flex:1, padding:'0 16px 16px', maxWidth:560, margin:'0 auto', width:'100%' }}>
           <div style={{ fontSize:10, fontWeight:800, color:M.textSecondary, letterSpacing:0.8, textTransform:'uppercase', fontFamily:'Nunito,sans-serif', marginBottom:10 }}>
             Question {reviewIdx+1} of {questions.length}
           </div>
 
+          {/* Dot nav */}
           <div style={{ display:'flex', gap:6, marginBottom:14, flexWrap:'wrap' }}>
             {questions.map((_, i) => (
-              <button key={i} onClick={() => setReviewIdx(i)} style={{
+              <button key={i} onClick={() => { setReviewIdx(i); setShowWhy(w => ({ ...w, [i]: false })) }} style={{
                 width:28, height:28, borderRadius:'50%', border:'none', cursor:'pointer',
                 background: i===reviewIdx ? accent : answers[i] ? M.correctColor+'30' : '#FF6B6B30',
                 outline: i===reviewIdx ? `2px solid ${accent}` : 'none',
@@ -273,9 +358,12 @@ function ReviewScreen({ questions, answers, M, mode, topicId, onRetry }) {
             ))}
           </div>
 
+          {/* Question card */}
           {current && (
-            <div style={{ background:M.lessonCard, border:`1.5px solid ${wasCorrect ? M.correctColor+'35' : '#FF6B6B35'}`, borderRadius:M.cardRadius, overflow:'hidden', marginBottom:12 }}>
-              <div style={{ padding:'8px 14px', background: wasCorrect ? M.correctColor+'12' : '#FF6B6B12', display:'flex', alignItems:'center', gap:8 }}>
+            <div style={{ background:M.lessonCard, border:`1.5px solid ${wasCorrect ? M.correctColor+'35' : '#FF6B6B35'}`, borderRadius:M.cardRadius, overflow:'visible', marginBottom:12 }}>
+
+              {/* Status bar */}
+              <div style={{ padding:'8px 14px', background: wasCorrect ? M.correctColor+'12' : '#FF6B6B12', display:'flex', alignItems:'center', gap:8, borderRadius:`${M.cardRadius}px ${M.cardRadius}px 0 0` }}>
                 <span style={{ fontSize:16 }}>{wasCorrect ? '✅' : '❌'}</span>
                 <span style={{ fontSize:11, fontWeight:800, color: wasCorrect ? M.correctColor : '#FF6B6B', fontFamily:'Nunito,sans-serif' }}>
                   {wasCorrect ? 'Correct!' : 'Incorrect'}
@@ -287,44 +375,64 @@ function ReviewScreen({ questions, answers, M, mode, topicId, onRetry }) {
                 )}
               </div>
 
+              {/* Question text */}
               <div style={{ padding:'14px', borderBottom:`1px solid ${accent}15` }}>
-                <div style={{ fontSize:14, fontWeight:700, color:M.textPrimary, lineHeight:1.6, fontFamily:'Nunito,sans-serif' }}>
+                <div style={{ fontSize:14, fontWeight:700, color:M.textPrimary, lineHeight:1.65, fontFamily:'Nunito,sans-serif', whiteSpace:'normal', overflowWrap:'break-word', wordBreak:'break-word' }}>
                   {current.question_text}
                 </div>
               </div>
 
+              {/* Answer options — highlight correct */}
               <div style={{ padding:'10px 14px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
                 {(current.options||[]).map((opt, j) => (
                   <div key={j} style={{
-                    padding:'8px 10px', borderRadius:8, fontSize:12, lineHeight:1.4,
+                    padding:'8px 10px', borderRadius:8, lineHeight:1.5,
                     background: opt.is_correct ? M.correctColor+'14' : 'rgba(0,0,0,0.02)',
                     border:`1px solid ${opt.is_correct ? M.correctColor+'40' : accent+'15'}`,
                     color: opt.is_correct ? M.correctColor : M.textSecondary,
                     fontFamily:'Nunito,sans-serif', fontWeight: opt.is_correct ? 800 : 500,
+                    fontSize:12, whiteSpace:'normal', overflowWrap:'break-word', wordBreak:'break-word',
                   }}>
                     {opt.is_correct && <span style={{ marginRight:4 }}>✓</span>}{opt.option_text}
                   </div>
                 ))}
               </div>
 
-              {!wasCorrect && current.explanation && (
+              {/* Explanation — always accessible via "Why?" button */}
+              {current.explanation && (
                 <div style={{ padding:'0 14px 14px', borderTop:`1px solid ${accent}12` }}>
-                  <div style={{ fontSize:10, fontWeight:800, color:accent, marginBottom:8, marginTop:12, textTransform:'uppercase', letterSpacing:0.8, fontFamily:'Nunito,sans-serif' }}>
-                    Solution
-                  </div>
-                  <StepExplanation text={current.explanation} M={M} />
+                  {!showWhy[reviewIdx] ? (
+                    <button onClick={() => setShowWhy(w => ({ ...w, [reviewIdx]: true }))} style={{
+                      marginTop:10, background:'none',
+                      border:`1px dashed ${wasCorrect ? M.correctColor+'60' : accent+'50'}`,
+                      borderRadius:8, padding:'7px 14px', width:'100%', textAlign:'left',
+                      color: wasCorrect ? M.correctColor : accent,
+                      cursor:'pointer', fontSize:12, fontWeight:700, fontFamily:'Nunito,sans-serif',
+                    }}>
+                      💡 {wasCorrect ? 'Why is this correct?' : 'Show solution'}
+                    </button>
+                  ) : (
+                    <div style={{ marginTop:12 }}>
+                      <div style={{ fontSize:10, fontWeight:800, color:accent, marginBottom:10, textTransform:'uppercase', letterSpacing:0.8, fontFamily:'Nunito,sans-serif' }}>
+                        Solution — step by step
+                      </div>
+                      <StepExplanation text={current.explanation} M={M} />
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           )}
 
+          {/* Prev / Next navigation */}
           <div style={{ display:'flex', gap:10, marginBottom:16 }}>
-            <button onClick={() => setReviewIdx(i => Math.max(0, i-1))} disabled={reviewIdx===0}
+            <button onClick={() => { setReviewIdx(i => Math.max(0, i-1)); setShowWhy({}) }} disabled={reviewIdx===0}
               style={{ flex:1, ...M.ghostBtn, opacity:reviewIdx===0?0.3:1 }}>← Prev</button>
-            <button onClick={() => setReviewIdx(i => Math.min(questions.length-1, i+1))} disabled={reviewIdx===questions.length-1}
+            <button onClick={() => { setReviewIdx(i => Math.min(questions.length-1, i+1)); setShowWhy({}) }} disabled={reviewIdx===questions.length-1}
               style={{ flex:1, ...M.ghostBtn, opacity:reviewIdx===questions.length-1?0.3:1 }}>Next →</button>
           </div>
 
+          {/* Actions */}
           <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
             <button onClick={onRetry} style={{ ...M.primaryBtn }}>{mode==='blaze'?'⚡ GO AGAIN!':'Try Again →'}</button>
             <button onClick={() => router.push('/learn')} style={{ ...M.ghostBtn }}>Back to Learn Map</button>
@@ -335,6 +443,7 @@ function ReviewScreen({ questions, answers, M, mode, topicId, onRetry }) {
   )
 }
 
+// ── Session timer ─────────────────────────────────────────────────────────────
 function SessionTimer({ totalSecs, onExpire, M }) {
   const [left, setLeft] = useState(totalSecs)
   const accent = M.accentColor
@@ -368,26 +477,32 @@ function SessionTimer({ totalSecs, onExpire, M }) {
   )
 }
 
-export default function PracticeMode({ questions: allQuestions, topicTitle, topicId, student, levels }) {
+// ── Main component ────────────────────────────────────────────────────────────
+export default function PracticeMode({ questions: allQuestions, topicTitle, topicId, student, levels, questionTopicIds }) {
   const router   = useRouter()
   const { M, mode } = useMode()
   const supabase = createClient()
 
-  const [phase,     setPhase]     = useState('setup')
-  const [sessionQs, setSessionQs] = useState([])
-  const [answers,   setAnswers]   = useState([])
-  const [qIdx,      setQIdx]      = useState(0)
-  const [selected,  setSelected]  = useState(null)
-  const [showHint,  setShowHint]  = useState(false)
-  const [totalSecs, setTotalSecs] = useState(0)
+  const [phase,      setPhase]      = useState('setup')
+  const [sessionQs,  setSessionQs]  = useState([])
+  const [answers,    setAnswers]    = useState([])
+  const [qIdx,       setQIdx]       = useState(0)
+  const [selected,   setSelected]   = useState(null)
+  const [showHint,   setShowHint]   = useState(false)
+  const [totalSecs,  setTotalSecs]  = useState(0)
+  const [xpEarned,   setXpEarned]   = useState(0)
 
   const accent = M.accentColor
   const card   = { background:M.lessonCard, border:M.lessonBorder, borderRadius:M.cardRadius, boxShadow:M.cardShadow }
 
+  // Only show topics that actually have questions
+  const topicsWithQs = new Set(questionTopicIds || allQuestions.map(q => q.topic_id))
   const allTopics = (levels || []).flatMap(l =>
     (l.terms||[]).flatMap(t =>
       (t.units||[]).flatMap(u =>
-        (u.topics||[]).map(tp => ({ ...tp, levelName: l.name }))
+        (u.topics||[])
+          .filter(tp => topicsWithQs.has(tp.id))
+          .map(tp => ({ ...tp, levelName: l.name }))
       )
     )
   )
@@ -400,33 +515,69 @@ export default function PracticeMode({ questions: allQuestions, topicTitle, topi
     setSelected(null)
     setShowHint(false)
     setTotalSecs(timeSec)
+    setXpEarned(0)
     setPhase('quiz')
   }
 
-  function handleNext() {
+  async function handleNext() {
     if (selected === null) return
     const correct = sessionQs[qIdx]?.options?.[selected]?.is_correct || false
     const newAnswers = [...answers, correct]
     setAnswers(newAnswers)
+
     if (student?.id && sessionQs[qIdx]?.id) {
-      supabase.from('practice_attempts').insert({ student_id:student.id, question_id:sessionQs[qIdx].id, is_correct:correct })
+      supabase.from('practice_attempts').insert({
+        student_id: student.id,
+        question_id: sessionQs[qIdx].id,
+        is_correct: correct,
+      })
     }
+
     setSelected(null)
     setShowHint(false)
+
     if (qIdx + 1 < sessionQs.length) {
       setQIdx(i => i + 1)
     } else {
-      const xp = newAnswers.filter(Boolean).length * 2
-      if (student?.id && xp > 0) {
-        supabase.from('students').update({ xp:(student.xp||0)+xp, monthly_xp:(student.monthly_xp||0)+xp }).eq('id', student.id)
+      const correctCount = newAnswers.filter(Boolean).length
+      const xp = Math.max(correctCount * 2, 1)
+      setXpEarned(xp)
+      if (student?.id) {
+        try {
+          const { data: { user } } = await supabase.auth.getUser()
+          if (user) {
+            const { data: fresh } = await supabase
+              .from('students').select('xp, monthly_xp').eq('profile_id', user.id).single()
+            const { error: xpErr } = await supabase.from('students').update({
+              xp:         (fresh?.xp        || 0) + xp,
+              monthly_xp: (fresh?.monthly_xp || 0) + xp,
+            }).eq('profile_id', user.id)
+            if (xpErr) console.error('[practice] XP update error:', xpErr.message)
+          }
+        } catch (e) { console.error('[practice] XP error:', e.message) }
       }
       setPhase('review')
     }
   }
 
-  function handleTimerExpire() {
-    const partial = [...answers]
+  async function handleTimerExpire() {
+    const partial      = [...answers]
     const finalAnswers = [...partial, ...Array(sessionQs.length - partial.length).fill(false)]
+    const xp = Math.max(partial.filter(Boolean).length * 2, 1)
+    setXpEarned(xp)
+    if (student?.id) {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const { data: fresh } = await supabase
+            .from('students').select('xp, monthly_xp').eq('profile_id', user.id).single()
+          await supabase.from('students').update({
+            xp:         (fresh?.xp        || 0) + xp,
+            monthly_xp: (fresh?.monthly_xp || 0) + xp,
+          }).eq('profile_id', user.id)
+        }
+      } catch (e) { console.error('[practice] timer XP error:', e.message) }
+    }
     setAnswers(finalAnswers)
     setPhase('review')
   }
@@ -439,14 +590,36 @@ export default function PracticeMode({ questions: allQuestions, topicTitle, topi
     setShowHint(false)
   }
 
+  // ── Setup ────────────────────────────────────────────────────────────────────
   if (phase === 'setup') {
-    return <SetupScreen allTopics={allTopics} currentTopicId={topicId} allQuestions={allQuestions} M={M} mode={mode} onStart={startSession} />
+    return (
+      <SetupScreen
+        allTopics={allTopics}
+        currentTopicId={topicId}
+        allQuestions={allQuestions}
+        M={M}
+        mode={mode}
+        onStart={startSession}
+      />
+    )
   }
 
+  // ── Review ───────────────────────────────────────────────────────────────────
   if (phase === 'review') {
-    return <ReviewScreen questions={sessionQs} answers={answers} M={M} mode={mode} topicId={topicId} onRetry={handleRetry} />
+    return (
+      <ReviewScreen
+        questions={sessionQs}
+        answers={answers}
+        M={M}
+        mode={mode}
+        topicId={topicId}
+        xpEarned={xpEarned}
+        onRetry={handleRetry}
+      />
+    )
   }
 
+  // ── No questions ─────────────────────────────────────────────────────────────
   const currentQ = sessionQs[qIdx]
   if (!currentQ) {
     return (
@@ -462,21 +635,26 @@ export default function PracticeMode({ questions: allQuestions, topicTitle, topi
     )
   }
 
+  // ── Quiz ─────────────────────────────────────────────────────────────────────
   const pct     = Math.round((qIdx / sessionQs.length) * 100)
   const letters = ['A','B','C','D']
 
   return (
     <div style={{ minHeight:'100vh', background:M.lessonBg, fontFamily:M.font, display:'flex', flexDirection:'column' }}>
+
+      {/* Progress bar */}
       <div style={{ height:4, background:M.progressTrack, flexShrink:0 }}>
         <div style={{ width:`${pct}%`, height:'100%', background:accent, transition:'width 0.3s ease' }} />
       </div>
 
+      {/* Top bar */}
       <div style={{ padding:'10px 16px', display:'flex', alignItems:'center', gap:10, borderBottom:`1px solid ${accent}18`, background:M.hudBg, flexShrink:0 }}>
         <button onClick={() => setPhase('setup')} style={{ width:32, height:32, borderRadius:'50%', background:M.lessonCard, border:M.lessonBorder, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:M.textSecondary, fontSize:14 }}>←</button>
         <div style={{ flex:1 }}>
           <div style={{ fontSize:12, fontWeight:800, color:M.textPrimary, fontFamily:M.headingFont }}>{topicTitle}</div>
           <div style={{ fontSize:10, color:M.textSecondary, fontFamily:'Nunito,sans-serif' }}>{qIdx+1} of {sessionQs.length}</div>
         </div>
+        {/* Dot progress */}
         <div style={{ display:'flex', gap:4, alignItems:'center' }}>
           {sessionQs.slice(0, 10).map((_, i) => (
             <div key={i} style={{ width:i===qIdx?10:6, height:i===qIdx?10:6, borderRadius:'50%', flexShrink:0, transition:'all 0.2s', background:i<qIdx?accent:i===qIdx?accent:`${accent}25` }} />
@@ -486,7 +664,10 @@ export default function PracticeMode({ questions: allQuestions, topicTitle, topi
         <SessionTimer totalSecs={totalSecs} onExpire={handleTimerExpire} M={M} />
       </div>
 
+      {/* Main */}
       <div style={{ flex:1, overflowY:'auto', display:'flex', flexDirection:'column', padding:'16px', gap:12, maxWidth:560, margin:'0 auto', width:'100%' }}>
+
+        {/* Difficulty + exam tag */}
         <div style={{ display:'flex', gap:6 }}>
           {currentQ.difficulty && (
             <span style={{ fontSize:9, fontWeight:900, color:DIFF_COLOR[currentQ.difficulty]||accent, background:(DIFF_COLOR[currentQ.difficulty]||accent)+'18', border:`1px solid ${(DIFF_COLOR[currentQ.difficulty]||accent)}30`, borderRadius:20, padding:'2px 9px', letterSpacing:1, textTransform:'uppercase' }}>
@@ -500,37 +681,49 @@ export default function PracticeMode({ questions: allQuestions, topicTitle, topi
           )}
         </div>
 
+        {/* Question */}
         <div style={{ ...card, padding:'16px 18px' }}>
           <div style={{ fontSize:15, fontWeight:800, color:M.textPrimary, lineHeight:1.65, fontFamily:'Nunito,sans-serif' }}>
             {currentQ.question_text}
           </div>
         </div>
 
+        {/* Hint — hidden until tapped */}
         {currentQ.hint && (
-          !showHint ? (
-            <button onClick={() => setShowHint(true)} style={{ background:'none', border:`1px dashed ${accent}50`, borderRadius:10, padding:'8px 14px', color:accent, cursor:'pointer', fontSize:12, fontWeight:700, fontFamily:'Nunito,sans-serif', width:'100%', textAlign:'left' }}>
-              💡 Need a hint?
-            </button>
-          ) : (
-            <div style={{ background:`${accent}08`, border:`1px solid ${accent}25`, borderRadius:10, padding:'10px 14px', fontSize:12, color:M.textSecondary, fontFamily:'Nunito,sans-serif', lineHeight:1.6 }}>
-              💡 {currentQ.hint}
-            </div>
-          )
+          <div>
+            {!showHint ? (
+              <button onClick={() => setShowHint(true)} style={{
+                background:'none', border:`1px dashed ${accent}50`, borderRadius:10,
+                padding:'8px 14px', color:accent, cursor:'pointer',
+                fontSize:12, fontWeight:700, fontFamily:'Nunito,sans-serif', width:'100%', textAlign:'left',
+              }}>
+                💡 Need a hint?
+              </button>
+            ) : (
+              <div style={{ background:`${accent}08`, border:`1px solid ${accent}25`, borderRadius:10, padding:'10px 14px', fontSize:12, color:M.textSecondary, fontFamily:'Nunito,sans-serif', lineHeight:1.6 }}>
+                💡 {currentQ.hint}
+              </div>
+            )}
+          </div>
         )}
 
+        {/* Options — tap to select, tap again to deselect */}
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
           {(currentQ.options||[]).map((opt, i) => {
             const isSelected = selected === i
             return (
-              <button key={i} onClick={() => setSelected(isSelected ? null : i)} style={{
-                background: isSelected ? `${accent}18` : M.lessonCard,
-                border:`2px solid ${isSelected ? accent : accent+'22'}`,
-                borderRadius:M.cardRadius, padding:'14px 10px',
-                cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', gap:6,
-                fontFamily:'Nunito,sans-serif', transition:'all 0.15s', minHeight:72,
-                transform: isSelected ? 'translateY(-2px)' : 'none',
-                boxShadow: isSelected ? `0 4px 12px ${accent}25` : 'none',
-              }}>
+              <button key={i}
+                onClick={() => setSelected(isSelected ? null : i)}
+                style={{
+                  background: isSelected ? `${accent}18` : M.lessonCard,
+                  border:`2px solid ${isSelected ? accent : accent+'22'}`,
+                  borderRadius:M.cardRadius, padding:'14px 10px',
+                  cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', gap:6,
+                  fontFamily:'Nunito,sans-serif', transition:'all 0.15s', minHeight:72,
+                  transform: isSelected ? 'translateY(-2px)' : 'none',
+                  boxShadow: isSelected ? `0 4px 12px ${accent}25` : 'none',
+                }}
+              >
                 <span style={{ width:24, height:24, borderRadius:'50%', background:isSelected?accent:`${accent}20`, color:isSelected?'#fff':accent, fontSize:11, fontWeight:900, display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s' }}>{letters[i]}</span>
                 <span style={{ fontSize:13, fontWeight:700, color:M.textPrimary, lineHeight:1.3, textAlign:'center' }}>{opt.option_text}</span>
               </button>
@@ -538,13 +731,16 @@ export default function PracticeMode({ questions: allQuestions, topicTitle, topi
           })}
         </div>
 
+        {/* Info / Next */}
         <div style={{ fontSize:11, color:M.textSecondary, textAlign:'center', fontFamily:'Nunito,sans-serif', opacity:0.7 }}>
           {selected === null ? 'Tap an answer to select it — tap again to change' : '✓ Selected — tap Next to lock it in'}
         </div>
 
         {selected !== null && (
           <button onClick={handleNext} style={{ ...M.primaryBtn, fontSize:15 }}>
-            {qIdx+1 < sessionQs.length ? (mode==='blaze' ? '⚡ NEXT' : 'Next →') : (mode==='blaze' ? '⚡ SEE RESULTS' : 'See Results →')}
+            {qIdx+1 < sessionQs.length
+              ? (mode==='blaze' ? '⚡ NEXT' : 'Next →')
+              : (mode==='blaze' ? '⚡ SEE RESULTS' : 'See Results →')}
           </button>
         )}
 
@@ -554,7 +750,7 @@ export default function PracticeMode({ questions: allQuestions, topicTitle, topi
             setAnswers(newAnswers)
             setShowHint(false)
             if (qIdx + 1 < sessionQs.length) setQIdx(i => i + 1)
-            else setPhase('review')
+            else { setPhase('review') }
           }} style={{ background:'none', border:'none', cursor:'pointer', fontSize:11, color:M.textSecondary, fontFamily:'Nunito,sans-serif', textAlign:'center', padding:'4px 0', opacity:0.5 }}>
             Skip →
           </button>
