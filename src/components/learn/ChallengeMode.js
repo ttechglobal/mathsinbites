@@ -112,16 +112,8 @@ export default function ChallengeMode({ questions, topicTitle, topicId, student,
       xp_awarded:     xpEarned + bonus,
       completed:      true,
     }, { onConflict: 'student_id,challenge_date' })
-    if (bonus > 0) {
-      if (userId) {
-        supabase.from('students').select('xp, monthly_xp').eq('profile_id', userId).single()
-          .then(({ data: fresh }) => {
-            supabase.from('students').update({
-              xp:         (fresh?.xp        || 0) + bonus,
-              monthly_xp: (fresh?.monthly_xp || 0) + bonus,
-            }).eq('profile_id', userId)
-          })
-      }
+    if (bonus > 0 && userId) {
+      supabase.rpc('add_xp', { amount: bonus })
     }
   }, [phase])
 
@@ -148,13 +140,7 @@ export default function ChallengeMode({ questions, topicTitle, topicId, student,
     if (xp > 0) {
       setXpEarned(p => p + xp)
       if (userId) {
-        supabase.from('students').select('xp, monthly_xp').eq('profile_id', userId).single()
-          .then(({ data: fresh }) => {
-            supabase.from('students').update({
-              xp:         (fresh?.xp        || 0) + xp,
-              monthly_xp: (fresh?.monthly_xp || 0) + xp,
-            }).eq('profile_id', userId)
-          })
+        supabase.rpc('add_xp', { amount: xp })
       }
     }
 
@@ -438,33 +424,26 @@ export default function ChallengeMode({ questions, topicTitle, topicId, student,
 
         {/* Submit + Back row */}
         <div style={{ display:'flex', gap:10 }}>
-          {/* Back button — always visible */}
-          <button
-            onClick={() => {
-              clearInterval(timerRef.current)
-              if (selectedOpt) setAnswerMap(m => ({ ...m, [qIdx]: selectedOpt }))
-              if (qIdx > 0) {
+          {/* Back button — only shown when not on first question */}
+          {qIdx > 0 && (
+            <button
+              onClick={() => {
+                clearInterval(timerRef.current)
+                if (selectedOpt) setAnswerMap(m => ({ ...m, [qIdx]: selectedOpt }))
                 const prevIdx = qIdx - 1
                 const prevOpt = answerMap[prevIdx] || null
                 setQIdx(prevIdx)
                 setSelectedOpt(prevOpt)
                 setPhase(prevOpt ? 'selected' : 'question')
-              } else {
-                setShowExitModal(true)
-              }
-            }}
-            style={{
-              ...M.ghostBtn,
-              flex: phase === 'selected' ? '0 0 auto' : 1,
-              fontSize: 14,
-              padding: '14px 18px',
-            }}>
-            {qIdx > 0 ? '← Back' : '← Exit'}
-          </button>
+              }}
+              style={{ ...M.ghostBtn, flex:'0 0 auto', fontSize:14, padding:'14px 18px' }}>
+              ← Back
+            </button>
+          )}
 
           {/* Submit — only when option selected */}
           {phase === 'selected' && (
-            <button onClick={handleSubmit} style={{ ...M.primaryBtn, flex: 1, fontSize: 15 }}>
+            <button onClick={handleSubmit} style={{ ...M.primaryBtn, flex:1, fontSize:15 }}>
               {qIdx+1 < questions.length
                 ? (mode==='blaze' ? '⚡ SUBMIT & NEXT' : 'Submit →')
                 : (mode==='blaze' ? '⚡ SEE RESULTS' : 'Submit & See Results →')}

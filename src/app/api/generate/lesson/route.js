@@ -29,42 +29,60 @@ async function ask(prompt, maxTokens, label) {
 }
 
 // ── Single SVG generation ──────────────────────────────────────────────────────
+// Returns null for you_try slides (no image needed there — saves API credits)
 async function genSvg(slideTitle, slideExplanation, slideType) {
-  const isExample = ['worked_example', 'you_try'].includes(slideType)
+  if (slideType === 'you_try') return null
+
+  const isExample = slideType === 'worked_example'
+  const isIntro = slideType === 'introduction'
+
+  const contentRules = isIntro
+    ? `You are drawing a REAL-WORLD SCENE that shows why this maths topic matters in Nigerian life.
+- Draw a vivid everyday Nigerian scene: a market stall with prices, a keke napep with passengers, a phone showing recharge card credit, a field being measured, a buka restaurant bill, suya portions being shared, etc.
+- The scene should make a child think "oh! this maths is in MY world"
+- Include Nigerian names, ₦ naira signs, or familiar objects
+- Make it warm, colourful, and relatable — not abstract`
+    : isExample
+    ? `You are drawing a VISUAL SOLUTION to a maths problem.
+- Show the numbers and working visually: a table, a number line with jumps, objects being counted/grouped, arrows showing steps
+- Use ₦ naira signs and Nigerian names where the problem uses them
+- The child should see the answer path just by looking`
+    : `You are drawing a CONCEPT DIAGRAM that makes one maths idea crystal clear.
+- Think: how would a brilliant teacher draw this on a whiteboard to make a 10-year-old say "I get it!"
+- Use: number lines with jumps, place-value blocks, fraction bars, geometric shapes with labels, bar models, arrays of objects, comparison diagrams
+- Nigerian context where it fits naturally (sharing suya, stacking gala, measuring a room)
+- Label every key part clearly
+- ONE clear idea only — no clutter`
+
   const msg = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',
-    max_tokens: 1600,
+    max_tokens: 1800,
     messages: [{
       role: 'user',
-      content: `You are creating an educational SVG illustration for a Nigerian secondary school maths lesson.
+      content: `You are creating an educational SVG for a Nigerian primary/secondary school maths lesson.
 
 Slide title: "${slideTitle}"
-Concept: "${(slideExplanation || '').slice(0, 300)}"
-Slide type: "${slideType}"
+Concept: "${(slideExplanation || '').slice(0, 350)}"
 
-GOAL: The illustration must make the concept INSTANTLY clear without reading text. A student should glance at it and say "oh, I get it now."
+${contentRules}
 
-Return ONLY the raw SVG element — no markdown, no backticks, no explanation. Start with <svg and end with </svg>.
+GOAL: A child should look at this image for 3 seconds and understand the concept better — no reading required.
+
+Return ONLY the raw SVG. No markdown, no explanation. Start with <svg, end with </svg>.
 
 TECHNICAL RULES:
-- viewBox="0 0 360 190" width="360" height="190"
-- Background: <rect width="360" height="190" rx="10" fill="#F8F9FF"/>
-- Palette: #4F46E5 (primary), #EF4444 (highlight/wrong), #10B981 (correct/green), #F59E0B (warm), #1E293B (dark text)
-- font-family="system-ui, sans-serif"
-- Labels: font-size="12" or "14" for titles, font-size="11" for small text
-- Elements: rect, circle, line, polyline, polygon, path (simple), text only
-- NO complex clip-paths, NO filters, NO foreignObject
-
-CONTENT RULES:
-${isExample ? `- Show the worked problem visually: numbers, arrows, steps or a table
-- Use Nigerian currency ₦ or Nigerian names if relevant to the problem` : `- Show a clear visual metaphor or diagram that represents this specific concept
-- Use Nigerian context where natural (market stall, phone credit, building floors, football pitch)
-- If the concept involves numbers/counting: draw actual objects, blocks, or a number line
-- If the concept involves shapes/geometry: draw clean labeled diagrams
-- If the concept involves data/graphs: draw a simple bar chart or number line
-- ALWAYS label key parts with text inside the SVG
-- Use arrows to show relationships or direction`}
-- Make it rich and specific to THIS concept — not generic`,
+- viewBox="0 0 360 200" width="360" height="200"
+- Background: <rect width="360" height="200" rx="12" fill="#F0F4FF"/>
+- Main palette: #4F46E5 indigo (primary shapes), #10B981 green (correct/positive), #F59E0B amber (highlight/warm), #EF4444 red (contrast), #1E293B near-black (text)
+- Accent fills: use light tints like #EEF2FF, #ECFDF5, #FEF3C7 for backgrounds of grouped elements
+- font-family="system-ui, sans-serif" on all text
+- font-size: 14 for main labels, 12 for secondary, 10 for small annotations
+- font-weight="700" for emphasis on key numbers/labels
+- Shapes: rect (rx="6" for rounded), circle, line, polyline, polygon, simple path
+- Arrow heads: use a filled polygon triangle, e.g. <polygon points="x1,y1 x2,y2 x3,y3" fill="#4F46E5"/>
+- NO foreignObject, NO clip-path, NO filter effects
+- Keep all elements within x=10..350, y=10..190
+- Make it RICH and detailed — empty space is wasted learning opportunity`,
     }],
   })
   const raw = (msg.content[0]?.text || '').trim()
@@ -131,9 +149,9 @@ async function saveLesson(supabase, lessonId, slides, questions, subtopicId, use
 
 // ── Nigerian context reference for prompts ────────────────────────────────────
 const NIGERIAN_CONTEXTS = `
-Nigerian names (draw from all regions): Emeka, Amina, Chidi, Ngozi, Tunde, Fatima, Bola, Kemi, Uche, Halima, Danladi, Ifunanya, Segun, Blessing, Musa, Chisom, Yusuf, Adaeze, Ola, Zainab, Biodun, Chiamaka, Ibrahim, Sade, Jide, Nkechi, Ladi, Taiwo, Efua, Dauda.
+Nigerian names to use (draw from all regions): Emeka, Amina, Chidi, Ngozi, Tunde, Fatima, Bola, Kemi, Uche, Halima, Danladi, Ifunanya, Segun, Blessing, Musa, Chisom, Yusuf, Adaeze, Ola, Zainab, Biodun, Chiamaka, Ibrahim, Sade, Jide, Nkechi, Ladi, Taiwo, Efua, Dauda.
 Nigerian cities & regions (use variety — not just Lagos): Lagos, Kano, Abuja, Enugu, Port Harcourt, Ibadan, Kaduna, Aba, Jos, Warri, Benin City, Calabar, Sokoto, Zaria, Onitsha, Abeokuta, Ilorin, Owerri, Asaba, Maiduguri, Makurdi.
-Nigerian everyday contexts: naira (₦), market stalls, school fees, danfo/molue fare, boli and groundnut, suya, gala, recharge cards, okada, keke napep, NEPA blackout/generator, WAEC/NECO exams, farm produce, fish market, data bundles, Iya Basira's shop, buka restaurant, PTA levy, savings (ajo/esusu).
+Nigerian everyday contexts: naira (₦), market stalls, school fees, danfo/molue fare, boli and groundnut, suya, gala, recharge cards, okada, keke napep, NEPA blackout/generator, WAEC/NECO exams, farm produce, fish market, data bundles, Iya Basira's shop, buka restaurant, PTA levy, savings contributions (ajo/esusu).
 `
 
 // ── Main handler ──────────────────────────────────────────────────────────────
@@ -160,46 +178,64 @@ export async function POST(request) {
   const ctx   = `${level} | ${term} | Unit: ${unit} | Topic: ${topic} | Subtopic: ${title}`
 
   // ── CALL 1 + 2 in parallel: text content + questions ──────────────────────
-  const textPrompt = `You are an expert Nigerian secondary school maths teacher creating a bite-sized digital lesson. Context: ${ctx}. Students aged 11-14, NERDC curriculum.
+  const textPrompt = `You are the most effective maths teacher in Nigeria. You have 20 years experience teaching children aged 8-17. You know how to explain ANY concept from absolute zero — no assumptions, no skipping steps. Context: ${ctx}.
+
+Think of yourself explaining this to a 10-year-old child who has NEVER heard of this topic before. Every word must be simple. Every step must be shown. Use everyday Nigerian life to make it real.
 
 Return ONLY a raw JSON object — no markdown fences, no text before or after.
 
-CRITICAL RULES FOR EXPLANATION TEXT:
-- Each slide must have SHORT, punchy explanation text — MAX 3 sentences per paragraph, max 2 paragraphs total
-- The SVG illustration does the heavy lifting — text only adds what the image cannot show
-- Write like you are texting a smart teenager, not writing a textbook
-- Use ^ for exponents: write 2^8 not 2⁸, write x_2 not x₂
-- Nigerian contexts: use names, places, everyday situations from across Nigeria
+CRITICAL WRITING RULES:
+- Explanations: SHORT sentences. MAX 2 paragraphs of 2-3 sentences each per slide.
+- Language: simple everyday English a primary school child can read. No big words.
+- Start from the very beginning — assume the student knows NOTHING about this topic.
+- Build up slowly, one tiny idea at a time.
+- Use ^ for exponents (2^8), use _ for subscripts (a_n) — never unicode symbols.
+- Nigerian context: weave in names, places, money (₦), everyday objects naturally.
+- The SVG image does the heavy lifting — your text explains what the image shows.
 
 {
   "lesson_title": "${title}",
-  "lesson_summary": "One sentence: what students will be able to DO after this lesson.",
-  "hook": "2-3 lively sentences. A real Nigerian everyday scenario that connects to ${title}. Use something from daily life — market arithmetic, recharge cards, measuring land, sharing suya, football stats. Draw from different parts of Nigeria. End with one punchy question that makes the student curious.",
+  "lesson_summary": "One sentence a child can understand: what they will be able to DO after this lesson.",
+  "hook": "2-3 friendly sentences. Paint a real Nigerian everyday moment that secretly uses ${title}. Make the child think — wait, I already know this? End with one simple question that sparks curiosity.",
   "slides": [
     {
       "order_index": 0,
+      "type": "introduction",
+      "title": "What is [topic]? — short, friendly title",
+      "explanation": "Paragraph 1: One relatable Nigerian example that shows this topic in real life. Paragraph 2: In the simplest possible words, what this lesson is about. No maths yet — just the idea.",
+      "formula": null,
+      "formula_note": null,
+      "hint": null,
+      "steps": null
+    },
+    {
+      "order_index": 1,
       "type": "concept",
-      "title": "Short punchy title — one idea only",
-      "explanation": "MAX 2 short paragraphs. First: one-sentence Nigerian hook. Second: the concept explained simply. The SVG will show the visual — keep text minimal.",
-      "formula": "The key formula or rule — use ^ for exponents e.g. 2^8, use _ for subscripts e.g. a_n. Or null if no formula.",
-      "formula_note": "One line explaining each variable. Or null.",
-      "hint": "One memorable shortcut or trick a student can tattoo on their brain.",
+      "title": "The very first idea — start from scratch",
+      "explanation": "Paragraph 1: The simplest possible version of this concept. Use an analogy a child knows. Paragraph 2: One more sentence connecting it to maths. Keep it tiny.",
+      "formula": "Key formula if needed — use ^ and _ notation. Or null.",
+      "formula_note": "What each symbol means in plain English. Or null.",
+      "hint": "One clever trick or rhyme the child can remember forever.",
       "steps": null
     }
   ]
 }
 
-SLIDE STRUCTURE — generate in this exact order:
-1. ONE "introduction" slide — Nigerian hook + what this topic is, with a vivid SVG showing the real-world context
-2. TWO to THREE "concept" slides — one clear idea each, building from simple to complex. Each MUST have a strong SVG that shows the concept visually (diagrams, number lines, worked visuals, labeled drawings)
-3. TWO "worked_example" slides — real Nigerian names/places; explanation = the problem statement only (short); steps = array of objects {label, text} showing full solution step by step
-4. ONE "you_try" slide — fresh problem; explanation = problem statement only; steps = full solution (revealed only when student taps)
+SLIDE STRUCTURE — generate in this EXACT order:
+1. ONE "introduction" slide — What is this topic? A real Nigerian life scene + the simplest possible intro. NO maths yet.
+2. TWO to THREE "concept" slides — each builds ONE new idea on top of the last. Start from zero. Use the tiniest possible steps. Each slide: ONE idea only.
+3. TWO "worked_example" slides — show a complete Nigerian problem solved step by step. explanation = the problem statement (simple, short). steps = array of {label, text} objects showing EVERY single step, written like you are explaining to a 9-year-old. No skipping. No shorthand.
+4. ONE "you_try" slide — a fresh problem for the student. explanation = problem only. steps = complete solution shown simply (revealed when student taps).
+
+WORKED EXAMPLE STEPS RULE — each step object must be:
+{ "label": "Step 1 — short name", "text": "What we do AND why, in plain English. Show the number. Show the calculation. Explain the result." }
+Never skip a step. Never say 'therefore' without showing the working. Imagine you are showing your working on paper.
 
 Return ONLY the JSON. No markdown.
 
 ${NIGERIAN_CONTEXTS}`
 
-  const questionsPrompt = `You are an expert Nigerian secondary school maths teacher. Context: ${ctx}. Students aged 11-14, NERDC curriculum.
+  const questionsPrompt = `You are a patient Nigerian maths teacher creating practice questions for children aged 8-17. Context: ${ctx}.
 
 Return ONLY a raw JSON object — no markdown fences, no text before or after.
 
@@ -207,24 +243,25 @@ Return ONLY a raw JSON object — no markdown fences, no text before or after.
   "questions": [
     {
       "order_index": 0,
-      "question_text": "Question using a Nigerian context",
+      "question_text": "A simple question using everyday Nigerian life. Short. One idea.",
       "difficulty": "easy",
-      "hint": "What formula or first step to use?",
-      "explanation": "Full worked solution — every step shown clearly",
+      "hint": "A gentle nudge — which step to start with, in plain English.",
+      "explanation": "Walk through the FULL solution like you are explaining to a 9-year-old.\nStep 1: Start here because...\nStep 2: Now we do this...\nStep 3: So the answer is... because...",
       "options": [
-        {"option_text": "Correct answer", "is_correct": true},
-        {"option_text": "Plausible wrong — a common student error", "is_correct": false},
-        {"option_text": "Plausible wrong", "is_correct": false},
-        {"option_text": "Plausible wrong", "is_correct": false}
+        {"option_text": "The correct answer", "is_correct": true},
+        {"option_text": "A wrong answer that is a common mistake students make", "is_correct": false},
+        {"option_text": "Another plausible wrong answer", "is_correct": false},
+        {"option_text": "Another plausible wrong answer", "is_correct": false}
       ]
     }
   ]
 }
 
 Generate exactly 3 questions: index 0 = easy, 1 = medium, 2 = hard.
-Each question: exactly 4 options, exactly 1 correct. Wrong answers = common student errors.
-Questions should be quick and focused — test one idea at a time.
-Use Nigerian names and settings from ACROSS Nigeria — not just Lagos.
+Each: exactly 4 options, exactly 1 correct. Wrong options must be real mistakes children commonly make.
+
+EXPLANATION RULE: Write like you are sitting next to a child. Use newlines to separate steps. Show EVERY calculation. Say WHY each step is done. Never say "obviously" or skip steps.
+Use Nigerian contexts from across Nigeria — Kano, Enugu, Port Harcourt, Jos, Abuja, Ibadan, not just Lagos.
 Return ONLY the JSON.
 
 ${NIGERIAN_CONTEXTS}`

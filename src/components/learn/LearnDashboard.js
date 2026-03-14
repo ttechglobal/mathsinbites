@@ -82,6 +82,33 @@ export default function LearnDashboard({ student: initialStudent, level, progres
 
   // Local editable student state
   const [student, setStudent] = useState(initialStudent)
+  const [progressData, setProgressData] = useState(progress)
+
+  // Refresh progress from DB (called after returning from a lesson)
+  useEffect(() => {
+    async function refreshProgress() {
+      if (!initialStudent?.id) return
+      const { data } = await supabase
+        .from('student_progress')
+        .select('*')
+        .eq('student_id', initialStudent.id)
+      if (data) setProgressData(data)
+    }
+    refreshProgress()
+    // Also refresh when window regains focus (student returns from lesson)
+    // Also refresh student XP
+    async function refreshStudent() {
+      if (!initialStudent?.id) return
+      const { data } = await supabase
+        .from('students')
+        .select('xp, monthly_xp, streak_days')
+        .eq('id', initialStudent.id)
+        .single()
+      if (data) setStudent(s => ({ ...s, ...data }))
+    }
+    window.addEventListener('focus', () => { refreshProgress(); refreshStudent() })
+    return () => window.removeEventListener('focus', refreshProgress)
+  }, [initialStudent?.id])
 
   const [leaderboard, setLeaderboard] = useState([])
   const [leaderboardType, setLeaderboardType] = useState('class')
@@ -110,19 +137,21 @@ export default function LearnDashboard({ student: initialStudent, level, progres
   const bodyColor = isNova ? 'rgba(200,195,255,0.78)' : M.textSecondary
   const bodySize = isNova ? 12 : 13
 
-  // ── Leaderboard fetch ──────────────────────────────────────────────────────
+  // ── Leaderboard fetch — via API route to bypass RLS ──────────────────────
   useEffect(() => {
     async function fetchLeaderboard() {
-      let query = supabase.from('students')
-        .select('id, display_name, class_level, school, xp, monthly_xp')
-        .order('monthly_xp', { ascending: false })
-        .limit(30)
-      if (leaderboardType === 'class') query = query.eq('class_level', student?.class_level)
-      else if (leaderboardType === 'school') query = query.eq('school', student?.school)
-      const { data } = await query
-      setLeaderboard(data || [])
+      try {
+        const params = new URLSearchParams({ type: leaderboardType })
+        if (leaderboardType === 'class' && student?.class_level) params.set('class_level', student.class_level)
+        if (leaderboardType === 'school' && student?.school) params.set('school', student.school)
+        const res = await fetch(`/api/leaderboard?${params}`)
+        if (res.ok) {
+          const data = await res.json()
+          setLeaderboard(data || [])
+        }
+      } catch (e) { console.error('[leaderboard] fetch error:', e.message) }
     }
-    if (activeTab === 'leaderboard' && student?.class_level) fetchLeaderboard()
+    if (activeTab === 'leaderboard') fetchLeaderboard()
   }, [activeTab, leaderboardType, student?.class_level, student?.school])
 
   // ── Scroll floating label ─────────────────────────────────────────────────
@@ -173,13 +202,12 @@ export default function LearnDashboard({ student: initialStudent, level, progres
     .flatMap(u => u.topics || [])
     .flatMap(t => (t.subtopics || []).map(s => s.id))
 
-  const completedIds = new Set(progress.filter(p => p.status === 'completed').map(p => p.subtopic_id))
+  const completedIds = new Set(progressData.filter(p => p.status === 'completed').map(p => p.subtopic_id))
 
   function getSubtopicState(subtopicId) {
-    const idx = allSubtopicIds.indexOf(subtopicId)
-    const done = completedIds.has(subtopicId)
-    const locked = idx > 0 && !completedIds.has(allSubtopicIds[idx - 1])
-    return { done, locked, isNext: !done && !locked }
+    const done   = completedIds.has(subtopicId)
+    // All lessons unlocked — students can jump to any lesson
+    return { done, locked: false, isNext: !done }
   }
 
   const termAccents = M.termAccents || ['#0d9488', '#f97316', '#8b5cf6']
@@ -217,17 +245,16 @@ export default function LearnDashboard({ student: initialStudent, level, progres
       }}>
         <MIBLogo size={32} theme={isNova ? 'dark' : 'light'} M={M} />
         <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-          {[['❤️', 5], ['🔥', streak], ['⭐', xp]].map(([ic, v], i) => (
-            <div key={i} style={{
-              background: M.badgeBg, border: `1.5px solid ${M.badgeBorder}`,
-              borderRadius: isBlaze ? 8 : 20, padding: '3px 9px',
-              display: 'flex', gap: 3, alignItems: 'center',
-              boxShadow: isBlaze ? `2px 2px 0 ${M.badgeBorder}` : 'none',
-            }}>
-              <span style={{ fontSize: 11 }}>{ic}</span>
-              <span style={{ fontSize: 11, fontWeight: 700, color: M.badgeText, fontFamily: 'Nunito, sans-serif' }}>{v}</span>
-            </div>
-          ))}
+          {/* XP badge only */}
+          <div style={{
+            background: M.badgeBg, border: `1.5px solid ${M.badgeBorder}`,
+            borderRadius: isBlaze ? 8 : 20, padding: '4px 11px',
+            display: 'flex', gap: 4, alignItems: 'center',
+            boxShadow: isBlaze ? `2px 2px 0 ${M.badgeBorder}` : 'none',
+          }}>
+            <span style={{ fontSize: 12 }}>⚡</span>
+            <span style={{ fontSize: 12, fontWeight: 800, color: M.badgeText, fontFamily: 'Nunito, sans-serif' }}>{xp} XP</span>
+          </div>
           {/* Mode button — fully styled per theme */}
           <button
             onClick={() => setShowModePicker(true)}

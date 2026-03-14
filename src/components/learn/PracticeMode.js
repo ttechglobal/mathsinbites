@@ -570,14 +570,8 @@ export default function PracticeMode({ questions: allQuestions, topicTitle, topi
       const xp = Math.max(correctCount * 2, 1)
       setXpEarned(xp)
       if (userId) {
-        try {
-          const { data: fresh } = await supabase
-            .from('students').select('xp, monthly_xp').eq('profile_id', userId).single()
-          await supabase.from('students').update({
-            xp:         (fresh?.xp        || 0) + xp,
-            monthly_xp: (fresh?.monthly_xp || 0) + xp,
-          }).eq('profile_id', userId)
-        } catch (e) { console.error('[practice] XP error:', e.message) }
+        const { error: xpErr } = await supabase.rpc('add_xp', { amount: xp })
+        if (xpErr) console.error('[practice] XP error:', xpErr.message)
       }
 
       // Pass answers array to review
@@ -598,14 +592,8 @@ export default function PracticeMode({ questions: allQuestions, topicTitle, topi
     setXpEarned(xp)
     setAnswerMap(finalMap)
     if (userId) {
-      try {
-        const { data: fresh } = await supabase
-          .from('students').select('xp, monthly_xp').eq('profile_id', userId).single()
-        await supabase.from('students').update({
-          xp:         (fresh?.xp        || 0) + xp,
-          monthly_xp: (fresh?.monthly_xp || 0) + xp,
-        }).eq('profile_id', userId)
-      } catch (e) { console.error('[practice] timer XP error:', e.message) }
+      const { error: xpErr } = await supabase.rpc('add_xp', { amount: xp })
+      if (xpErr) console.error('[practice] timer XP error:', xpErr.message)
     }
     setPhase('review')
   }
@@ -775,33 +763,26 @@ export default function PracticeMode({ questions: allQuestions, topicTitle, topi
             : '✓ Selected — tap Next to continue'}
         </div>
 
-        {/* Bottom action row — Back always visible, Next when answer selected */}
+        {/* Bottom action row — Back + Next */}
         <div style={{ display:'flex', gap:10 }}>
-          {/* Back button — always shown */}
-          <button
-            onClick={() => {
-              if (selected !== null) setAnswerMap(m => ({ ...m, [qIdx]: selected }))
-              if (qIdx > 0) {
+          {/* Back button — only shown when not on first question */}
+          {qIdx > 0 && (
+            <button
+              onClick={() => {
+                if (selected !== null) setAnswerMap(m => ({ ...m, [qIdx]: selected }))
                 const prevIdx = qIdx - 1
                 setQIdx(prevIdx)
                 setSelected(answerMap[prevIdx] ?? null)
                 setShowHint(false)
-              } else {
-                setShowExitModal(true)
-              }
-            }}
-            style={{
-              ...M.ghostBtn,
-              flex: selected !== null ? '0 0 auto' : 1,
-              fontSize: 14,
-              padding: '14px 18px',
-            }}>
-            {qIdx > 0 ? '← Back' : '← Exit'}
-          </button>
+              }}
+              style={{ ...M.ghostBtn, flex: '0 0 auto', fontSize:14, padding:'14px 18px' }}>
+              ← Back
+            </button>
+          )}
 
           {/* Next/Results — only when answer selected or previously answered */}
           {(selected !== null || answerMap[qIdx] !== undefined) && (
-            <button onClick={handleNext} style={{ ...M.primaryBtn, flex: 1, fontSize: 15 }}>
+            <button onClick={handleNext} style={{ ...M.primaryBtn, flex:1, fontSize:15 }}>
               {qIdx+1 < sessionQs.length
                 ? (mode==='blaze' ? '⚡ NEXT' : 'Next →')
                 : (mode==='blaze' ? '⚡ SEE RESULTS' : 'See Results →')}
