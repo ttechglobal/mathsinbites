@@ -75,6 +75,42 @@ const CLASS_OPTIONS = [
 ]
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ── Maths topic icon — returns an SVG string based on topic title keywords ──
+function getTopicIcon(title) {
+  const t = (title || '').toLowerCase()
+  if (t.includes('fraction'))                                    return '½'
+  if (t.includes('multipli') || t.includes('division'))         return '×÷'
+  if (t.includes('addition') || t.includes('subtract'))         return '+-'
+  if (t.includes('algebra') || t.includes('equation'))          return 'x='
+  if (t.includes('binary') || t.includes('base 2') || t.includes('number system')) return '01'
+  if (t.includes('decimal'))                                     return '0.1'
+  if (t.includes('percentage') || t.includes('percent'))        return '%'
+  if (t.includes('ratio') || t.includes('proportion'))          return 'a:b'
+  if (t.includes('geometry') || t.includes('shape') || t.includes('angle')) return '△'
+  if (t.includes('circle') || t.includes('circumference'))      return '○'
+  if (t.includes('triangle') || t.includes('trigon'))           return '△'
+  if (t.includes('square') || t.includes('rectangle') || t.includes('area')) return '□'
+  if (t.includes('volume') || t.includes('cube'))               return '∛'
+  if (t.includes('root') || t.includes('surd'))                 return '√'
+  if (t.includes('power') || t.includes('exponent') || t.includes('index')) return 'xⁿ'
+  if (t.includes('logarithm') || t.includes('log'))             return 'log'
+  if (t.includes('statistics') || t.includes('data') || t.includes('average') || t.includes('mean')) return '∑'
+  if (t.includes('probability'))                                 return 'P()'
+  if (t.includes('sequence') || t.includes('series') || t.includes('pattern')) return 'nᵢ'
+  if (t.includes('set') || t.includes('venn'))                  return '∪∩'
+  if (t.includes('matrix') || t.includes('vector'))             return '[]'
+  if (t.includes('graph') || t.includes('coordinate') || t.includes('linear') || t.includes('gradient')) return 'f(x)'
+  if (t.includes('quadratic') || t.includes('parabola'))        return 'x²'
+  if (t.includes('rational') || t.includes('irrational'))       return 'ℚ'
+  if (t.includes('integer') || t.includes('whole number'))      return 'ℤ'
+  if (t.includes('prime') || t.includes('factor') || t.includes('hcf') || t.includes('lcm')) return '∏'
+  if (t.includes('money') || t.includes('profit') || t.includes('loss') || t.includes('interest')) return '₦'
+  if (t.includes('time') || t.includes('distance') || t.includes('speed')) return 'd/t'
+  if (t.includes('mensuration') || t.includes('perimeter'))     return 'P='
+  if (t.includes('word problem') || t.includes('problem'))      return '?='
+  return '#'
+}
+
 export default function LearnDashboard({ student: initialStudent, level, progress }) {
   const router = useRouter()
   const supabase = createClient()
@@ -461,17 +497,18 @@ export default function LearnDashboard({ student: initialStudent, level, progres
                   <div style={{ maxWidth: 520, margin: '0 auto', padding: '0 16px 8px' }}>
                     {(unit.topics || []).map((topic, topicIdx) => {
                       const topicSubs = topic.subtopics || []
-                      const firstSub = topicSubs[0]
-                      const { done, locked, isNext } = firstSub ? getSubtopicState(firstSub.id) : { done: false, locked: true, isNext: false }
                       const doneCount = topicSubs.filter(s => completedIds.has(s.id)).length
+                      const allDone   = topicSubs.length > 0 && doneCount === topicSubs.length
+                      const inProgress = doneCount > 0 && !allDone
                       const isLeft = topicIdx % 2 === 0
+                      const topicIcon = getTopicIcon(topic.title)
+
 
                       return (
                         <div key={topic.id} style={{
                           display: 'flex',
                           flexDirection: isLeft ? 'row' : 'row-reverse',
                           alignItems: 'center',
-                          // Wide spacing between nodes — negative margin for zig-zag overlap feeling
                           marginBottom: 2,
                           marginLeft: isLeft ? 0 : 32,
                           marginRight: isLeft ? 32 : 0,
@@ -481,100 +518,87 @@ export default function LearnDashboard({ student: initialStudent, level, progres
                           <div style={{
                             flexShrink: 0, width: 80,
                             display: 'flex', flexDirection: 'column', alignItems: 'center',
-                            // Extra vertical padding for big breathing room
                             padding: '18px 0 12px',
                             position: 'relative', zIndex: 2,
                           }}>
-                            {isNext && (
-                              <div style={{
-                                position: 'absolute', top: 6,
-                                background: isBlaze ? '#FFD700' : isNova ? 'linear-gradient(135deg,#FCD34D,#F59E0B)' : M.accentColor,
-                                color: isBlaze ? '#0d0d0d' : isNova ? '#0F0C29' : '#fff',
-                                fontSize: 7, fontWeight: 900, padding: '2px 8px',
-                                borderRadius: isBlaze ? 4 : 12,
-                                fontFamily: 'Nunito, sans-serif',
-                                border: isBlaze ? '1.5px solid #0d0d0d' : 'none',
-                                boxShadow: isBlaze ? '2px 2px 0 #0d0d0d' : '0 2px 8px rgba(0,0,0,0.2)',
-                                whiteSpace: 'nowrap', zIndex: 3,
-                              }}>▶ NEXT</div>
-                            )}
-
                             <button
-                              onClick={() => !locked && setPopup({ topic, term, unit })}
+                              onClick={() => setPopup({ topic, term, unit })}
                               style={{
-                                // Larger nodes for more presence
-                                width: isNext ? 58 : 48, height: isNext ? 58 : 48,
+                                width: 54, height: 54,
                                 borderRadius: isBlaze ? '18%' : '50%',
-                                marginTop: isNext ? 14 : 0,
-                                background: locked
-                                  ? (isNova ? 'linear-gradient(145deg,#2a2550,#1e1b3a)' : '#ebebeb')
-                                  : done ? `linear-gradient(145deg,${accent},${accent}BB)`
-                                  : isBlaze ? '#FFD700' : `linear-gradient(145deg,${accent},${accent}CC)`,
+                                background: allDone
+                                  ? `linear-gradient(145deg,${accent},${accent}BB)`
+                                  : inProgress
+                                  ? (isBlaze ? '#FFD700' : `linear-gradient(145deg,${accent}CC,${accent}88)`)
+                                  : (isNova ? 'linear-gradient(145deg,#2a2550,#1e1b3a)' : '#f0f0f0'),
                                 border: isBlaze
-                                  ? `2.5px solid ${locked ? '#ccc' : '#0d0d0d'}`
-                                  : `2.5px solid ${locked ? (isNova ? 'rgba(255,255,255,0.08)' : '#d8d8d8') : accent}`,
+                                  ? '2.5px solid #0d0d0d'
+                                  : `2.5px solid ${allDone || inProgress ? accent : (isNova ? 'rgba(255,255,255,0.12)' : '#ddd')}`,
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                cursor: locked ? 'not-allowed' : 'pointer',
-                                boxShadow: isNext
-                                  ? (isBlaze ? '3px 3px 0 #0d0d0d' : `0 0 22px ${accent}80, 0 6px 16px rgba(0,0,0,0.18)`)
-                                  : done ? (isBlaze ? '2px 2px 0 #0d0d0d' : `0 0 10px ${accent}40`) : 'none',
-                                animation: isNext ? 'float 2.5s ease-in-out infinite' : 'none',
+                                cursor: 'pointer',
+                                boxShadow: allDone
+                                  ? (isBlaze ? '2px 2px 0 #0d0d0d' : `0 0 14px ${accent}50`)
+                                  : inProgress ? (isBlaze ? '3px 3px 0 #0d0d0d' : `0 0 18px ${accent}60, 0 4px 12px rgba(0,0,0,0.15)`)
+                                  : 'none',
+                                animation: inProgress ? 'float 2.5s ease-in-out infinite' : 'none',
                                 transition: 'transform 0.12s',
+                                flexDirection: 'column', gap: 0,
                               }}>
-                              <span style={{ fontSize: isNext ? 20 : 17 }}>
-                                {done ? '★' : locked ? '🔒' : '📖'}
-                              </span>
+                              {allDone ? (
+                                <span style={{ fontSize: 20 }}>★</span>
+                              ) : (
+                                <span style={{
+                                  fontSize: topicIcon.length > 2 ? 11 : 14,
+                                  fontWeight: 900,
+                                  fontFamily: 'monospace',
+                                  color: inProgress ? '#fff' : (isNova ? 'rgba(165,180,252,0.7)' : '#888'),
+                                  lineHeight: 1,
+                                }}>{topicIcon}</span>
+                              )}
                             </button>
 
                             <div style={{
                               marginTop: 6, textAlign: 'center',
                               fontSize: 9, fontWeight: 700,
                               fontFamily: 'Nunito, sans-serif', lineHeight: 1.25, maxWidth: 72,
-                              color: locked ? (isNova ? 'rgba(165,180,252,0.3)' : '#c0c0c0')
-                                : done ? accent : isBlaze ? '#111' : accent,
+                              color: allDone ? accent : inProgress ? (isBlaze ? '#111' : accent) : (isNova ? 'rgba(165,180,252,0.4)' : '#aaa'),
                             }}>{topic.title}</div>
                           </div>
 
-                          {/* Info card — more padding, softer */}
+                          {/* Info card */}
                           <button
-                            onClick={() => !locked && setPopup({ topic, term, unit })}
-                            disabled={locked}
+                            onClick={() => setPopup({ topic, term, unit })}
                             style={{
                               flex: 1, margin: '10px 0',
                               padding: '14px 16px', textAlign: 'left',
-                              background: locked
-                                ? (isNova ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.015)')
-                                : done ? `${accent}0E`
-                                : isNext ? (isBlaze ? '#FFF9D6' : isNova ? 'rgba(124,58,237,0.1)' : `${accent}08`)
-                                : (isNova ? 'rgba(255,255,255,0.025)' : 'rgba(255,255,255,0.7)'),
+                              background: allDone ? `${accent}0E`
+                                : inProgress ? (isBlaze ? '#FFF9D6' : isNova ? 'rgba(124,58,237,0.1)' : `${accent}08`)
+                                : (isNova ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.6)'),
                               borderRadius: isBlaze ? 10 : 16,
                               border: isBlaze
-                                ? `2px solid ${locked ? '#e8e8e8' : done ? accent : isNext ? '#0d0d0d' : '#e8e8e8'}`
-                                : `1.5px solid ${locked
-                                  ? (isNova ? 'rgba(255,255,255,0.04)' : '#eee')
-                                  : done ? `${accent}28` : isNext ? `${accent}3A` : '#eee'}`,
-                              boxShadow: isNext
-                                ? (isBlaze ? '3px 3px 0 #0d0d0d' : M.cardShadow) : 'none',
-                              cursor: locked ? 'not-allowed' : 'pointer',
-                              opacity: locked ? 0.45 : 1, transition: 'all 0.12s',
+                                ? `2px solid ${allDone ? accent : inProgress ? '#0d0d0d' : '#e8e8e8'}`
+                                : `1.5px solid ${allDone ? `${accent}28` : inProgress ? `${accent}3A` : (isNova ? 'rgba(255,255,255,0.04)' : '#eee')}`,
+                              boxShadow: inProgress ? (isBlaze ? '3px 3px 0 #0d0d0d' : M.cardShadow) : 'none',
+                              cursor: 'pointer',
+                              transition: 'all 0.12s',
                             }}>
                             <div style={{
                               fontSize: 13, fontWeight: 700,
-                              color: locked ? (isNova ? 'rgba(165,180,252,0.35)' : M.textSecondary) : (isNova ? '#F8F7FF' : M.textPrimary),
+                              color: isNova ? '#F8F7FF' : M.textPrimary,
                               fontFamily: 'Nunito, sans-serif', marginBottom: 4, lineHeight: 1.3,
                             }}>{topic.title}</div>
                             <div style={{ fontSize: 11, color: bodyColor, lineHeight: 1.4, display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'Nunito, sans-serif', fontWeight: 500 }}>
-                              {done && <span style={{ color: M.correctColor, fontWeight: 700 }}>✓ Done</span>}
-                              {isNext && !done && <span style={{ color: accent, fontWeight: 800 }}>
-                                {isBlaze ? '⚡ UP NEXT' : isSpark ? '✨ Next!' : isRoots ? '→ Next' : '→ Up next'}
+                              {allDone && <span style={{ color: M.correctColor, fontWeight: 800 }}>✓ Done</span>}
+                              {inProgress && <span style={{ color: accent, fontWeight: 800 }}>
+                                {isBlaze ? '⚡ Continue' : isRoots ? '→ Continue' : '→ Continue'}
                               </span>}
-                              {locked && <span>🔒 Locked</span>}
+                              {!allDone && !inProgress && <span style={{ color: M.textSecondary }}>Start</span>}
                               <span style={{
                                 marginLeft: 'auto', fontSize: 9, fontWeight: 800,
-                                color: isBlaze ? '#0d0d0d' : accent,
-                                border: isBlaze ? '1px solid #0d0d0d' : `1px solid ${accent}40`,
+                                color: allDone ? M.correctColor : (isBlaze ? '#0d0d0d' : accent),
+                                border: isBlaze ? '1px solid #0d0d0d' : `1px solid ${allDone ? M.correctColor : accent}40`,
                                 borderRadius: isBlaze ? 4 : 20, padding: '2px 7px',
-                                background: isBlaze ? '#FFD700' : `${accent}10`,
+                                background: allDone ? `${M.correctColor}12` : (isBlaze ? '#FFD700' : `${accent}10`),
                                 fontFamily: 'Nunito, sans-serif',
                               }}>{doneCount}/{topicSubs.length}</span>
                             </div>
@@ -1147,36 +1171,26 @@ export default function LearnDashboard({ student: initialStudent, level, progres
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {popup.topic.subtopics.map((sub) => {
-                const subState = getSubtopicState(sub.id)
+                const isDone = completedIds.has(sub.id)
                 return (
                   <div key={sub.id}
-                    onClick={() => !subState.locked && (setPopup(null), router.push(`/learn/lesson/${sub.id}`))}
+                    onClick={() => { setPopup(null); router.push(`/learn/lesson/${sub.id}`) }}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
-                      background: subState.done ? `${M.correctColor}0F`
-                        : subState.isNext ? `${M.accentColor}0A`
-                        : isNova ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)',
+                      background: isDone ? `${M.correctColor}0F` : isNova ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)',
                       borderRadius: 11,
-                      border: subState.done ? `1px solid ${M.correctColor}25`
-                        : subState.isNext ? `1px solid ${M.accentColor}30` : '1px solid transparent',
-                      cursor: subState.locked ? 'default' : 'pointer',
-                      opacity: subState.locked ? 0.45 : 1,
+                      border: isDone ? `1px solid ${M.correctColor}25` : `1px solid ${M.accentColor}18`,
+                      cursor: 'pointer',
                       transition: 'all 0.12s',
                     }}>
-                    <span style={{ fontSize: 15 }}>
-                      {subState.done ? '✅' : subState.locked ? '🔒' : subState.isNext ? '▶️' : '📖'}
-                    </span>
+                    <span style={{ fontSize: 15 }}>{isDone ? '✅' : '▶️'}</span>
                     <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: isNova ? '#F8F7FF' : M.textPrimary, fontFamily: 'Nunito, sans-serif', lineHeight: 1.3 }}>
                       {sub.title}
                     </span>
-                    {subState.isNext && (
-                      <span style={{ fontSize: 9, fontWeight: 800, color: M.accentColor, background: `${M.accentColor}15`, borderRadius: 20, padding: '2px 8px', fontFamily: 'Nunito, sans-serif' }}>
-                        START
-                      </span>
-                    )}
-                    {subState.done && (
-                      <span style={{ fontSize: 9, fontWeight: 700, color: M.correctColor, fontFamily: 'Nunito, sans-serif' }}>Done</span>
-                    )}
+                    {isDone
+                      ? <span style={{ fontSize: 9, fontWeight: 700, color: M.correctColor, fontFamily: 'Nunito, sans-serif' }}>Done</span>
+                      : <span style={{ fontSize: 9, fontWeight: 800, color: M.accentColor, background: `${M.accentColor}15`, borderRadius: 20, padding: '2px 8px', fontFamily: 'Nunito, sans-serif' }}>Go →</span>
+                    }
                   </div>
                 )
               })}
@@ -1184,11 +1198,24 @@ export default function LearnDashboard({ student: initialStudent, level, progres
           </div>
         )}
 
-        <button
-          onClick={() => { router.push(`/learn/topic/${popup.topic.id}`); setPopup(null) }}
-          style={{ ...M.primaryBtn, width: '100%', display: 'block', fontSize: 15 }}>
-          {isBlaze ? '⚡ START MISSION' : isNova ? '🚀 LAUNCH LESSON' : isRoots ? '🇳🇬 Start Lesson' : isSpark ? '✨ Let\'s Go!' : 'VIEW ALL SUBTOPICS →'}
-        </button>
+        {(() => {
+          const subs = popup.topic.subtopics || []
+          const allSubsDone = subs.length > 0 && subs.every(s => completedIds.has(s.id))
+          const firstIncomplete = subs.find(s => !completedIds.has(s.id))
+          const targetId = firstIncomplete?.id || subs[0]?.id
+          const label = allSubsDone
+            ? (isBlaze ? '⚡ REPLAY' : '↩ Replay')
+            : firstIncomplete && subs.some(s => completedIds.has(s.id))
+            ? (isBlaze ? '⚡ CONTINUE' : isRoots ? '🇳🇬 Continue' : '→ Continue')
+            : (isBlaze ? '⚡ START MISSION' : isRoots ? '🇳🇬 Start Lesson' : isSpark ? '✨ Start!' : '▶ Start Lesson')
+          return (
+            <button
+              onClick={() => { if (targetId) { router.push(`/learn/lesson/${targetId}`); setPopup(null) } }}
+              style={{ ...M.primaryBtn, width: '100%', display: 'block', fontSize: 15 }}>
+              {label}
+            </button>
+          )
+        })()}
       </div>
     </>
   )
