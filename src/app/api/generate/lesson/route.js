@@ -125,8 +125,10 @@ async function saveLesson(supabase, lessonId, slides, questions, subtopicId, use
       })
       .select().single()
     if (qErr) { console.error('[gen] question insert error:', qErr.message); continue }
+    // Shuffle options so correct answer isn't always in position A
+    const shuffledOpts = [...(q.options || [])].sort(() => Math.random() - 0.5)
     await supabase.from('question_options').insert(
-      (q.options || []).map(o => ({ question_id: qRow.id, option_text: o.option_text, is_correct: o.is_correct }))
+      shuffledOpts.map(o => ({ question_id: qRow.id, option_text: o.option_text, is_correct: o.is_correct }))
     )
   }
 

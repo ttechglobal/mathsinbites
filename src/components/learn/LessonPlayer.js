@@ -77,14 +77,27 @@ function MathText({ text, style }) {
 
 function SvgIllustration({ svg_code, M }) {
   if (!svg_code) return null
+  // Inject responsive attributes into the SVG so it scales to container width
+  // on mobile while keeping max-width on desktop
+  const responsive = svg_code
+    .replace(/<svg([^>]*)>/, (match, attrs) => {
+      // Remove fixed width/height attrs, keep viewBox, add 100% width
+      const withoutWH = attrs
+        .replace(/\s+width="[^"]*"/g, '')
+        .replace(/\s+height="[^"]*"/g, '')
+      return `<svg${withoutWH} width="100%" style="display:block;max-width:100%">`
+    })
   return (
     <div style={{
-      borderRadius: 12, overflow: 'hidden', margin: '10px 0',
-      border: `1px solid ${M.accentColor}20`,
-      background: '#FAFAFA',
+      borderRadius: 14, overflow: 'hidden', margin: '12px 0',
+      border: `1.5px solid ${M.accentColor}25`,
+      background: '#F8F9FF',
       lineHeight: 0,
+      width: '100%',
+      // On desktop give it a bit more room; on mobile it fills container
+      maxWidth: '100%',
     }}
-      dangerouslySetInnerHTML={{ __html: svg_code }}
+      dangerouslySetInnerHTML={{ __html: responsive }}
     />
   )
 }
@@ -168,6 +181,83 @@ function StepList({ steps, M, hidden = false }) {
           </div>
         </div>
       ))}
+    </div>
+  )
+}
+
+// ─── ResultPanel — collapsible explanation, shown after answering ─────────────
+function ResultPanel({ isCorrect, currentQ, accent, M }) {
+  const [showExp, setShowExp] = React.useState(false)
+  const correctOpt = (currentQ?.options || []).find(o => o.is_correct)
+
+  return (
+    <div style={{
+      borderRadius: 12, flexShrink: 0, overflow: 'hidden',
+      border: `1.5px solid ${isCorrect ? M.correctColor + '40' : M.wrongColor + '40'}`,
+      background: isCorrect ? `${M.correctColor}06` : `${M.wrongColor}05`,
+    }}>
+      {/* Status banner */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
+        background: isCorrect ? `${M.correctColor}12` : `${M.wrongColor}10`,
+      }}>
+        <span style={{ fontSize: 20 }}>{isCorrect ? '🎉' : '💡'}</span>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 13, fontWeight: 900, fontFamily: 'Nunito, sans-serif',
+            color: isCorrect ? M.correctColor : M.wrongColor }}>
+            {isCorrect ? 'Correct! Great job! 🌟' : "Not quite!"}
+          </div>
+          {!isCorrect && correctOpt && (
+            <div style={{ fontSize: 11, color: M.correctColor, fontFamily: 'Nunito, sans-serif', marginTop: 2, fontWeight: 700 }}>
+              ✅ Answer: <MathText text={correctOpt.option_text} />
+            </div>
+          )}
+        </div>
+        {/* Toggle explanation button */}
+        {currentQ?.explanation && (
+          <button
+            onClick={() => setShowExp(v => !v)}
+            style={{
+              background: showExp ? accent : 'transparent',
+              border: `1.5px solid ${accent}`,
+              borderRadius: 20, padding: '4px 12px', cursor: 'pointer',
+              fontSize: 11, fontWeight: 800, fontFamily: 'Nunito, sans-serif',
+              color: showExp ? '#fff' : accent, flexShrink: 0,
+              transition: 'all 0.15s',
+            }}>
+            {showExp ? 'Hide ▲' : 'Why? 💡'}
+          </button>
+        )}
+      </div>
+
+      {/* Collapsible step-by-step explanation */}
+      {showExp && currentQ?.explanation && (
+        <div style={{ padding: '12px 14px' }}>
+          <div style={{ fontSize: 10, fontWeight: 800, color: M.textSecondary,
+            textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+            How to solve it — step by step
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {splitExplanation(currentQ.explanation).map((step, i) => (
+              <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                <div style={{
+                  width: 22, height: 22, borderRadius: '50%', flexShrink: 0, marginTop: 2,
+                  background: accent, color: '#fff',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 10, fontWeight: 900,
+                }}>{i + 1}</div>
+                <div style={{
+                  flex: 1, background: M.mathBg || 'rgba(0,0,0,0.03)', borderRadius: 8,
+                  padding: '8px 11px', fontSize: 12, fontWeight: 600, color: M.textPrimary,
+                  lineHeight: 1.75, fontFamily: 'Nunito, sans-serif',
+                }}>
+                  {step.trim()}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -638,61 +728,14 @@ export default function LessonPlayer({ lesson, subtopic, topic, student, nextSub
         })}
       </div>
 
-      {/* Result + explanation — shown for BOTH correct and wrong */}
+      {/* Result banner — always shown after answering */}
       {isAnswered && (
-        <div style={{
-          ...card, flexShrink: 0,
-          borderColor: isCorrect ? `${M.correctColor}40` : `${M.wrongColor}40`,
-          background: isCorrect ? `${M.correctColor}06` : `${M.wrongColor}05`,
-        }}>
-          {/* Banner */}
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10,
-            padding: '8px 12px',
-            background: isCorrect ? `${M.correctColor}12` : `${M.wrongColor}10`,
-            borderRadius: 8,
-          }}>
-            <span style={{ fontSize: 18 }}>{isCorrect ? '🎉' : '💡'}</span>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 900, color: isCorrect ? M.correctColor : M.wrongColor, fontFamily: 'Nunito, sans-serif' }}>
-                {isCorrect ? 'Correct! Great job! 🌟' : "Not quite — let's see why:"}
-              </div>
-              {!isCorrect && (
-                <div style={{ fontSize: 11, color: M.correctColor, fontFamily: 'Nunito, sans-serif', marginTop: 3, fontWeight: 700 }}>
-                  ✅ Correct answer: <MathText text={(currentQ.options || []).find(o => o.is_correct)?.option_text} />
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Step-by-step explanation */}
-          {currentQ?.explanation && (
-            <div>
-              <div style={{ fontSize: 10, fontWeight: 800, color: M.textSecondary, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
-                How to solve it — step by step
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {splitExplanation(currentQ.explanation).map((step, i) => (
-                  <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                    <div style={{
-                      width: 20, height: 20, borderRadius: '50%', flexShrink: 0, marginTop: 3,
-                      background: accent, color: '#fff',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 10, fontWeight: 900,
-                    }}>{i + 1}</div>
-                    <div style={{
-                      flex: 1, background: M.mathBg || 'rgba(0,0,0,0.03)', borderRadius: 8,
-                      padding: '7px 10px', fontSize: 12, fontWeight: 600, color: M.textPrimary,
-                      lineHeight: 1.7, fontFamily: 'Nunito, sans-serif',
-                    }}>
-                      {step.trim()}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+        <ResultPanel
+          isCorrect={isCorrect}
+          currentQ={currentQ}
+          accent={accent}
+          M={M}
+        />
       )}
 
       {/* Mascot — only shown when unanswered */}

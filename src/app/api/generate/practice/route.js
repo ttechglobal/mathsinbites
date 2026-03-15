@@ -1,9 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
-import OpenAI from 'openai'
+import Anthropic from '@anthropic-ai/sdk'
 
-const deepseek = new OpenAI({
-  apiKey: process.env.DEEPSEEK_API_KEY,
-  baseURL: 'https://api.deepseek.com/v1',
+const anthropic = new Anthropic({
+  
+  apiKey: process.env.ANTHROPIC_API_KEY,
 })
 
 export const maxDuration = 300
@@ -24,28 +24,45 @@ async function generateBatch(topicTitle, classLevel, batchCount, label) {
   const medCount  = Math.round(batchCount * 0.40)
   const hardCount = batchCount - easyCount - medCount
 
-  const prompt = `Nigerian secondary school maths teacher. Generate exactly ${batchCount} MCQ questions on "${topicTitle}" for ${classLevel} (NERDC).
+  const prompt = `You are an expert Nigerian secondary school maths teacher creating practice questions for ${classLevel} students (NERDC curriculum).
 
-Distribution: ${easyCount} easy, ${medCount} medium, ${hardCount} hard.
-Nigerian names (Emeka, Amina, Chidi) and contexts (Naira, Lagos, market).
-Wrong options = plausible student errors.
+Topic: "${topicTitle}"
+Generate exactly ${batchCount} questions: ${easyCount} easy, ${medCount} medium, ${hardCount} hard.
 
-Return ONLY valid JSON array:
-[{"question_text":"...","difficulty":"easy","hint":"...","explanation":"1. Step.\n2. Step.\n3. Answer.","options":[{"option_text":"...","is_correct":false},{"option_text":"...","is_correct":true},{"option_text":"...","is_correct":false},{"option_text":"...","is_correct":false}]}]
+NIGERIAN CONTEXT RULES — draw from ALL of Nigeria, not just Lagos:
+- Names: Emeka, Amina, Chidi, Ngozi, Tunde, Fatima, Bola, Kemi, Uche, Halima, Danladi, Ifunanya, Segun, Blessing, Musa, Chisom, Yusuf, Adaeze, Taiwo, Zainab, Biodun, Ibrahim, Sade, Nkechi, Ladi, Efua, Dauda
+- Cities: Lagos, Kano, Abuja, Enugu, Port Harcourt, Ibadan, Kaduna, Aba, Jos, Warri, Benin City, Calabar, Sokoto, Onitsha, Abeokuta, Ilorin, Owerri, Maiduguri, Makurdi
+- Contexts: naira (₦) prices, market stalls, school fees, danfo/keke fare, farm produce, recharge cards, suya portions, sharing gala, WAEC prep, ajo/esusu savings, okada fare, NEPA bills, data bundles, buka restaurant
 
-Rules: vary correct answer position (not always first). Numbered explanation steps. JSON array only.`
+QUESTION VARIETY — mix these types across the ${batchCount} questions:
+- Word problems using everyday Nigerian scenarios
+- Direct calculation (find the value, simplify, solve)
+- Conceptual (which of the following is true/false)
+- Pattern/sequence recognition
+- Application (calculate total, find percentage, determine cost)
 
-  console.log(`[pq:${label}] calling deepseek, count=${batchCount}`)
-  const comp = await deepseek.chat.completions.create({
-    model: 'deepseek-chat',
+ANSWER POSITION — CRITICAL: Vary the correct answer position across ALL questions.
+Target: ~25% correct in position A, 25% in B, 25% in C, 25% in D.
+NEVER put all correct answers in position A. Mix it up every question.
+
+WRONG OPTIONS must be real mistakes students make: off-by-one, sign errors, wrong formula, correct method wrong arithmetic.
+
+EXPLANATION — write like explaining to a 10-year-old, newline between each step:
+"Step 1: First identify what we need...\nStep 2: Apply the method...\nStep 3: Calculate...\nStep 4: The answer is..."
+
+Return ONLY a valid JSON array. No markdown, no extra text:
+[{"question_text":"...","difficulty":"easy","hint":"Which formula or first step to use?","explanation":"Step 1: ...\nStep 2: ...\nStep 3: ...","options":[{"option_text":"...","is_correct":false},{"option_text":"...","is_correct":true},{"option_text":"...","is_correct":false},{"option_text":"...","is_correct":false}]}]`
+
+  console.log(`[pq:${label}] calling claude, count=${batchCount}`)
+  const msg = await anthropic.messages.create({
+    model: 'claude-sonnet-4-20250514',
     max_tokens: 3000,
-    temperature: 0.7,
     messages: [{ role: 'user', content: prompt }],
   })
 
-  const raw    = comp.choices[0].message.content || ''
-  const reason = comp.choices[0].finish_reason
-  console.log(`[pq:${label}] done finish=${reason} len=${raw.length}`)
+  const raw    = msg.content[0]?.text || ''
+  const reason = msg.stop_reason
+  console.log(`[pq:${label}] done stop_reason=${reason} len=${raw.length}`)
 
   const clean = raw
     .replace(/^```json\s*/i, '')
