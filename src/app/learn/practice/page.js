@@ -40,17 +40,16 @@ export default async function PracticePage({ searchParams }) {
     topicTitle = 'Mixed Practice'
   }
 
-  // Get topic list — only topics that actually HAVE questions for this student's level
-  // so the topic picker doesn't show empty topics
   const questionTopicIds = [...new Set(questions.map(q => q.topic_id))]
 
+  // Always fetch ALL topics for the student's level so the topic picker is populated
+  // even when no practice questions exist yet for some topics
   let levels = []
-  if (questionTopicIds.length > 0) {
-    // Fetch only levels/topics that have questions
+  if (student?.class_level) {
     const { data } = await supabase
       .from('levels')
       .select('*, terms(*, units(*, topics(id, title)))')
-      .eq('code', student?.class_level)
+      .eq('code', student.class_level)
     levels = data || []
   }
 

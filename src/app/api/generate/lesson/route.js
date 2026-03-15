@@ -1,88 +1,95 @@
 import { createClient } from '@/lib/supabase/server'
 import Anthropic from '@anthropic-ai/sdk'
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-})
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-// ── Claude call with logging ───────────────────────────────────────────────────
 async function ask(prompt, maxTokens, label) {
-  console.log(`[gen:${label}] starting, maxTokens=${maxTokens}`)
+  console.log(`[gen:${label}] starting`)
   const msg = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',
     max_tokens: maxTokens,
     messages: [{ role: 'user', content: prompt }],
   })
   const raw = msg.content[0]?.text || ''
-  const stopReason = msg.stop_reason
-  console.log(`[gen:${label}] done, stop_reason=${stopReason}, raw_length=${raw.length}`)
-  if (stopReason === 'max_tokens') throw new Error(`[gen:${label}] truncated at ${maxTokens} tokens`)
+  if (msg.stop_reason === 'max_tokens') throw new Error(`[gen:${label}] truncated`)
   const clean = raw.replace(/^```json\s*/i,'').replace(/^```\s*/i,'').replace(/```\s*$/i,'').trim()
-  try {
-    return JSON.parse(clean)
-  } catch (e) {
-    console.error(`[gen:${label}] JSON parse error: ${e.message}`)
-    console.error(`[gen:${label}] head: ${clean.slice(0,300)}`)
-    console.error(`[gen:${label}] tail: ${clean.slice(-300)}`)
+  try { return JSON.parse(clean) }
+  catch (e) {
+    console.error(`[gen:${label}] parse fail. head: ${clean.slice(0,200)}`)
     throw e
   }
 }
 
-// ── Single SVG generation ──────────────────────────────────────────────────────
-// Returns null for you_try slides (no image needed there — saves API credits)
-async function genSvg(slideTitle, slideExplanation, slideType) {
-  if (slideType === 'you_try') return null
+// ── SVG generation ────────────────────────────────────────────────────────────
+// Spec: "2–3 visuals per lesson max", "very simple", "one idea only", "not cluttered"
+// We only generate SVG for the 3 bite types where a visual most helps:
+//   observation  → the data table visual
+//   concept      → the core idea diagram
+//   rule         → the formula/relationship diagram
+// All other types get no SVG — keeping the lesson clean.
 
-  const isExample = slideType === 'worked_example'
-  const isIntro = slideType === 'introduction'
+async function genSvg(bite) {
+  const SVG_TYPES = ['observation', 'concept', 'rule']
+  if (!SVG_TYPES.includes(bite.type)) return null
 
-  const contentRules = isIntro
-    ? `You are drawing a REAL-WORLD SCENE that shows why this maths topic matters in Nigerian life.
-- Draw a vivid everyday Nigerian scene: a market stall with prices, a keke napep with passengers, a phone showing recharge card credit, a field being measured, a buka restaurant bill, suya portions being shared, etc.
-- The scene should make a child think "oh! this maths is in MY world"
-- Include Nigerian names, ₦ naira signs, or familiar objects
-- Make it warm, colourful, and relatable — not abstract`
-    : isExample
-    ? `You are drawing a VISUAL SOLUTION to a maths problem.
-- Show the numbers and working visually: a table, a number line with jumps, objects being counted/grouped, arrows showing steps
-- Use ₦ naira signs and Nigerian names where the problem uses them
-- The child should see the answer path just by looking`
-    : `You are drawing a CONCEPT DIAGRAM that makes one maths idea crystal clear.
-- Think: how would a brilliant teacher draw this on a whiteboard to make a 10-year-old say "I get it!"
-- Use: number lines with jumps, place-value blocks, fraction bars, geometric shapes with labels, bar models, arrays of objects, comparison diagrams
-- Nigerian context where it fits naturally (sharing suya, stacking gala, measuring a room)
-- Label every key part clearly
-- ONE clear idea only — no clutter`
+  const typeInstructions = {
+
+    observation:
+`Draw a SIMPLE COMPARISON showing two things changing together.
+Use basic icons or shapes — not a complex table.
+Example style: show 2 stick figures next to "6 hours", then 4 stick figures next to "3 hours".
+Keep it to 2–3 rows of information maximum.
+Use arrows (↑ or ↓) to show direction of change.
+Label the key numbers clearly.
+No more than 6 elements total.`,
+
+    concept:
+`Draw ONE simple diagram that makes the core idea unmistakable.
+Good options:
+- Two bar lengths showing a ratio
+- A simple arrow showing direction (goes up / goes down)
+- A balance scale tipping one way
+- A simple fraction bar split into equal parts
+- A number line with a clear jump pattern
+ONE idea only. Label the 2–3 most important numbers or words.
+No more than 5 elements total. No background scenes.`,
+
+    rule:
+`Draw a simple formula layout or rule diagram.
+Show the formula centred, with each letter or symbol labelled simply below it.
+Example: y = k × x — label y, k, x each with a short word.
+Or show a simple input→output arrow if it is a proportion relationship.
+Keep it clean: formula + 3 short labels maximum.
+No more than 5 elements.`,
+  }
 
   const msg = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',
-    max_tokens: 1800,
+    max_tokens: 1200,
     messages: [{
       role: 'user',
-      content: `You are creating an educational SVG for a Nigerian primary/secondary school maths lesson.
+      content: `Create a very simple SVG for a school maths lesson screen.
 
-Slide title: "${slideTitle}"
-Concept: "${(slideExplanation || '').slice(0, 350)}"
+Type: ${bite.type}
+Title: "${bite.title}"
+Content: "${(bite.explanation || '').slice(0, 200)}"
 
-${contentRules}
+${typeInstructions[bite.type]}
 
-GOAL: A child should look at this image for 3 seconds and understand the concept better — no reading required.
+GOAL: A student glances at this and instantly understands ONE idea. Nothing more.
 
-Return ONLY the raw SVG. No markdown, no explanation. Start with <svg, end with </svg>.
-
-TECHNICAL RULES:
-- viewBox="0 0 360 200" width="360" height="200"
-- Background: <rect width="360" height="200" rx="12" fill="#F0F4FF"/>
-- Main palette: #4F46E5 indigo (primary shapes), #10B981 green (correct/positive), #F59E0B amber (highlight/warm), #EF4444 red (contrast), #1E293B near-black (text)
-- Accent fills: use light tints like #EEF2FF, #ECFDF5, #FEF3C7 for backgrounds of grouped elements
-- font-family="system-ui, sans-serif" on all text
-- font-size: 14 for main labels, 12 for secondary, 10 for small annotations
-- font-weight="700" for emphasis on key numbers/labels
-- Shapes: rect (rx="6" for rounded), circle, line, polyline, polygon, simple path
-- Arrow heads: use a filled polygon triangle, e.g. <polygon points="x1,y1 x2,y2 x3,y3" fill="#4F46E5"/>
-- NO foreignObject, NO clip-path, NO filter effects
-- Keep all elements within x=10..350, y=10..190
-- Make it RICH and detailed — empty space is wasted learning opportunity`,
+STRICT SVG RULES:
+- viewBox="0 0 320 180" width="320" height="180"
+- White background: <rect width="320" height="180" fill="white"/>
+- Palette: #4F46E5 (blue, main), #10B981 (green, positive), #EF4444 (red, decrease), #1E293B (dark text)
+- font-family="system-ui, sans-serif"
+- font-size: 16 for main labels, 12 for secondary
+- font-weight="700" for numbers and key words
+- Shapes: rect, circle, line, polyline — keep them simple
+- NO foreignObject, NO clip-path, NO filters, NO gradients
+- All elements within x=10..310, y=10..170
+- Total elements: aim for 5–10. Never more than 15.
+- Return ONLY the raw SVG tag. No markdown. Start with <svg.`,
     }],
   })
   const raw = (msg.content[0]?.text || '').trim()
@@ -90,70 +97,110 @@ TECHNICAL RULES:
   return match ? match[0] : null
 }
 
-// ── Save slides + questions to Supabase ───────────────────────────────────────
-async function saveLesson(supabase, lessonId, slides, questions, subtopicId, userId) {
+// ── Save to Supabase ──────────────────────────────────────────────────────────
+async function saveLesson(supabase, lessonId, bites, questions, subtopicId, userId) {
   await supabase.from('slides').delete().eq('lesson_id', lessonId)
   await supabase.from('questions').delete().eq('lesson_id', lessonId)
 
-  const slideRows = slides.map(s => ({
-    lesson_id:        lessonId,
-    order_index:      s.order_index ?? 0,
-    type:             s.type || 'concept',
-    title:            s.title || '',
-    explanation:      s.explanation || '',
-    formula:          s.formula || null,
-    formula_note:     s.formula_note || null,
-    hint:             s.hint || null,
-    steps:            s.steps ? JSON.stringify(s.steps) : null,
-    svg_code:         s.svg_code || null,
-    has_illustration: !!(s.svg_code),
-  }))
+  // Encode bites cleanly — interactive bites (prediction, pattern, observation)
+  // store their options/table data inside the steps column as a tagged JSON object.
+  // The LessonPlayer decoder reads this back using the _type sentinel key.
+  const cleanSlideRows = bites.map(b => {
+    let stepsField = null
+    if (b.options || b.reveal || b.table_headers) {
+      stepsField = JSON.stringify({
+        _type:          b.type,
+        _options:       b.options         || null,
+        _reveal:        b.reveal          || null,
+        _table_headers: b.table_headers   || null,
+        _table_rows:    b.table_rows      || null,
+        _steps:         b.steps           || null,
+      })
+    } else if (b.steps) {
+      stepsField = JSON.stringify(b.steps)
+    }
+    return {
+      lesson_id:        lessonId,
+      order_index:      b.order_index ?? 0,
+      type:             b.type         || 'concept',
+      title:            b.title        || '',
+      explanation:      b.explanation  || '',
+      formula:          b.formula      || null,
+      formula_note:     b.formula_note || null,
+      hint:             b.hint         || null,
+      svg_code:         b.svg_code     || null,
+      has_illustration: !!(b.svg_code),
+      steps:            stepsField,
+    }
+  })
 
-  const { error: slidesErr } = await supabase.from('slides').insert(slideRows)
-  if (slidesErr) console.error('[gen] slides insert error:', slidesErr.message, JSON.stringify(slidesErr))
+  const { error: slidesErr } = await supabase.from('slides').insert(cleanSlideRows)
+  if (slidesErr) console.error('[gen] slides insert error:', slidesErr.message)
 
   for (const q of questions) {
-    const { data: qRow, error: qErr } = await supabase
-      .from('questions')
-      .insert({
-        lesson_id:     lessonId,
-        order_index:   q.order_index ?? 0,
-        question_text: q.question_text,
-        difficulty:    q.difficulty || 'medium',
-        hint:          q.hint || null,
-        explanation:   q.explanation || null,
-      })
-      .select().single()
-    if (qErr) { console.error('[gen] question insert error:', qErr.message); continue }
-    // Shuffle options so correct answer isn't always in position A
-    const shuffledOpts = [...(q.options || [])].sort(() => Math.random() - 0.5)
+    const { data: qRow, error: qErr } = await supabase.from('questions').insert({
+      lesson_id:     lessonId,
+      order_index:   q.order_index ?? 0,
+      question_text: q.question_text,
+      difficulty:    q.difficulty   || 'medium',
+      hint:          q.hint         || null,
+      explanation:   q.explanation  || null,
+    }).select().single()
+    if (qErr) { console.error('[gen] question error:', qErr.message); continue }
+    const shuffled = [...(q.options || [])].sort(() => Math.random() - 0.5)
     await supabase.from('question_options').insert(
-      shuffledOpts.map(o => ({ question_id: qRow.id, option_text: o.option_text, is_correct: o.is_correct }))
+      shuffled.map(o => ({ question_id: qRow.id, option_text: o.option_text, is_correct: o.is_correct }))
     )
   }
 
   await supabase.from('generation_logs').insert({
-    subtopic_id:    subtopicId,
-    lesson_id:      lessonId,
-    generated_by:   userId,
-    slide_count:    slideRows.length,
-    question_count: questions.length,
-  }).then(({ error }) => { if (error) console.warn('[gen] log insert:', error.message) })
+    subtopic_id: subtopicId, lesson_id: lessonId, generated_by: userId,
+    slide_count: cleanSlideRows.length, question_count: questions.length,
+  }).then(({ error }) => { if (error) console.warn('[gen] log:', error.message) })
 
   await supabase.from('subtopics')
     .update({ is_published: true, generated_at: new Date().toISOString() })
     .eq('id', subtopicId)
     .then(({ error }) => { if (error) console.warn('[gen] subtopic update:', error.message) })
 
-  console.log(`[gen] saved: ${slideRows.length} slides, ${questions.length} questions`)
-  return Response.json({ success: true, lessonId, slideCount: slideRows.length, questionCount: questions.length })
+  console.log(`[gen] saved: ${cleanSlideRows.length} bites, ${questions.length} questions`)
+  return Response.json({ success: true, lessonId, slideCount: cleanSlideRows.length, questionCount: questions.length })
 }
 
-// ── Nigerian context reference for prompts ────────────────────────────────────
-const NIGERIAN_CONTEXTS = `
-Nigerian names to use (draw from all regions): Emeka, Amina, Chidi, Ngozi, Tunde, Fatima, Bola, Kemi, Uche, Halima, Danladi, Ifunanya, Segun, Blessing, Musa, Chisom, Yusuf, Adaeze, Ola, Zainab, Biodun, Chiamaka, Ibrahim, Sade, Jide, Nkechi, Ladi, Taiwo, Efua, Dauda.
-Nigerian cities & regions (use variety — not just Lagos): Lagos, Kano, Abuja, Enugu, Port Harcourt, Ibadan, Kaduna, Aba, Jos, Warri, Benin City, Calabar, Sokoto, Zaria, Onitsha, Abeokuta, Ilorin, Owerri, Asaba, Maiduguri, Makurdi.
-Nigerian everyday contexts: naira (₦), market stalls, school fees, danfo/molue fare, boli and groundnut, suya, gala, recharge cards, okada, keke napep, NEPA blackout/generator, WAEC/NECO exams, farm produce, fish market, data bundles, Iya Basira's shop, buka restaurant, PTA levy, savings contributions (ajo/esusu).
+// ── Nigerian student context bank ─────────────────────────────────────────────
+// Spec: "wide range of relatable contexts", "familiar to student aged 12–17"
+// Mix of Nigerian everyday + universal school life
+const STUDENT_CONTEXTS = `
+NAMES (use variety across all ethnic groups):
+Emeka, Amina, Chidi, Ngozi, Tunde, Fatima, Bola, Kemi, Uche, Halima, Segun, Blessing, Musa, Chisom, Yusuf, Adaeze, Ladi, Taiwo, Nkechi, Danladi.
+
+SCHOOL AND STUDENT LIFE CONTEXTS (prefer these — they feel most relatable):
+• Sharing food or snacks equally among classmates
+• Pocket money and what it can buy
+• Sports practice: laps around a field, goals scored, team sizes
+• Classroom activities: sharing pencils, counting books, arranging chairs
+• School tuck shop: buying snacks, getting change
+• Library books: borrowing, returning, counting
+• School projects: splitting tasks among group members
+• Running or walking to school: time and distance
+• Homework: pages to read, questions to answer
+• School events: prizes, medals, positions in a race
+• Playing games: scores, turns, fair shares
+• Travel time: bus rides between school and home
+
+NIGERIAN EVERYDAY CONTEXTS (use occasionally for variety):
+• Market: buying tomatoes, oranges, bread — prices in ₦
+• Recharge cards and data bundles
+• Sharing suya, gala, or boli among friends
+• Keke napep or danfo fare
+• Saving pocket money (ajo/esusu style)
+
+RULES FOR USING CONTEXTS:
+- Rotate contexts so no two consecutive bites use the same setting
+- Prefer school/student settings for hook and examples
+- Use simple, specific numbers (not large or awkward values)
+- Use ₦ for money when in a market/buying context
+- Always name a specific person in examples
 `
 
 // ── Main handler ──────────────────────────────────────────────────────────────
@@ -173,105 +220,280 @@ export async function POST(request) {
   if (!subtopic) return Response.json({ error: 'Subtopic not found' }, { status: 404 })
 
   const level = subtopic.topic?.unit?.term?.level?.name || 'JSS1'
-  const term  = subtopic.topic?.unit?.term?.name || 'Term 1'
-  const unit  = subtopic.topic?.unit?.name || ''
-  const topic = subtopic.topic?.name || ''
+  const term  = subtopic.topic?.unit?.term?.name        || 'Term 1'
+  const unit  = subtopic.topic?.unit?.name              || ''
+  const topic = subtopic.topic?.name                    || ''
   const title = subtopic.title
   const ctx   = `${level} | ${term} | Unit: ${unit} | Topic: ${topic} | Subtopic: ${title}`
 
-  // ── CALL 1 + 2 in parallel: text content + questions ──────────────────────
-  const textPrompt = `You are the most effective maths teacher in Nigeria. You have 20 years experience teaching children aged 8-17. You know how to explain ANY concept from absolute zero — no assumptions, no skipping steps. Context: ${ctx}.
+  // ════════════════════════════════════════════════════════════════════════════
+  // BITES PROMPT
+  // Spec: 8–12 bites, one idea per screen, minimal text, guided discovery,
+  //       Observation → Thinking → Explanation → Practice flow
+  // ════════════════════════════════════════════════════════════════════════════
+  const bitesPrompt = `You are building a bite-sized interactive maths lesson for a platform called MathsInBites.
+The lesson is for Nigerian secondary school students (context: ${ctx}).
+Philosophy: "Maths, one bite at a time."
 
-Think of yourself explaining this to a 10-year-old child who has NEVER heard of this topic before. Every word must be simple. Every step must be shown. Use everyday Nigerian life to make it real.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CORE PRINCIPLES — follow these strictly:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Return ONLY a raw JSON object — no markdown fences, no text before or after.
+1. Assume the student knows NOTHING about this topic.
+2. One idea per screen. One. Never two.
+3. Text: maximum 2 short sentences per bite. Short = a 12-year-old can say it in one breath.
+4. Guide discovery: student observes → thinks → discovers → sees the name.
+   Never reveal the concept before the student has seen and thought about it.
+5. Interact early: the 2nd bite must be interactive (prediction).
+   Interaction means student makes a choice, not just reads.
+6. Language: friendly, simple, conversational. Not textbook.
+7. Examples must feel like real student life (school, sports, sharing food, pocket money).
 
-CRITICAL WRITING RULES:
-- Explanations: SHORT sentences. MAX 2 paragraphs of 2-3 sentences each per slide.
-- Language: simple everyday English a primary school child can read. No big words.
-- Start from the very beginning — assume the student knows NOTHING about this topic.
-- Build up slowly, one tiny idea at a time.
-- Use ^ for exponents (2^8), use _ for subscripts (a_n) — never unicode symbols.
-- Nigerian context: weave in names, places, money (₦), everyday objects naturally.
-- The SVG image does the heavy lifting — your text explains what the image shows.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LEARNING FLOW — generate bites in THIS ORDER:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+BITE 1 — type: "hook"
+What it does: Opens with a real everyday moment. No maths. Just curiosity.
+title: The lesson topic name written in a friendly way (e.g. "Sharing Equally" not "Division")
+explanation: EXACTLY 1 sentence. Describe a specific student moment that secretly uses ${title}.
+             Use a student's name. Use a school/sports/everyday context.
+             Example style: "Tunde and 3 friends want to share 24 oranges equally after football practice."
+             NOT: "In this lesson we will learn about..."
+
+BITE 2 — type: "prediction"
+What it does: Student predicts before they know the answer. Commits to a guess.
+title: A short question. E.g. "What do you think happens?"
+explanation: 1 sentence setting up the prediction scenario. Different context from Bite 1.
+options: 2–3 choices. Exactly 1 correct. Others must be plausible wrong guesses.
+reveal: 1 sentence. Shown after they answer (whether right or wrong). Warm. Forward-pointing.
+        E.g. "Good thinking! Let's look at the numbers to find out."
+
+BITE 3 — type: "observation"
+What it does: Shows a data table. Student looks and reads. No answer required.
+title: Short. E.g. "Look at this pattern"
+explanation: 1 sentence. Tell them what column to focus on.
+table_headers: Array of 2 column names. Keep names short (3 words max each).
+table_rows: 4–5 rows. Use REAL numbers that clearly show the mathematical pattern.
+            For inverse proportion: as first column doubles, second column halves.
+            For direct proportion: both columns increase together.
+            Use simple round numbers. No decimals unless essential.
+
+BITE 4 — type: "pattern"
+What it does: Student identifies what they noticed in the table. Interactive.
+title: "What do you notice?"
+explanation: 1 sentence asking them to describe the relationship they saw.
+options: 3 choices. 1 correct (accurate description of pattern). 2 wrong (plausible misreadings).
+reveal: 1–2 sentences. Confirm the pattern. Connect it to what comes next.
+        E.g. "Exactly! When one number doubles, the other halves. There's a name for this..."
+
+BITE 5 — type: "concept"
+What it does: Reveals the concept name. The "aha!" moment.
+title: The concept name. Bold and clear.
+explanation: EXACTLY 2 short sentences.
+             Sentence 1: What this type of relationship is called.
+             Sentence 2: One-line plain English definition using the pattern they just saw.
+             Example: "This is called Inverse Proportion. When one quantity goes up, the other goes down by the same factor."
+
+BITE 6 — type: "rule"
+What it does: States the mathematical rule and formula.
+title: "The Rule" or "How to use it"
+explanation: 1–2 sentences. How to apply this in calculations.
+formula: The formula in ^ and _ notation. E.g. "x × y = k" or "y = k/x". Or null if no formula.
+formula_note: One plain-English line explaining what each letter means. Or null.
+
+BITE 7 — type: "worked_example"
+What it does: Walks through one complete example step by step.
+title: Name the specific problem. E.g. "Finding the missing value"
+explanation: The problem. 1–2 sentences. School/student context. Name a student. Specific numbers.
+             Example: "Amina takes 4 minutes to run 1 lap of the field. How long for 3 laps?"
+steps: Array of step objects. EVERY step shown. Nothing skipped.
+       Each step: { "label": "Step 1 — short name", "text": "Show the number. Show the operation. Explain in plain English why." }
+       Minimum 3 steps. Maximum 5.
+
+BITE 8 — type: "worked_example"
+What it does: A second example. Different context. Slightly harder.
+title: Different angle on the same concept.
+explanation: 1–2 sentences. Different student name, different everyday situation.
+steps: Same format. Show all working clearly.
+
+BITE 9 — type: "you_try"
+What it does: Student attempts a fresh problem on their own, then reveals solution.
+title: "Your turn: [what they need to find]"
+explanation: The problem ONLY. 1–2 sentences. Fresh context, specific numbers.
+hint: 1 sentence. Gentle nudge toward the first step. E.g. "Start by identifying which value is changing."
+steps: Complete worked solution (shown when student taps "Show Solution").
+       Same step format as above. All working shown.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ABSOLUTE RULES — break any of these and the lesson fails:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✗ Never write "In this lesson you will learn..."
+✗ Never write "By the end of this lesson..."
+✗ Never put 2 ideas in 1 bite
+✗ Never use 3+ sentences in explanation
+✗ Never skip a worked example step
+✗ Never use the same context/setting twice in a row
+✗ Never use placeholder values like "X", "Y", "[value]" in table_rows — use real numbers
+✗ Never use unicode superscripts — use ^ and _ notation only
+
+CONTEXT RULE: Use school and student life contexts first. Rotate settings.
+Good: sharing pencils, football practice, buying snacks, library books, race positions.
+Okay: market stalls, keke fare, suya (use sparingly for variety).
+Bad: "a company distributes tasks", "servers process requests", "a factory produces units".
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Return ONLY valid JSON below. No markdown. No extra text.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 {
   "lesson_title": "${title}",
-  "lesson_summary": "One sentence a child can understand: what they will be able to DO after this lesson.",
-  "hook": "2-3 friendly sentences. Paint a real Nigerian everyday moment that secretly uses ${title}. Make the child think — wait, I already know this? End with one simple question that sparks curiosity.",
-  "slides": [
+  "hook": "One sentence. The key student moment from Bite 1.",
+  "bites": [
     {
       "order_index": 0,
-      "type": "introduction",
-      "title": "What is [topic]? — short, friendly title",
-      "explanation": "Paragraph 1: One relatable Nigerian example that shows this topic in real life. Paragraph 2: In the simplest possible words, what this lesson is about. No maths yet — just the idea.",
-      "formula": null,
-      "formula_note": null,
-      "hint": null,
-      "steps": null
+      "type": "hook",
+      "title": "Lesson topic name — friendly",
+      "explanation": "One sentence. Specific student scene."
     },
     {
       "order_index": 1,
-      "type": "concept",
-      "title": "The very first idea — start from scratch",
-      "explanation": "Paragraph 1: The simplest possible version of this concept. Use an analogy a child knows. Paragraph 2: One more sentence connecting it to maths. Keep it tiny.",
-      "formula": "Key formula if needed — use ^ and _ notation. Or null.",
-      "formula_note": "What each symbol means in plain English. Or null.",
-      "hint": "One clever trick or rhyme the child can remember forever.",
-      "steps": null
-    }
-  ]
-}
-
-SLIDE STRUCTURE — generate in this EXACT order:
-1. ONE "introduction" slide — What is this topic? A real Nigerian life scene + the simplest possible intro. NO maths yet.
-2. TWO to THREE "concept" slides — each builds ONE new idea on top of the last. Start from zero. Use the tiniest possible steps. Each slide: ONE idea only.
-3. TWO "worked_example" slides — show a complete Nigerian problem solved step by step. explanation = the problem statement (simple, short). steps = array of {label, text} objects showing EVERY single step, written like you are explaining to a 9-year-old. No skipping. No shorthand.
-4. ONE "you_try" slide — a fresh problem for the student. explanation = problem only. steps = complete solution shown simply (revealed when student taps).
-
-WORKED EXAMPLE STEPS RULE — each step object must be:
-{ "label": "Step 1 — short name", "text": "What we do AND why, in plain English. Show the number. Show the calculation. Explain the result." }
-Never skip a step. Never say 'therefore' without showing the working. Imagine you are showing your working on paper.
-
-Return ONLY the JSON. No markdown.
-
-${NIGERIAN_CONTEXTS}`
-
-  const questionsPrompt = `You are a patient Nigerian maths teacher creating practice questions for children aged 8-17. Context: ${ctx}.
-
-Return ONLY a raw JSON object — no markdown fences, no text before or after.
-
-{
-  "questions": [
-    {
-      "order_index": 0,
-      "question_text": "A simple question using everyday Nigerian life. Short. One idea.",
-      "difficulty": "easy",
-      "hint": "A gentle nudge — which step to start with, in plain English.",
-      "explanation": "Walk through the FULL solution like you are explaining to a 9-year-old.\nStep 1: Start here because...\nStep 2: Now we do this...\nStep 3: So the answer is... because...",
+      "type": "prediction",
+      "title": "What do you think happens?",
+      "explanation": "1-sentence setup.",
       "options": [
-        {"option_text": "The correct answer", "is_correct": true},
-        {"option_text": "A wrong answer that is a common mistake students make", "is_correct": false},
-        {"option_text": "Another plausible wrong answer", "is_correct": false},
-        {"option_text": "Another plausible wrong answer", "is_correct": false}
+        {"option_text": "Option A", "is_correct": false},
+        {"option_text": "Option B — correct", "is_correct": true},
+        {"option_text": "Option C", "is_correct": false}
+      ],
+      "reveal": "1 sentence after answering."
+    },
+    {
+      "order_index": 2,
+      "type": "observation",
+      "title": "Look at the numbers",
+      "explanation": "1-sentence prompt.",
+      "table_headers": ["Header 1", "Header 2"],
+      "table_rows": [["val","val"],["val","val"],["val","val"],["val","val"]]
+    },
+    {
+      "order_index": 3,
+      "type": "pattern",
+      "title": "What do you notice?",
+      "explanation": "1-sentence question.",
+      "options": [
+        {"option_text": "Description A", "is_correct": false},
+        {"option_text": "Description B — correct", "is_correct": true},
+        {"option_text": "Description C", "is_correct": false}
+      ],
+      "reveal": "Confirm the pattern. 1–2 sentences."
+    },
+    {
+      "order_index": 4,
+      "type": "concept",
+      "title": "Concept name",
+      "explanation": "Exactly 2 short sentences."
+    },
+    {
+      "order_index": 5,
+      "type": "rule",
+      "title": "The Rule",
+      "explanation": "1–2 sentences.",
+      "formula": "formula or null",
+      "formula_note": "what each symbol means, or null"
+    },
+    {
+      "order_index": 6,
+      "type": "worked_example",
+      "title": "Example title",
+      "explanation": "Problem. 1–2 sentences. Student context.",
+      "steps": [
+        {"label": "Step 1 — label", "text": "Show working clearly."},
+        {"label": "Step 2 — label", "text": "Continue."},
+        {"label": "Step 3 — label", "text": "Final answer with reason."}
+      ]
+    },
+    {
+      "order_index": 7,
+      "type": "worked_example",
+      "title": "Another example",
+      "explanation": "Different student context, different numbers.",
+      "steps": [
+        {"label": "Step 1 — label", "text": "..."},
+        {"label": "Step 2 — label", "text": "..."},
+        {"label": "Step 3 — label", "text": "..."}
+      ]
+    },
+    {
+      "order_index": 8,
+      "type": "you_try",
+      "title": "Your turn: [what to find]",
+      "explanation": "Fresh problem. 1–2 sentences.",
+      "hint": "One gentle nudge.",
+      "steps": [
+        {"label": "Step 1", "text": "..."},
+        {"label": "Step 2", "text": "..."},
+        {"label": "Step 3", "text": "..."}
       ]
     }
   ]
 }
 
-Generate exactly 3 questions: index 0 = easy, 1 = medium, 2 = hard.
-Each: exactly 4 options, exactly 1 correct. Wrong options must be real mistakes children commonly make.
+${STUDENT_CONTEXTS}`
 
-EXPLANATION RULE: Write like you are sitting next to a child. Use newlines to separate steps. Show EVERY calculation. Say WHY each step is done. Never say "obviously" or skip steps.
-Use Nigerian contexts from across Nigeria — Kano, Enugu, Port Harcourt, Jos, Abuja, Ibadan, not just Lagos.
-Return ONLY the JSON.
+  // ════════════════════════════════════════════════════════════════════════════
+  // QUESTIONS PROMPT
+  // Spec: student-life contexts, 3 questions easy/medium/hard,
+  //       real common-mistake wrong options, clear step-by-step explanation
+  // ════════════════════════════════════════════════════════════════════════════
+  const questionsPrompt = `Write 3 practice questions for a MathsInBites lesson on: ${ctx}.
 
-${NIGERIAN_CONTEXTS}`
+These questions appear at the end of the lesson as the final practice section.
+Students are aged 12–17 in Nigerian secondary school.
 
-  let textData, questionsData
+CONTEXT RULES:
+- Use school and student life situations (sharing, sports, classroom, pocket money, travel)
+- Use Nigerian student names
+- Use ₦ only when the scenario involves buying/paying. Otherwise no currency needed.
+- Use simple, clean numbers. Nothing awkward.
+- Rotate contexts so all 3 questions feel different.
+
+QUESTION RULES:
+- question_text: 1–2 short sentences. State the full scenario and what to find.
+- difficulty: "easy" (index 0), "medium" (index 1), "hard" (index 2)
+- 4 options each, exactly 1 correct
+- Wrong options must be real mistakes students make (e.g. adding instead of dividing, forgetting to invert, using wrong formula step)
+- hint: 1 gentle sentence pointing toward the first step
+- explanation: step-by-step. Each step on a new line using \\n. Show every calculation. Say why. Write like you are sitting next to the student.
+
+Return ONLY valid JSON. No markdown.
+
+{
+  "questions": [
+    {
+      "order_index": 0,
+      "question_text": "Short question with student context and specific numbers.",
+      "difficulty": "easy",
+      "hint": "One gentle nudge toward the first step.",
+      "explanation": "Step 1: [what we do and why] → [calculation]\\nStep 2: [next step] → [calculation]\\nAnswer: [value] because [brief reason].",
+      "options": [
+        {"option_text": "Correct answer", "is_correct": true},
+        {"option_text": "Common mistake 1", "is_correct": false},
+        {"option_text": "Common mistake 2", "is_correct": false},
+        {"option_text": "Common mistake 3", "is_correct": false}
+      ]
+    }
+  ]
+}
+
+${STUDENT_CONTEXTS}`
+
+  // ── Generate bites + questions in parallel ────────────────────────────────
+  let bitesData, questionsData
   try {
-    ;[textData, questionsData] = await Promise.all([
-      ask(textPrompt, 6000, 'slides'),
+    ;[bitesData, questionsData] = await Promise.all([
+      ask(bitesPrompt,     7000, 'bites'),
       ask(questionsPrompt, 3000, 'questions'),
     ])
   } catch (err) {
@@ -279,49 +501,50 @@ ${NIGERIAN_CONTEXTS}`
     return Response.json({ error: 'Generation failed', detail: err.message }, { status: 500 })
   }
 
-  const slides    = textData.slides    || []
+  const bites     = bitesData.bites        || []
   const questions = questionsData.questions || []
-  console.log(`[gen] slides=${slides.length}, questions=${questions.length}`)
+  console.log(`[gen] bites=${bites.length}, questions=${questions.length}`)
 
-  // ── CALL 3: SVGs in parallel ───────────────────────────────────────────────
-  console.log(`[gen] generating ${slides.length} SVGs in parallel`)
+  // ── Generate SVGs for the 3 types that benefit from a visual ─────────────
+  // Only observation, concept, and rule get SVGs — max 3 per lesson.
+  // This keeps the lesson clean per spec: "2–3 visuals per lesson is enough."
   const svgResults = await Promise.allSettled(
-    slides.map((s, i) => genSvg(s.title, s.explanation, s.type).then(svg => {
-      console.log(`[gen] svg[${i}] ok, length=${svg?.length}`)
+    bites.map((b, i) => genSvg(b).then(svg => {
+      if (svg) console.log(`[gen] svg[${i}] ${b.type} ok, length=${svg.length}`)
       return svg
     }))
   )
-  slides.forEach((s, i) => {
+  bites.forEach((b, i) => {
     const r = svgResults[i]
-    s.svg_code = r.status === 'fulfilled' ? r.value : null
+    b.svg_code = r.status === 'fulfilled' ? (r.value || null) : null
     if (r.status === 'rejected') console.warn(`[gen] svg[${i}] failed:`, r.reason?.message)
   })
-  console.log('[gen] SVGs done')
 
-  // ── Upsert lesson row ──────────────────────────────────────────────────────
+  const svgCount = bites.filter(b => b.svg_code).length
+  console.log(`[gen] SVGs generated: ${svgCount}`)
+
+  // ── Upsert lesson row ─────────────────────────────────────────────────────
   let lessonId
   for (const withHook of [true, false]) {
     const upsertData = {
       subtopic_id: subtopicId,
-      title:       textData.lesson_title   || title,
-      summary:     textData.lesson_summary || `Learn about ${title}`,
-      ...(withHook && textData.hook ? { hook: textData.hook } : {}),
+      title:       bitesData.lesson_title || title,
+      summary:     `Learn about ${title} step by step.`,
+      ...(withHook && bitesData.hook ? { hook: bitesData.hook } : {}),
     }
     const { data: lesson, error } = await supabase
       .from('lessons')
       .upsert(upsertData, { onConflict: 'subtopic_id' })
       .select('id')
       .single()
-
     if (error) {
-      console.error(`[gen] lesson upsert failed (withHook=${withHook}):`, error.message, error.code)
+      console.error(`[gen] lesson upsert failed (withHook=${withHook}):`, error.message)
       if (!withHook) return Response.json({ error: 'Failed to save lesson', detail: error.message }, { status: 500 })
       continue
     }
     lessonId = lesson.id
-    console.log(`[gen] lesson upserted id=${lessonId} withHook=${withHook}`)
     break
   }
 
-  return saveLesson(supabase, lessonId, slides, questions, subtopicId, user.id)
+  return saveLesson(supabase, lessonId, bites, questions, subtopicId, user.id)
 }

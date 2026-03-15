@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import { useMode } from '@/lib/ModeContext'
 import { BicPencil } from '@/components/BiteMarkIcon'
 import { createClient } from '@/lib/supabase/client'
-import ExitConfirmModal from './ExitConfirmModal'
 
 const DIFF_COLOR = { easy: '#C8F135', medium: '#FFC933', hard: '#FF6B6B' }
 const COUNT_OPTIONS = [5, 10, 20, 'All']
@@ -49,14 +48,14 @@ function StepExplanation({ text, M }) {
   if (steps.length === 1) {
     return (
       <div style={{
-        background: '#FEFDE8',
-        borderRadius: 8,
-        padding: '10px 14px',
         fontSize: 13,
-        fontWeight: 600,
-        color: '#333',
-        lineHeight: 1.8,
+        color: M.textSecondary,
+        lineHeight: 1.9,
         fontFamily: 'Nunito, sans-serif',
+        padding: '6px 0',
+        whiteSpace: 'pre-wrap',
+        overflowWrap: 'break-word',
+        wordBreak: 'break-word',
       }}>
         {text}
       </div>
@@ -64,50 +63,33 @@ function StepExplanation({ text, M }) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '4px 0' }}>
       {steps.map((step, i) => (
-        <div key={i} style={{
-          display: 'flex',
-          flexDirection: 'row',
-          alignItems: 'flex-start',
-          gap: 10,
-        }}>
-          {/* Number circle — locked size, never moves */}
+        <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', width: '100%' }}>
+          {/* Number bubble — fixed size, never shrinks */}
           <div style={{
-            width: 28,
-            height: 28,
-            minWidth: 28,
-            minHeight: 28,
-            flexShrink: 0,
-            borderRadius: '50%',
-            background: accent,
-            color: '#fff',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 12,
-            fontWeight: 900,
-            fontFamily: 'Nunito, sans-serif',
-            marginTop: 6,
+            width: 26, height: 26, borderRadius: '50%',
+            background: accent, color: '#fff',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 11, fontWeight: 900,
+            flexShrink: 0, marginTop: 2,
           }}>{i + 1}</div>
 
-          {/* Step box — cream background, full width, text wraps inside */}
+          {/* Step text — fills remaining width, wraps inside its box, never clips */}
           <div style={{
-            flex: 1,
-            minWidth: 0,
-            background: '#FEFDE8',
-            border: '1px solid #F0EAC0',
-            borderRadius: 8,
-            padding: '10px 14px',
-            fontSize: 13,
-            fontWeight: 600,
-            color: '#2D2D2D',
+            flex: 1, minWidth: 0,
+            background: M.mathBg || 'rgba(0,0,0,0.03)',
+            borderRadius: 9,
+            padding: '9px 13px',
+            fontSize: 13, fontWeight: 700,
+            color: M.textPrimary,
             lineHeight: 1.8,
             fontFamily: 'Nunito, sans-serif',
-            wordWrap: 'break-word',
+            whiteSpace: 'pre-wrap',
             overflowWrap: 'break-word',
-            whiteSpace: 'normal',
-          }}>{step.trim()}</div>
+            wordBreak: 'break-word',
+            boxSizing: 'border-box',
+          }}>{step}</div>
         </div>
       ))}
     </div>
@@ -184,28 +166,34 @@ function SetupScreen({ allTopics, currentTopicId, allQuestions, M, mode, onStart
                 {selectedTopicIds.size === allTopics.length ? 'Deselect all' : 'Select all'}
               </button>
             </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:6, maxHeight:260, overflowY:'auto' }}>
+            <div style={{ display:'flex', flexDirection:'column', gap:6, maxHeight:300, overflowY:'auto' }}>
               {allTopics.map(tp => {
                 const isSelected = selectedTopicIds.has(tp.id)
-                const qCount = allQuestions.filter(q => q.topic_id === tp.id).length
+                const qCount = tp.questionCount ?? allQuestions.filter(q => q.topic_id === tp.id).length
+                const noQs = qCount === 0
                 return (
-                  <div key={tp.id} onClick={() => toggleTopic(tp.id)} style={{
-                    padding:'10px 12px', borderRadius:10, cursor:'pointer', fontFamily:'Nunito,sans-serif',
+                  <div key={tp.id} onClick={() => !noQs && toggleTopic(tp.id)} style={{
+                    padding:'10px 12px', borderRadius:10,
+                    cursor: noQs ? 'default' : 'pointer',
+                    fontFamily:'Nunito,sans-serif',
                     background: isSelected ? `${accent}12` : 'transparent',
-                    border:`1.5px solid ${isSelected ? accent : accent+'20'}`,
+                    border:`1.5px solid ${isSelected ? accent : noQs ? accent+'10' : accent+'20'}`,
                     display:'flex', alignItems:'center', gap:10,
+                    opacity: noQs ? 0.4 : 1,
                     transition:'all 0.12s',
                   }}>
                     <div style={{
                       width:18, height:18, borderRadius:5, flexShrink:0,
                       background: isSelected ? accent : 'transparent',
-                      border:`2px solid ${isSelected ? accent : accent+'50'}`,
+                      border:`2px solid ${isSelected ? accent : noQs ? accent+'30' : accent+'50'}`,
                       display:'flex', alignItems:'center', justifyContent:'center',
                     }}>
                       {isSelected && <span style={{ color:'#fff', fontSize:11, fontWeight:900 }}>✓</span>}
                     </div>
                     <span style={{ flex:1, fontSize:13, fontWeight:700, color:isSelected ? M.textPrimary : M.textSecondary }}>{tp.title}</span>
-                    <span style={{ fontSize:10, color:M.textSecondary }}>{qCount}q</span>
+                    <span style={{ fontSize:10, color: noQs ? M.textSecondary : accent, fontWeight: noQs ? 400 : 700 }}>
+                      {noQs ? 'No questions yet' : `${qCount}q`}
+                    </span>
                   </div>
                 )
               })}
@@ -318,8 +306,9 @@ function ReviewScreen({ questions, answers, M, mode, topicId, xpEarned, onRetry 
                   : (mode==='roots' ? `${correct} out of ${questions.length}. No worry — go back to the lesson and try again! 💪` : `${correct} out of ${questions.length} — review the steps below and try again!`)}
               </div>
               {accuracy < 60 && (
-                <button onClick={() => router.push('/learn')} style={{ marginTop:8, background:'none', border:`1px solid ${accent}40`, borderRadius:8, padding:'5px 12px', color:accent, cursor:'pointer', fontSize:11, fontWeight:800, fontFamily:'Nunito,sans-serif' }}>
-                  Review Lessons →
+                <button onClick={() => router.push(topicId ? `/learn` : '/learn')}
+                  style={{ marginTop:8, background:'none', border:`1px solid ${accent}40`, borderRadius:8, padding:'5px 12px', color:accent, cursor:'pointer', fontSize:11, fontWeight:800, fontFamily:'Nunito,sans-serif' }}>
+                  Go to Lesson →
                 </button>
               )}
             </div>
@@ -480,32 +469,34 @@ function SessionTimer({ totalSecs, onExpire, M }) {
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function PracticeMode({ questions: allQuestions, topicTitle, topicId, student, levels, questionTopicIds, userId }) {
+export default function PracticeMode({ questions: allQuestions, topicTitle, topicId, student, levels, questionTopicIds }) {
   const router   = useRouter()
   const { M, mode } = useMode()
   const supabase = createClient()
 
   const [phase,      setPhase]      = useState('setup')
   const [sessionQs,  setSessionQs]  = useState([])
-  const [answerMap,  setAnswerMap]  = useState({})  // { [qIdx]: optionIndex } — per question
+  const [answers,    setAnswers]    = useState([])
   const [qIdx,       setQIdx]       = useState(0)
   const [selected,   setSelected]   = useState(null)
   const [showHint,   setShowHint]   = useState(false)
   const [totalSecs,  setTotalSecs]  = useState(0)
   const [xpEarned,   setXpEarned]   = useState(0)
-  const [showExitModal, setShowExitModal] = useState(false)
 
   const accent = M.accentColor
   const card   = { background:M.lessonCard, border:M.lessonBorder, borderRadius:M.cardRadius, boxShadow:M.cardShadow }
 
-  // Only show topics that actually have questions
+  // Show ALL topics — question count shown per topic so user knows what's available
   const topicsWithQs = new Set(questionTopicIds || allQuestions.map(q => q.topic_id))
   const allTopics = (levels || []).flatMap(l =>
     (l.terms||[]).flatMap(t =>
       (t.units||[]).flatMap(u =>
-        (u.topics||[])
-          .filter(tp => topicsWithQs.has(tp.id))
-          .map(tp => ({ ...tp, levelName: l.name }))
+        (u.topics||[]).map(tp => ({
+          ...tp,
+          levelName: l.name,
+          hasQuestions: topicsWithQs.has(tp.id),
+          questionCount: allQuestions.filter(q => q.topic_id === tp.id).length,
+        }))
       )
     )
   )
@@ -513,7 +504,7 @@ export default function PracticeMode({ questions: allQuestions, topicTitle, topi
   function startSession(filteredQs, count, timeSec) {
     const shuffled = [...filteredQs].sort(() => Math.random() - 0.5).slice(0, count)
     setSessionQs(shuffled)
-    setAnswerMap({})
+    setAnswers([])
     setQIdx(0)
     setSelected(null)
     setShowHint(false)
@@ -522,102 +513,104 @@ export default function PracticeMode({ questions: allQuestions, topicTitle, topi
     setPhase('quiz')
   }
 
-  function goToQuestion(idx) {
-    // Save current selection before navigating
-    if (selected !== null) {
-      setAnswerMap(m => ({ ...m, [qIdx]: selected }))
-    }
-    setQIdx(idx)
-    // Restore previously saved answer for that question
-    setSelected(answerMap[idx] ?? null)
-    setShowHint(false)
-  }
-
   async function handleNext() {
     if (selected === null) return
+    const correct = sessionQs[qIdx]?.options?.[selected]?.is_correct || false
+    const newAnswers = [...answers, correct]
+    setAnswers(newAnswers)
 
-    // Save answer for this question
-    const newMap = { ...answerMap, [qIdx]: selected }
-    setAnswerMap(newMap)
-
-    const isLast = qIdx + 1 >= sessionQs.length
-
-    if (!isLast) {
-      setQIdx(i => i + 1)
-      setSelected(newMap[qIdx + 1] ?? null)  // restore if going to a previously answered Q
-      setShowHint(false)
-    } else {
-      // Build final answers array in order
-      const finalAnswers = sessionQs.map((q, i) => {
-        const savedIdx = newMap[i]
-        if (savedIdx === undefined || savedIdx === null) return false
-        return q.options?.[savedIdx]?.is_correct || false
+    if (student?.id && sessionQs[qIdx]?.id) {
+      supabase.from('practice_attempts').insert({
+        student_id: student.id,
+        question_id: sessionQs[qIdx].id,
+        is_correct: correct,
       })
+    }
 
-      // Save attempts to DB
-      for (let i = 0; i < sessionQs.length; i++) {
-        const savedIdx = newMap[i]
-        if (savedIdx !== undefined && savedIdx !== null && student?.id && sessionQs[i]?.id) {
-          supabase.from('practice_attempts').insert({
-            student_id:  student.id,
-            question_id: sessionQs[i].id,
-            is_correct:  sessionQs[i].options?.[savedIdx]?.is_correct || false,
-          })
-        }
-      }
+    setSelected(null)
+    setShowHint(false)
 
-      const correctCount = finalAnswers.filter(Boolean).length
+    if (qIdx + 1 < sessionQs.length) {
+      setQIdx(i => i + 1)
+    } else {
+      const correctCount = newAnswers.filter(Boolean).length
       const xp = Math.max(correctCount * 2, 1)
       setXpEarned(xp)
-      if (userId) {
-        const { error: xpErr } = await supabase.rpc('add_xp', { amount: xp })
-        if (xpErr) console.error('[practice] XP error:', xpErr.message)
+      if (student?.id) {
+        try {
+          const { data: { user } } = await supabase.auth.getUser()
+          if (user) {
+            const { data: fresh } = await supabase
+              .from('students').select('xp, monthly_xp').eq('profile_id', user.id).single()
+            const { error: xpErr } = await supabase.from('students').update({
+              xp:         (fresh?.xp        || 0) + xp,
+              monthly_xp: (fresh?.monthly_xp || 0) + xp,
+            }).eq('profile_id', user.id)
+            if (xpErr) console.error('[practice] XP update error:', xpErr.message)
+          }
+        } catch (e) { console.error('[practice] XP error:', e.message) }
       }
-
-      // Pass answers array to review
-      setAnswerMap(newMap)
       setPhase('review')
     }
   }
 
   async function handleTimerExpire() {
-    // Build answers from whatever was saved + current selection
-    const finalMap = selected !== null ? { ...answerMap, [qIdx]: selected } : { ...answerMap }
-    const finalAnswers = sessionQs.map((q, i) => {
-      const savedIdx = finalMap[i]
-      if (savedIdx === undefined || savedIdx === null) return false
-      return q.options?.[savedIdx]?.is_correct || false
-    })
-    const xp = Math.max(finalAnswers.filter(Boolean).length * 2, 1)
+    const partial      = [...answers]
+    const finalAnswers = [...partial, ...Array(sessionQs.length - partial.length).fill(false)]
+    const xp = Math.max(partial.filter(Boolean).length * 2, 1)
     setXpEarned(xp)
-    setAnswerMap(finalMap)
-    if (userId) {
-      const { error: xpErr } = await supabase.rpc('add_xp', { amount: xp })
-      if (xpErr) console.error('[practice] timer XP error:', xpErr.message)
+    if (student?.id) {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const { data: fresh } = await supabase
+            .from('students').select('xp, monthly_xp').eq('profile_id', user.id).single()
+          await supabase.from('students').update({
+            xp:         (fresh?.xp        || 0) + xp,
+            monthly_xp: (fresh?.monthly_xp || 0) + xp,
+          }).eq('profile_id', user.id)
+        }
+      } catch (e) { console.error('[practice] timer XP error:', e.message) }
     }
+    setAnswers(finalAnswers)
     setPhase('review')
   }
 
   function handleRetry() {
     setPhase('setup')
-    setAnswerMap({})
+    setAnswers([])
     setQIdx(0)
     setSelected(null)
     setShowHint(false)
   }
 
+  // ── Setup ────────────────────────────────────────────────────────────────────
   if (phase === 'setup') {
-    return <SetupScreen allTopics={allTopics} currentTopicId={topicId} allQuestions={allQuestions} M={M} mode={mode} onStart={startSession} />
+    return (
+      <SetupScreen
+        allTopics={allTopics}
+        currentTopicId={topicId}
+        allQuestions={allQuestions}
+        M={M}
+        mode={mode}
+        onStart={startSession}
+      />
+    )
   }
 
+  // ── Review ───────────────────────────────────────────────────────────────────
   if (phase === 'review') {
-    // Build ordered answers array from answerMap
-    const answers = sessionQs.map((q, i) => {
-      const savedIdx = answerMap[i]
-      if (savedIdx === undefined || savedIdx === null) return false
-      return q.options?.[savedIdx]?.is_correct || false
-    })
-    return <ReviewScreen questions={sessionQs} answers={answers} M={M} mode={mode} topicId={topicId} xpEarned={xpEarned} onRetry={handleRetry} />
+    return (
+      <ReviewScreen
+        questions={sessionQs}
+        answers={answers}
+        M={M}
+        mode={mode}
+        topicId={topicId}
+        xpEarned={xpEarned}
+        onRetry={handleRetry}
+      />
+    )
   }
 
   // ── No questions ─────────────────────────────────────────────────────────────
@@ -643,46 +636,22 @@ export default function PracticeMode({ questions: allQuestions, topicTitle, topi
   return (
     <div style={{ minHeight:'100vh', background:M.lessonBg, fontFamily:M.font, display:'flex', flexDirection:'column' }}>
 
-      <ExitConfirmModal
-        open={showExitModal}
-        onStay={() => setShowExitModal(false)}
-        onExit={() => { setShowExitModal(false); setPhase('setup') }}
-        M={M}
-        mode={mode}
-      />
+      {/* Progress bar */}
       <div style={{ height:4, background:M.progressTrack, flexShrink:0 }}>
         <div style={{ width:`${pct}%`, height:'100%', background:accent, transition:'width 0.3s ease' }} />
       </div>
 
-      {/* Top bar — with prev navigation */}
+      {/* Top bar */}
       <div style={{ padding:'10px 16px', display:'flex', alignItems:'center', gap:10, borderBottom:`1px solid ${accent}18`, background:M.hudBg, flexShrink:0 }}>
-        {/* Back to previous question (or setup if first) */}
-        <button
-          onClick={() => {
-            if (qIdx > 0) goToQuestion(qIdx - 1)
-            else setPhase('setup')
-          }}
-          style={{ width:32, height:32, borderRadius:'50%', background:M.lessonCard, border:M.lessonBorder, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:M.textSecondary, fontSize:14 }}>←</button>
+        <button onClick={() => setPhase('setup')} style={{ width:32, height:32, borderRadius:'50%', background:M.lessonCard, border:M.lessonBorder, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:M.textSecondary, fontSize:14 }}>←</button>
         <div style={{ flex:1 }}>
           <div style={{ fontSize:12, fontWeight:800, color:M.textPrimary, fontFamily:M.headingFont }}>{topicTitle}</div>
-          <div style={{ fontSize:10, color:M.textSecondary, fontFamily:'Nunito,sans-serif' }}>
-            Question {qIdx+1} of {sessionQs.length}
-            {qIdx > 0 && <span style={{ color:accent, marginLeft:6 }}>← tap to go back</span>}
-          </div>
+          <div style={{ fontSize:10, color:M.textSecondary, fontFamily:'Nunito,sans-serif' }}>{qIdx+1} of {sessionQs.length}</div>
         </div>
-        {/* Dot progress — clickable to jump */}
+        {/* Dot progress */}
         <div style={{ display:'flex', gap:4, alignItems:'center' }}>
           {sessionQs.slice(0, 10).map((_, i) => (
-            <div key={i}
-              onClick={() => goToQuestion(i)}
-              style={{
-                width: i===qIdx ? 10 : 6,
-                height: i===qIdx ? 10 : 6,
-                borderRadius: '50%', flexShrink:0, transition:'all 0.2s', cursor:'pointer',
-                background: answerMap[i] !== undefined
-                  ? (sessionQs[i]?.options?.[answerMap[i]]?.is_correct ? accent : '#FFC933')
-                  : i===qIdx ? accent : `${accent}25`,
-              }} />
+            <div key={i} style={{ width:i===qIdx?10:6, height:i===qIdx?10:6, borderRadius:'50%', flexShrink:0, transition:'all 0.2s', background:i<qIdx?accent:i===qIdx?accent:`${accent}25` }} />
           ))}
           {sessionQs.length > 10 && <span style={{ fontSize:9, color:M.textSecondary }}>+{sessionQs.length-10}</span>}
         </div>
@@ -756,53 +725,28 @@ export default function PracticeMode({ questions: allQuestions, topicTitle, topi
           })}
         </div>
 
-        {/* Status text */}
+        {/* Info / Next */}
         <div style={{ fontSize:11, color:M.textSecondary, textAlign:'center', fontFamily:'Nunito,sans-serif', opacity:0.7 }}>
-          {selected === null
-            ? (answerMap[qIdx] !== undefined ? '✓ Answer saved — you can change it or move on' : 'Tap an answer — tap again to change')
-            : '✓ Selected — tap Next to continue'}
+          {selected === null ? 'Tap an answer to select it — tap again to change' : '✓ Selected — tap Next to lock it in'}
         </div>
 
-        {/* Bottom action row — Back + Next */}
-        <div style={{ display:'flex', gap:10 }}>
-          {/* Back button — only shown when not on first question */}
-          {qIdx > 0 && (
-            <button
-              onClick={() => {
-                if (selected !== null) setAnswerMap(m => ({ ...m, [qIdx]: selected }))
-                const prevIdx = qIdx - 1
-                setQIdx(prevIdx)
-                setSelected(answerMap[prevIdx] ?? null)
-                setShowHint(false)
-              }}
-              style={{ ...M.ghostBtn, flex: '0 0 auto', fontSize:14, padding:'14px 18px' }}>
-              ← Back
-            </button>
-          )}
+        {selected !== null && (
+          <button onClick={handleNext} style={{ ...M.primaryBtn, fontSize:15 }}>
+            {qIdx+1 < sessionQs.length
+              ? (mode==='blaze' ? '⚡ NEXT' : 'Next →')
+              : (mode==='blaze' ? '⚡ SEE RESULTS' : 'See Results →')}
+          </button>
+        )}
 
-          {/* Next/Results — only when answer selected or previously answered */}
-          {(selected !== null || answerMap[qIdx] !== undefined) && (
-            <button onClick={handleNext} style={{ ...M.primaryBtn, flex:1, fontSize:15 }}>
-              {qIdx+1 < sessionQs.length
-                ? (mode==='blaze' ? '⚡ NEXT' : 'Next →')
-                : (mode==='blaze' ? '⚡ SEE RESULTS' : 'See Results →')}
-            </button>
-          )}
-        </div>
-
-        {/* Skip — only if no answer at all */}
-        {selected === null && answerMap[qIdx] === undefined && (
+        {selected === null && (
           <button onClick={() => {
-            setAnswerMap(m => ({ ...m, [qIdx]: null }))
+            const newAnswers = [...answers, false]
+            setAnswers(newAnswers)
             setShowHint(false)
-            if (qIdx + 1 < sessionQs.length) {
-              setQIdx(i => i + 1)
-              setSelected(answerMap[qIdx + 1] ?? null)
-            } else {
-              handleNext()
-            }
+            if (qIdx + 1 < sessionQs.length) setQIdx(i => i + 1)
+            else { setPhase('review') }
           }} style={{ background:'none', border:'none', cursor:'pointer', fontSize:11, color:M.textSecondary, fontFamily:'Nunito,sans-serif', textAlign:'center', padding:'4px 0', opacity:0.5 }}>
-            Skip this question →
+            Skip →
           </button>
         )}
       </div>

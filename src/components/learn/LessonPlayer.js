@@ -6,67 +6,34 @@ import { useMode } from '@/lib/ModeContext'
 import { BicPencil } from '@/components/BiteMarkIcon'
 import { createClient } from '@/lib/supabase/client'
 
-// ─── helpers ─────────────────────────────────────────────────────────────────
-const slideText = s => s?.explanation || s?.content || ''
-const slideType = s => s?.type || 'concept'
-
-// Renders math strings: 2^8 → 2⁸  x_2 → x₂  — no raw ^ or _ shown to students
+// ─── Math renderer: 2^8 → 2⁸, x_n → xₙ ──────────────────────────────────────
 function parseMath(text) {
-  const parts = []
-  let i = 0
-  let buf = ''
+  const parts = []; let i = 0, buf = ''
   while (i < text.length) {
     const ch = text[i]
     if ((ch === '^' || ch === '_') && i + 1 < text.length) {
       if (buf) { parts.push({ t: 'text', v: buf }); buf = '' }
-      const type = ch === '^' ? 'sup' : 'sub'
-      i++
+      const type = ch === '^' ? 'sup' : 'sub'; i++
       if (text[i] === '{') {
         const end = text.indexOf('}', i)
-        const val = end === -1 ? text.slice(i + 1) : text.slice(i + 1, end)
-        parts.push({ t: type, v: val })
+        parts.push({ t: type, v: end === -1 ? text.slice(i + 1) : text.slice(i + 1, end) })
         i = end === -1 ? text.length : end + 1
       } else {
         let val = ''
         while (i < text.length && /[a-zA-Z0-9.]/.test(text[i])) { val += text[i]; i++ }
-        if (val) parts.push({ t: type, v: val })
-        else { buf += ch }
+        if (val) parts.push({ t: type, v: val }); else buf += ch
       }
-    } else {
-      buf += ch; i++
-    }
+    } else { buf += ch; i++ }
   }
   if (buf) parts.push({ t: 'text', v: buf })
   return parts
 }
 
-// Splits an explanation string into step-by-step lines — no regex
-function splitExplanation(text) {
-  if (!text) return []
-  // If it has real newlines, split on those
-  const byNewline = text.split('\n').map(s => s.trim()).filter(Boolean)
-  if (byNewline.length > 1) return byNewline
-  // Otherwise split on ". " boundaries into ~60 char chunks
-  const sentences = []
-  let current = ''
-  const words = text.split(' ')
-  for (const word of words) {
-    current += (current ? ' ' : '') + word
-    if (current.length > 55 && current.endsWith('.')) {
-      sentences.push(current)
-      current = ''
-    }
-  }
-  if (current) sentences.push(current)
-  return sentences.length > 0 ? sentences : [text]
-}
-
 function MathText({ text, style }) {
   if (!text) return null
-  const parts = parseMath(String(text))
   return (
     <span style={style}>
-      {parts.map((p, i) =>
+      {parseMath(String(text)).map((p, i) =>
         p.t === 'sup' ? <sup key={i} style={{ fontSize: '0.72em', verticalAlign: 'super', lineHeight: 0 }}>{p.v}</sup>
         : p.t === 'sub' ? <sub key={i} style={{ fontSize: '0.72em', verticalAlign: 'sub', lineHeight: 0 }}>{p.v}</sub>
         : <span key={i}>{p.v}</span>
@@ -75,107 +42,47 @@ function MathText({ text, style }) {
   )
 }
 
+// ─── SVG illustration ─────────────────────────────────────────────────────────
 function SvgIllustration({ svg_code, M }) {
   if (!svg_code) return null
-  // Inject responsive attributes into the SVG so it scales to container width
-  // on mobile while keeping max-width on desktop
-  const responsive = svg_code
-    .replace(/<svg([^>]*)>/, (match, attrs) => {
-      // Remove fixed width/height attrs, keep viewBox, add 100% width
-      const withoutWH = attrs
-        .replace(/\s+width="[^"]*"/g, '')
-        .replace(/\s+height="[^"]*"/g, '')
-      return `<svg${withoutWH} width="100%" style="display:block;max-width:100%">`
-    })
-  return (
-    <div style={{
-      borderRadius: 14, overflow: 'hidden', margin: '12px 0',
-      border: `1.5px solid ${M.accentColor}25`,
-      background: '#F8F9FF',
-      lineHeight: 0,
-      width: '100%',
-      // On desktop give it a bit more room; on mobile it fills container
-      maxWidth: '100%',
-    }}
-      dangerouslySetInnerHTML={{ __html: responsive }}
-    />
+  const vb = svg_code.match(/viewBox=["']([^"']+)["']/)
+  const vbp = vb ? vb[1].split(/[\s,]+/).map(Number) : null
+  const ar = vbp?.[2] && vbp?.[3] ? vbp[3] / vbp[2] : null
+  const html = svg_code.replace(/<svg([^>]*)>/, (_, a) =>
+    '<svg' + a.replace(/\s+width=["'][^"']*["']/g,'').replace(/\s+height=["'][^"']*["']/g,'').replace(/\s+style=["'][^"']*["']/g,'')
+    + ' width="100%" height="100%" style="display:block;position:absolute;top:0;left:0">'
   )
-}
-
-function FormulaBlock({ formula, formula_note, M }) {
-  if (!formula) return null
   return (
-    <div style={{
-      background: M.mathBg, borderRadius: 12, padding: '12px 16px',
-      margin: '10px 0',
-      borderLeft: `4px solid ${M.accentColor}`,
-    }}>
-      <div style={{ fontSize: 9, fontWeight: 800, color: M.accentColor, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 6 }}>FORMULA</div>
-      <div style={{ fontFamily: 'monospace', fontSize: 16, fontWeight: 700, color: M.accentColor, whiteSpace: 'pre-line', lineHeight: 1.8 }}>
-        <MathText text={formula} />
-      </div>
-      {formula_note && (
-        <div style={{ fontSize: 11, color: M.textSecondary, marginTop: 8, lineHeight: 1.6, fontFamily: 'Nunito, sans-serif' }}>
-          {formula_note}
-        </div>
-      )}
+    <div style={{ position: 'relative', width: '100%', paddingBottom: ar ? `${(ar*100).toFixed(2)}%` : '56%', borderRadius: 16, overflow: 'hidden', border: `1.5px solid ${M.accentColor}20`, background: '#F8F9FF' }}>
+      <div style={{ position: 'absolute', inset: 0 }} dangerouslySetInnerHTML={{ __html: html }} />
     </div>
   )
 }
 
-function HintBox({ hint, M }) {
-  const [open, setOpen] = React.useState(false)
-  if (!hint) return null
+// ─── Pill progress dots ───────────────────────────────────────────────────────
+function BiteDots({ total, current, accent }) {
+  if (total <= 1) return null
   return (
-    <div style={{ margin: '8px 0' }}>
-      <button
-        onClick={() => setOpen(o => !o)}
-        style={{
-          background: 'none', border: `1.5px dashed ${M.accentColor}50`,
-          borderRadius: 10, padding: '7px 14px', cursor: 'pointer',
-          fontSize: 12, color: M.accentColor, fontWeight: 800,
-          fontFamily: 'Nunito, sans-serif', display: 'flex', alignItems: 'center', gap: 6,
-        }}>
-        💡 {open ? 'Hide hint' : 'Show hint'}
-      </button>
-      {open && (
-        <div style={{
-          marginTop: 6, padding: '10px 14px', background: M.hintBg, borderRadius: 10,
-          borderLeft: `3px solid ${M.accentColor}`,
-        }}>
-          <span style={{ fontSize: 12, color: M.textSecondary, lineHeight: 1.55, fontFamily: 'Nunito, sans-serif' }}>
-            {hint}
-          </span>
-        </div>
-      )}
+    <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
+      {Array.from({ length: Math.min(total, 12) }).map((_, i) => (
+        <div key={i} style={{ width: i === current ? 18 : 6, height: 6, borderRadius: 3, background: i <= current ? accent : `${accent}28`, transition: 'all 0.25s' }} />
+      ))}
     </div>
   )
 }
 
-// ─── StepList ─────────────────────────────────────────────────────────────────
-function StepList({ steps, M, hidden = false }) {
-  if (!steps || !steps.length) return null
+// ─── Step list (worked examples / solutions) ──────────────────────────────────
+function StepList({ steps, M }) {
+  if (!steps?.length) return null
   const colors = [M.accentColor, M.accent2 || '#26A69A', '#EF5350', '#42A5F5']
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {steps.map((s, i) => (
-        <div key={i} style={{ display: 'flex', gap: 12, opacity: hidden ? 0.35 : 1 }}>
-          <div style={{
-            width: 24, height: 24, borderRadius: '50%', flexShrink: 0, marginTop: 2,
-            background: colors[i % colors.length],
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontWeight: 900, fontSize: 11, color: '#fff',
-          }}>{i + 1}</div>
+        <div key={i} style={{ display: 'flex', gap: 14 }}>
+          <div style={{ width: 28, height: 28, borderRadius: '50%', flexShrink: 0, marginTop: 1, background: colors[i % colors.length], display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 12, color: '#fff' }}>{i + 1}</div>
           <div style={{ flex: 1 }}>
-            {s.label && (
-              <div style={{ fontSize: 10, fontWeight: 800, color: M.textSecondary, marginBottom: 3, textTransform: 'uppercase', letterSpacing: 0.8 }}>
-                {s.label}
-              </div>
-            )}
-            <div style={{
-              background: M.mathBg, borderRadius: 9, padding: '9px 12px',
-              fontFamily: 'monospace', fontSize: 13, color: M.textPrimary, lineHeight: 1.75, whiteSpace: 'pre-line',
-            }}>
+            {s.label && <div style={{ fontSize: 10, fontWeight: 800, color: M.textSecondary, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.8 }}>{s.label}</div>}
+            <div style={{ background: M.mathBg, borderRadius: 10, padding: '12px 14px', fontFamily: 'monospace', fontSize: 14, color: M.textPrimary, lineHeight: 1.9, whiteSpace: 'pre-line' }}>
               <MathText text={s.text || s.content || String(s)} />
             </div>
           </div>
@@ -185,742 +92,634 @@ function StepList({ steps, M, hidden = false }) {
   )
 }
 
-// ─── ResultPanel — collapsible explanation, shown after answering ─────────────
-function ResultPanel({ isCorrect, currentQ, accent, M }) {
-  const [showExp, setShowExp] = React.useState(false)
-  const correctOpt = (currentQ?.options || []).find(o => o.is_correct)
+// ─── Shared nav buttons ───────────────────────────────────────────────────────
+function NavButtons({ onNext, onBack, isFirst, M, nextLabel = 'Next →' }) {
+  return (
+    <div style={{ display: 'flex', gap: 10 }}>
+      {!isFirst && <button onClick={onBack} style={{ ...M.ghostBtn, flex: 1, padding: '14px' }}>← Back</button>}
+      <button onClick={onNext} style={{ ...M.primaryBtn, flex: isFirst ? 1 : 2, padding: '14px' }}>{nextLabel}</button>
+    </div>
+  )
+}
+
+// ─── Badge label ─────────────────────────────────────────────────────────────
+function Badge({ text, color }) {
+  return <div style={{ fontSize: 11, fontWeight: 800, color, letterSpacing: 1.4, textTransform: 'uppercase', fontFamily: 'Nunito, sans-serif', marginBottom: 14 }}>{text}</div>
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BITE COMPONENTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+// HOOK ─ mascot + one vivid sentence ──────────────────────────────────────────
+function BiteHook({ bite, accent, M, onNext, onBack, isFirst }) {
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '28px 24px 24px', animation: 'slideUp 0.3s ease', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 28, flexShrink: 0 }}>
+        <BicPencil pose="happy" size={80} />
+      </div>
+      <div style={{ fontSize: 11, fontWeight: 800, color: accent, letterSpacing: 1.4, textTransform: 'uppercase', fontFamily: 'Nunito, sans-serif', marginBottom: 12, textAlign: 'center' }}>
+        In the real world...
+      </div>
+      <div style={{ fontSize: 18, color: M.textSecondary, lineHeight: 1.75, fontFamily: 'Nunito, sans-serif', fontWeight: 500, textAlign: 'center', padding: '0 8px', flex: 1 }}>
+        <MathText text={bite.explanation || ''} />
+      </div>
+      {bite.svg_code && <div style={{ marginTop: 20, marginBottom: 8 }}><SvgIllustration svg_code={bite.svg_code} M={M} /></div>}
+      <div style={{ marginTop: 'auto', paddingTop: 28 }}>
+        <NavButtons onNext={onNext} onBack={onBack} isFirst={isFirst} M={M} nextLabel="Let's find out →" />
+      </div>
+    </div>
+  )
+}
+
+// PREDICTION ─ ask before teaching ───────────────────────────────────────────
+function BitePrediction({ bite, accent, M, onNext, onBack, isFirst }) {
+  const [picked, setPicked] = useState(null)
+  const opts = bite.options || []
+  const answered = picked !== null
+  const correct  = opts[picked]?.is_correct
 
   return (
-    <div style={{
-      borderRadius: 12, flexShrink: 0, overflow: 'hidden',
-      border: `1.5px solid ${isCorrect ? M.correctColor + '40' : M.wrongColor + '40'}`,
-      background: isCorrect ? `${M.correctColor}06` : `${M.wrongColor}05`,
-    }}>
-      {/* Status banner */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
-        background: isCorrect ? `${M.correctColor}12` : `${M.wrongColor}10`,
-      }}>
-        <span style={{ fontSize: 20 }}>{isCorrect ? '🎉' : '💡'}</span>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 13, fontWeight: 900, fontFamily: 'Nunito, sans-serif',
-            color: isCorrect ? M.correctColor : M.wrongColor }}>
-            {isCorrect ? 'Correct! Great job! 🌟' : "Not quite!"}
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '16px 22px 20px', animation: 'slideUp 0.3s ease', overflowY: 'auto' }}>
+      <Badge text="🤔 What do you think?" color={accent} />
+      <div style={{ fontSize: 20, fontWeight: 900, color: M.textPrimary, lineHeight: 1.3, fontFamily: M.headingFont, marginBottom: 10 }}>{bite.title}</div>
+      {bite.explanation && <div style={{ fontSize: 15, color: M.textSecondary, lineHeight: 1.7, fontFamily: 'Nunito, sans-serif', fontWeight: 500, marginBottom: 20 }}><MathText text={bite.explanation} /></div>}
+      {bite.svg_code && <div style={{ marginBottom: 20 }}><SvgIllustration svg_code={bite.svg_code} M={M} /></div>}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+        {opts.map((opt, i) => {
+          const chosen = picked === i; const right = opt.is_correct
+          let bg = M.lessonCard, border = `2px solid ${accent}25`, color = M.textPrimary
+          if (answered) {
+            if (right)        { bg = `${M.correctColor}15`; border = `2px solid ${M.correctColor}`; color = M.correctColor }
+            else if (chosen)  { bg = `${M.wrongColor}12`;   border = `2px solid ${M.wrongColor}`;   color = M.wrongColor   }
+            else              { border = `2px solid ${accent}10`; color = M.textSecondary }
+          }
+          return (
+            <button key={i} onClick={() => !answered && setPicked(i)}
+              style={{ background: bg, border, borderRadius: 14, padding: '14px 18px', fontFamily: 'Nunito, sans-serif', fontWeight: 700, color, fontSize: 15, cursor: answered ? 'default' : 'pointer', textAlign: 'left', transition: 'all 0.2s' }}>
+              <MathText text={opt.option_text} />
+            </button>
+          )
+        })}
+      </div>
+
+      {answered && (
+        <div style={{ background: `${M.correctColor}10`, border: `1.5px solid ${M.correctColor}30`, borderRadius: 14, padding: '14px 18px', marginBottom: 20, fontSize: 14, color: M.textPrimary, fontFamily: 'Nunito, sans-serif', lineHeight: 1.65 }}>
+          {bite.reveal || (correct ? "You got it! Keep going to see why." : "Let's find out what actually happens! 👇")}
+        </div>
+      )}
+      {answered && <NavButtons onNext={onNext} onBack={onBack} isFirst={isFirst} M={M} />}
+    </div>
+  )
+}
+
+// OBSERVATION ─ data table ────────────────────────────────────────────────────
+function BiteObservation({ bite, accent, M, onNext, onBack, isFirst }) {
+  const rows = bite.table_rows   || []
+  const hdrs = bite.table_headers || []
+  const cols = Math.max(hdrs.length, rows[0]?.length || 0)
+
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '16px 22px 16px', animation: 'slideUp 0.3s ease', overflowY: 'auto' }}>
+      <Badge text="👀 Look at this" color={accent} />
+      <div style={{ fontSize: 20, fontWeight: 900, color: M.textPrimary, lineHeight: 1.25, fontFamily: M.headingFont, marginBottom: 12 }}>{bite.title}</div>
+      {bite.explanation && <div style={{ fontSize: 15, color: M.textSecondary, lineHeight: 1.75, fontFamily: 'Nunito, sans-serif', fontWeight: 500, marginBottom: 18 }}><MathText text={bite.explanation} /></div>}
+      {bite.svg_code && <div style={{ marginBottom: 18 }}><SvgIllustration svg_code={bite.svg_code} M={M} /></div>}
+
+      {rows.length > 0 && (
+        <div style={{ borderRadius: 14, overflow: 'hidden', border: `1.5px solid ${accent}25`, marginBottom: 20 }}>
+          {hdrs.length > 0 && (
+            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, background: accent }}>
+              {hdrs.map((h, i) => <div key={i} style={{ padding: '11px 14px', fontSize: 12, fontWeight: 800, color: '#fff', fontFamily: 'Nunito, sans-serif', textAlign: 'center' }}>{h}</div>)}
+            </div>
+          )}
+          {rows.map((row, ri) => (
+            <div key={ri} style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, background: ri % 2 === 0 ? M.lessonCard : `${accent}07`, borderTop: `1px solid ${accent}15` }}>
+              {row.map((cell, ci) => <div key={ci} style={{ padding: '11px 14px', fontSize: 15, fontWeight: 600, color: M.textPrimary, fontFamily: 'Nunito, sans-serif', textAlign: 'center' }}><MathText text={String(cell)} /></div>)}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ marginTop: 'auto' }}>
+        <NavButtons onNext={onNext} onBack={onBack} isFirst={isFirst} M={M} nextLabel="Got it →" />
+      </div>
+    </div>
+  )
+}
+
+// PATTERN ─ what do you notice? ───────────────────────────────────────────────
+function BitePattern({ bite, accent, M, onNext, onBack, isFirst }) {
+  const [picked, setPicked] = useState(null)
+  const opts = bite.options || []
+  const answered = picked !== null
+
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '16px 22px 16px', animation: 'slideUp 0.3s ease', overflowY: 'auto' }}>
+      <Badge text="🔍 What do you notice?" color={accent} />
+      <div style={{ fontSize: 20, fontWeight: 900, color: M.textPrimary, lineHeight: 1.25, fontFamily: M.headingFont, marginBottom: 12 }}>{bite.title}</div>
+      {bite.explanation && <div style={{ fontSize: 15, color: M.textSecondary, lineHeight: 1.75, fontFamily: 'Nunito, sans-serif', fontWeight: 500, marginBottom: 18 }}><MathText text={bite.explanation} /></div>}
+      {bite.svg_code && <div style={{ marginBottom: 18 }}><SvgIllustration svg_code={bite.svg_code} M={M} /></div>}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+        {opts.map((opt, i) => {
+          const chosen = picked === i; const right = opt.is_correct
+          let bg = M.lessonCard, border = `2px solid ${accent}25`, color = M.textPrimary
+          if (answered) {
+            if (right)       { bg = `${M.correctColor}15`; border = `2px solid ${M.correctColor}`; color = M.correctColor }
+            else if (chosen) { bg = `${M.wrongColor}12`;   border = `2px solid ${M.wrongColor}`;   color = M.wrongColor   }
+            else             { border = `2px solid ${accent}10`; color = M.textSecondary }
+          }
+          return (
+            <button key={i} onClick={() => !answered && setPicked(i)}
+              style={{ background: bg, border, borderRadius: 14, padding: '14px 18px', fontFamily: 'Nunito, sans-serif', fontWeight: 700, color, fontSize: 15, cursor: answered ? 'default' : 'pointer', textAlign: 'left', transition: 'all 0.2s' }}>
+              <MathText text={opt.option_text} />
+            </button>
+          )
+        })}
+      </div>
+
+      {answered && bite.reveal && (
+        <div style={{ background: `${M.correctColor}10`, border: `1.5px solid ${M.correctColor}30`, borderRadius: 14, padding: '14px 18px', marginBottom: 16, fontSize: 14, color: M.textPrimary, fontFamily: 'Nunito, sans-serif', lineHeight: 1.65 }}>
+          {bite.reveal}
+        </div>
+      )}
+      {answered && <NavButtons onNext={onNext} onBack={onBack} isFirst={isFirst} M={M} />}
+    </div>
+  )
+}
+
+// CONCEPT ─ the "aha!" moment ─────────────────────────────────────────────────
+function BiteConcept({ bite, accent, M, onNext, onBack, isFirst }) {
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '16px 22px 16px', animation: 'slideUp 0.3s ease', overflowY: 'auto' }}>
+      <Badge text="💡 The Big Idea" color={accent} />
+      {bite.svg_code && <div style={{ marginBottom: 20, flexShrink: 0 }}><SvgIllustration svg_code={bite.svg_code} M={M} /></div>}
+      <div style={{ fontSize: 22, fontWeight: 900, color: M.textPrimary, lineHeight: 1.2, fontFamily: M.headingFont, marginBottom: 16 }}>{bite.title}</div>
+      {bite.explanation && (
+        <div style={{ fontSize: 17, color: M.textSecondary, lineHeight: 1.85, fontFamily: 'Nunito, sans-serif', fontWeight: 500 }}>
+          <MathText text={bite.explanation} />
+        </div>
+      )}
+      <div style={{ marginTop: 'auto', paddingTop: 20 }}>
+        <NavButtons onNext={onNext} onBack={onBack} isFirst={isFirst} M={M} />
+      </div>
+    </div>
+  )
+}
+
+// RULE ─ the maths rule + formula ─────────────────────────────────────────────
+function BiteRule({ bite, accent, M, onNext, onBack, isFirst }) {
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '16px 22px 16px', animation: 'slideUp 0.3s ease', overflowY: 'auto' }}>
+      <Badge text="📐 The Rule" color={accent} />
+      <div style={{ fontSize: 22, fontWeight: 900, color: M.textPrimary, lineHeight: 1.2, fontFamily: M.headingFont, marginBottom: 16 }}>{bite.title}</div>
+      {bite.svg_code && <div style={{ marginBottom: 18 }}><SvgIllustration svg_code={bite.svg_code} M={M} /></div>}
+      {bite.explanation && (
+        <div style={{ fontSize: 17, color: M.textSecondary, lineHeight: 1.85, fontFamily: 'Nunito, sans-serif', fontWeight: 500, marginBottom: bite.formula ? 20 : 0 }}>
+          <MathText text={bite.explanation} />
+        </div>
+      )}
+      {bite.formula && (
+        <div style={{ background: M.mathBg, borderRadius: 16, padding: '20px 22px', borderLeft: `5px solid ${accent}`, marginTop: 16 }}>
+          <div style={{ fontSize: 10, fontWeight: 800, color: accent, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 10 }}>Formula</div>
+          <div style={{ fontFamily: 'monospace', fontSize: 22, fontWeight: 700, color: accent, whiteSpace: 'pre-line', lineHeight: 1.7 }}>
+            <MathText text={bite.formula} />
           </div>
-          {!isCorrect && correctOpt && (
-            <div style={{ fontSize: 11, color: M.correctColor, fontFamily: 'Nunito, sans-serif', marginTop: 2, fontWeight: 700 }}>
-              ✅ Answer: <MathText text={correctOpt.option_text} />
+          {bite.formula_note && <div style={{ fontSize: 13, color: M.textSecondary, marginTop: 12, lineHeight: 1.65, fontFamily: 'Nunito, sans-serif' }}>{bite.formula_note}</div>}
+        </div>
+      )}
+      <div style={{ marginTop: 'auto', paddingTop: 20 }}>
+        <NavButtons onNext={onNext} onBack={onBack} isFirst={isFirst} M={M} />
+      </div>
+    </div>
+  )
+}
+
+// WORKED EXAMPLE ──────────────────────────────────────────────────────────────
+function BiteExample({ bite, accent, M, onNext, onBack, isFirst }) {
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '16px 22px 16px', animation: 'slideUp 0.3s ease', overflowY: 'auto' }}>
+      <Badge text="📝 Worked Example" color={accent} />
+      <div style={{ fontSize: 20, fontWeight: 900, color: M.textPrimary, fontFamily: M.headingFont, lineHeight: 1.25, marginBottom: 16 }}>{bite.title}</div>
+      <div style={{ background: `${accent}0D`, border: `1.5px solid ${accent}30`, borderRadius: 14, padding: '16px 18px', marginBottom: 18 }}>
+        <div style={{ fontSize: 10, fontWeight: 800, color: accent, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>Problem</div>
+        <div style={{ fontSize: 16, color: M.textPrimary, lineHeight: 1.75, fontFamily: 'Nunito, sans-serif' }}><MathText text={bite.explanation || ''} /></div>
+      </div>
+      {bite.svg_code && <div style={{ marginBottom: 18 }}><SvgIllustration svg_code={bite.svg_code} M={M} /></div>}
+      {bite.steps?.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 10, fontWeight: 800, color: M.textSecondary, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>Step-by-Step</div>
+          <StepList steps={bite.steps} M={M} />
+        </div>
+      )}
+      <div style={{ marginTop: 'auto', paddingTop: 8 }}>
+        <NavButtons onNext={onNext} onBack={onBack} isFirst={isFirst} M={M} />
+      </div>
+    </div>
+  )
+}
+
+// YOU TRY ─────────────────────────────────────────────────────────────────────
+function BiteYouTry({ bite, accent, M, onNext, onBack, isFirst }) {
+  const [shown, setShown] = useState(false)
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '16px 22px 16px', animation: 'slideUp 0.3s ease', overflowY: 'auto' }}>
+      <Badge text="🎯 Your Turn" color="#EF5350" />
+      <div style={{ fontSize: 20, fontWeight: 900, color: M.textPrimary, fontFamily: M.headingFont, lineHeight: 1.25, marginBottom: 16 }}>{bite.title}</div>
+      <div style={{ background: 'rgba(239,83,80,0.07)', border: '1.5px solid rgba(239,83,80,0.3)', borderRadius: 14, padding: '16px 18px', marginBottom: 18 }}>
+        <div style={{ fontSize: 10, fontWeight: 800, color: '#EF5350', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>Your Problem</div>
+        <div style={{ fontSize: 16, color: M.textPrimary, lineHeight: 1.75, fontFamily: 'Nunito, sans-serif' }}><MathText text={bite.explanation || ''} /></div>
+      </div>
+      {bite.hint && !shown && (
+        <div style={{ background: M.hintBg, borderLeft: `3px solid ${accent}`, borderRadius: 10, padding: '12px 16px', marginBottom: 16, fontSize: 13, color: M.textSecondary, fontFamily: 'Nunito, sans-serif', lineHeight: 1.65 }}>
+          💡 {bite.hint}
+        </div>
+      )}
+      {!shown
+        ? <button onClick={() => setShown(true)} style={{ ...M.ghostBtn, borderStyle: 'dashed', borderColor: `${accent}50`, color: accent, fontSize: 14, fontWeight: 800, padding: '14px', marginBottom: 16 }}>👁 Show Solution</button>
+        : (
+          <div style={{ marginBottom: 16, animation: 'slideUp 0.3s ease' }}>
+            <div style={{ fontSize: 10, fontWeight: 800, color: M.correctColor, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>✅ Solution</div>
+            <StepList steps={bite.steps} M={M} />
+          </div>
+        )
+      }
+      {shown && <div style={{ marginTop: 'auto', paddingTop: 8 }}><NavButtons onNext={onNext} onBack={onBack} isFirst={isFirst} M={M} /></div>}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PRACTICE (MCQ) — BUG-FREE VERSION
+//
+// BUGS FIXED:
+//   1. Auto-select bug: `picked` starts as `null` — no answer is pre-selected.
+//      The component is keyed by bite index so state resets between questions.
+//   2. Shows-explanation-not-question bug: question text comes from `bite.question_text`
+//      (never overwritten). Explanation (solution walkthrough) comes from
+//      `bite.explanation_text` and is only shown AFTER the student picks an answer.
+//
+// CORRECT FLOW: Question shown → student picks → colours update → feedback panel
+//               shows with "Why?" button → Continue/Next button appears.
+// ─────────────────────────────────────────────────────────────────────────────
+function BitePractice({ bite, accent, M, onNext, supabase, student }) {
+  const [picked, setPicked] = useState(null)   // null = unanswered
+  const opts       = bite.options || []
+  const answered   = picked !== null
+  const isCorrect  = answered && opts[picked]?.is_correct
+
+  // question_text = what to show as the question (never the solution)
+  const questionText = bite.question_text || bite.title || ''
+
+  // explanation_text = step-by-step solution shown only after answering
+  const explanationText = bite.explanation_text || ''
+
+  // correctOpt — used in feedback banner
+  const correctOpt = opts.find(o => o.is_correct)
+
+  // Post-answer explanation panel (inline, expandable)
+  const [showExp, setShowExp] = useState(false)
+  const expLines = explanationText.split('\n').map(s => s.trim()).filter(Boolean)
+
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '12px 20px 16px', gap: 12, animation: 'slideUp 0.3s ease', overflowY: 'auto' }}>
+
+      {/* Badge */}
+      <div style={{ fontSize: 11, fontWeight: 800, color: accent, letterSpacing: 1.2, textTransform: 'uppercase', fontFamily: 'Nunito, sans-serif', flexShrink: 0 }}>
+        ✏️ Practice — {bite.difficulty || 'question'}
+      </div>
+
+      {/* ── QUESTION TEXT (always visible, never replaced by explanation) ── */}
+      <div style={{ background: M.lessonCard, border: M.lessonBorder, borderRadius: M.cardRadius, boxShadow: M.cardShadow, padding: '18px', flexShrink: 0 }}>
+        <div style={{ fontSize: 17, fontWeight: 800, color: M.textPrimary, lineHeight: 1.65, fontFamily: 'Nunito, sans-serif' }}>
+          <MathText text={questionText} />
+        </div>
+      </div>
+
+      {/* ── ANSWER OPTIONS — shown immediately, student must click one ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, flexShrink: 0 }}>
+        {opts.map((opt, i) => {
+          const letters  = ['A', 'B', 'C', 'D']
+          const isChosen = answered && picked === i
+          const isRight  = opt.is_correct
+          // Colours only change AFTER the student has picked
+          let border = `2px solid ${accent}25`, bg = M.lessonCard, color = M.textPrimary
+          if (answered) {
+            if (isRight)       { border = `2px solid ${M.correctColor}`; bg = `${M.correctColor}15`; color = M.correctColor }
+            else if (isChosen) { border = `2px solid ${M.wrongColor}`;   bg = `${M.wrongColor}12`;   color = M.wrongColor   }
+            else               { border = `2px solid ${accent}10`;       color = M.textSecondary }
+          }
+          return (
+            <button
+              key={i}
+              onClick={() => { if (!answered) setPicked(i) }}   // only register first click
+              style={{ background: bg, border, borderRadius: 14, padding: '14px 10px', fontFamily: 'Nunito, sans-serif', fontWeight: 800, color, cursor: answered ? 'default' : 'pointer', textAlign: 'center', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, minHeight: 72 }}
+              onMouseEnter={e => { if (!answered) { e.currentTarget.style.borderColor = accent; e.currentTarget.style.transform = 'translateY(-2px)' } }}
+              onMouseLeave={e => { if (!answered) { e.currentTarget.style.borderColor = `${accent}25`; e.currentTarget.style.transform = '' } }}
+            >
+              <span style={{ width: 24, height: 24, borderRadius: '50%', background: answered && isRight ? M.correctColor : answered && isChosen ? M.wrongColor : `${accent}22`, color: answered && (isRight || isChosen) ? '#fff' : accent, fontSize: 11, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.2s' }}>
+                {answered && isRight ? '✓' : answered && isChosen && !isRight ? '✗' : letters[i]}
+              </span>
+              <MathText text={opt.option_text || opt.text} style={{ fontSize: 13, lineHeight: 1.35 }} />
+            </button>
+          )
+        })}
+      </div>
+
+      {/* ── FEEDBACK — only shown after the student picks ── */}
+      {answered && (
+        <div style={{ borderRadius: 14, overflow: 'hidden', border: `2px solid ${isCorrect ? M.correctColor : M.wrongColor}40`, background: isCorrect ? `${M.correctColor}08` : `${M.wrongColor}06`, flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: isCorrect ? `${M.correctColor}14` : `${M.wrongColor}12` }}>
+            <span style={{ fontSize: 22 }}>{isCorrect ? '🎉' : '💡'}</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 900, fontFamily: 'Nunito, sans-serif', color: isCorrect ? M.correctColor : M.wrongColor }}>
+                {isCorrect ? 'Correct! Great work! 🌟' : 'Not quite!'}
+              </div>
+              {!isCorrect && correctOpt && (
+                <div style={{ fontSize: 12, color: M.correctColor, fontFamily: 'Nunito, sans-serif', marginTop: 3, fontWeight: 700 }}>
+                  ✅ Answer: <MathText text={correctOpt.option_text} />
+                </div>
+              )}
+            </div>
+            {expLines.length > 0 && (
+              <button onClick={() => setShowExp(v => !v)} style={{ background: showExp ? accent : 'transparent', border: `1.5px solid ${accent}`, borderRadius: 20, padding: '5px 13px', cursor: 'pointer', fontSize: 12, fontWeight: 800, fontFamily: 'Nunito, sans-serif', color: showExp ? '#fff' : accent, flexShrink: 0, transition: 'all 0.15s' }}>
+                {showExp ? 'Hide ▲' : 'Why? 💡'}
+              </button>
+            )}
+          </div>
+          {/* Explanation steps — only shown when "Why?" is tapped */}
+          {showExp && expLines.length > 0 && (
+            <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ fontSize: 10, fontWeight: 800, color: M.textSecondary, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Step by step</div>
+              {expLines.map((line, i) => (
+                <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <div style={{ width: 22, height: 22, borderRadius: '50%', flexShrink: 0, marginTop: 2, background: accent, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 900 }}>{i + 1}</div>
+                  <div style={{ flex: 1, background: M.mathBg || 'rgba(0,0,0,0.03)', borderRadius: 8, padding: '8px 12px', fontSize: 13, fontWeight: 600, color: M.textPrimary, lineHeight: 1.75, fontFamily: 'Nunito, sans-serif' }}>{line}</div>
+                </div>
+              ))}
             </div>
           )}
         </div>
-        {/* Toggle explanation button */}
-        {currentQ?.explanation && (
-          <button
-            onClick={() => setShowExp(v => !v)}
-            style={{
-              background: showExp ? accent : 'transparent',
-              border: `1.5px solid ${accent}`,
-              borderRadius: 20, padding: '4px 12px', cursor: 'pointer',
-              fontSize: 11, fontWeight: 800, fontFamily: 'Nunito, sans-serif',
-              color: showExp ? '#fff' : accent, flexShrink: 0,
-              transition: 'all 0.15s',
-            }}>
-            {showExp ? 'Hide ▲' : 'Why? 💡'}
-          </button>
-        )}
-      </div>
+      )}
 
-      {/* Collapsible step-by-step explanation */}
-      {showExp && currentQ?.explanation && (
-        <div style={{ padding: '12px 14px' }}>
-          <div style={{ fontSize: 10, fontWeight: 800, color: M.textSecondary,
-            textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
-            How to solve it — step by step
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {splitExplanation(currentQ.explanation).map((step, i) => (
-              <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                <div style={{
-                  width: 22, height: 22, borderRadius: '50%', flexShrink: 0, marginTop: 2,
-                  background: accent, color: '#fff',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 10, fontWeight: 900,
-                }}>{i + 1}</div>
-                <div style={{
-                  flex: 1, background: M.mathBg || 'rgba(0,0,0,0.03)', borderRadius: 8,
-                  padding: '8px 11px', fontSize: 12, fontWeight: 600, color: M.textPrimary,
-                  lineHeight: 1.75, fontFamily: 'Nunito, sans-serif',
-                }}>
-                  {step.trim()}
-                </div>
-              </div>
-            ))}
-          </div>
+      {/* ── CONTINUE — only shown after answering ── */}
+      {answered && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}>
+          <button onClick={onNext} style={{ ...M.primaryBtn, fontSize: 16, padding: '15px' }}>
+            {bite._isLast ? 'Finish Lesson ✓' : 'Next Question →'}
+          </button>
+          {bite.question_id && (
+            <button onClick={async () => {
+              await supabase?.from('flagged_questions').insert({ question_id: bite.question_id, student_id: student?.id || null, reason: 'Seems incorrect or unclear', status: 'open' })
+            }} style={{ background: 'none', border: 'none', color: M.textSecondary, fontSize: 12, cursor: 'pointer', fontFamily: 'Nunito, sans-serif', padding: '2px' }}>
+              🚩 Report this question
+            </button>
+          )}
         </div>
       )}
     </div>
   )
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
-export default function LessonPlayer({ lesson, subtopic, topic, student, nextSubtopicId }) {
-  const router = useRouter()
+// ─── Bite dispatcher ──────────────────────────────────────────────────────────
+function renderBite(bite, props, idx) {
+  // Key each practice bite so useState resets between questions
+  const key = `${bite.type}-${idx}`
+  const p = { ...props, bite }
+  switch (bite.type) {
+    case 'hook':           return <BiteHook        key={key} {...p} />
+    case 'prediction':     return <BitePrediction  key={key} {...p} />
+    case 'observation':    return <BiteObservation key={key} {...p} />
+    case 'pattern':        return <BitePattern      key={key} {...p} />
+    case 'concept':
+    case 'definition':
+    case 'introduction':   return <BiteConcept     key={key} {...p} />
+    case 'rule':           return <BiteRule        key={key} {...p} />
+    case 'worked_example': return <BiteExample     key={key} {...p} />
+    case 'you_try':        return <BiteYouTry      key={key} {...p} />
+    case 'practice':
+    case 'quiz':           return <BitePractice    key={key} {...p} />
+    default:               return <BiteConcept     key={key} {...p} />
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MAIN LESSON PLAYER
+// ─────────────────────────────────────────────────────────────────────────────
+export default function LessonPlayer({ lesson, subtopic, student, nextSubtopicId }) {
+  const router   = useRouter()
   const { M, mode } = useMode()
   const supabase = createClient()
 
   const slides    = lesson?.slides    || []
   const questions = lesson?.questions || []
-  const hook      = lesson?.hook      || slideText(slides[0])?.slice(0, 250)
 
-  // Partition slides by type
-  const conceptSlides = slides.filter(s => ['concept', 'definition', 'introduction'].includes(slideType(s)))
-  const exampleSlides = slides.filter(s => slideType(s) === 'worked_example')
-  const youTrySlide   = slides.find(s => slideType(s) === 'you_try')
-
-  // Steps:  0=hook  1=concept  2=examples  3=you_try  4=practice  5=complete
-  const [step,          setStep]          = useState(0)
-  const [slideIdx,      setSlideIdx]      = useState(0)
-  const [exIdx,         setExIdx]         = useState(0)
-  const [solutionShown, setSolutionShown] = useState(false)
-  const [qIdx,          setQIdx]          = useState(0)
-  const [phase,         setPhase]         = useState('question') // question | answered_correct | answered_wrong
-  const [selectedOpt,   setSelectedOpt]   = useState(null)
-  const [combo,         setCombo]         = useState(0)
-  const [results,       setResults]       = useState([])
-  const [completed,     setCompleted]     = useState(false)
-
-  const currentSlide   = conceptSlides[slideIdx]
-  const currentExample = exampleSlides[exIdx]
-  const currentQ       = questions[qIdx]
-
-  // Progress bar
-  const STEPS = [0, 1, 2, 3, 4, 5]
-  const progressPct =
-    step === 0 ? 3
-    : step === 1 ? Math.round(5  + (slideIdx / Math.max(conceptSlides.length, 1)) * 35)
-    : step === 2 ? Math.round(42 + (exIdx / Math.max(exampleSlides.length, 1)) * 13)
-    : step === 3 ? 58
-    : step === 4 ? Math.round(62 + (qIdx / Math.max(questions.length, 1)) * 35)
-    : 100
-
-  // ── answer handler ──────────────────────────────────────────────────────────
-  function handleAnswer(opt) {
-    if (phase !== 'question') return // already answered
-    const correct = opt.is_correct
-    const newResults = [...results, correct]
-    setResults(newResults)
-    setSelectedOpt(opt)
-    if (correct) {
-      setCombo(c => c + 1)
-      setPhase('answered_correct')
-    } else {
-      setCombo(0)
-      setPhase('answered_wrong')
-    }
-  }
-
-  function advanceQuestion() {
-    setPhase('question')
-    setSelectedOpt(null)
-    if (qIdx + 1 < questions.length) {
-      setQIdx(i => i + 1)
-    } else {
-      // results is up to date (was set in handleAnswer before phase change)
-      const accuracy = results.length > 0
-        ? Math.round(results.filter(Boolean).length / results.length * 100)
-        : 100
-      completeLesson(accuracy)
-    }
-  }
-
-  async function completeLesson(accuracy = 100) {
-    setStep(5)
-    setCompleted(true)
-    if (!student?.id || !subtopic?.id) {
-      console.warn('[lesson] missing student or subtopic id', { student: student?.id, subtopic: subtopic?.id })
-      return
-    }
-
-    // Save progress — use student_id filter for RLS compatibility
+  // ── Decode slides that have encoded interactive data in the steps field ────
+  const decodedSlides = slides.map(slide => {
+    if (!slide.steps) return slide
     try {
-      // Check if row already exists
-      const { data: existing, error: selectErr } = await supabase
-        .from('student_progress')
-        .select('id')
-        .eq('student_id', student.id)
-        .eq('subtopic_id', subtopic.id)
-        .maybeSingle()
-
-      if (selectErr) console.error('[lesson] progress select error:', selectErr.message, selectErr.code)
-
-      if (existing?.id) {
-        // Update — filter by both id AND student_id to satisfy RLS
-        const { error: updateErr } = await supabase
-          .from('student_progress')
-          .update({
-            status:       'completed',
-            completed_at: new Date().toISOString(),
-          })
-          .eq('id', existing.id)
-          .eq('student_id', student.id)
-        if (updateErr) console.error('[lesson] progress update error:', updateErr.message, updateErr.code, updateErr.details)
-        else console.log('[lesson] progress updated for subtopic', subtopic.id)
-      } else {
-        // Insert new row
-        const { error: insertErr } = await supabase
-          .from('student_progress')
-          .insert({
-            student_id:   student.id,
-            subtopic_id:  subtopic.id,
-            status:       'completed',
-            completed_at: new Date().toISOString(),
-          })
-        if (insertErr) console.error('[lesson] progress insert error:', insertErr.message, insertErr.code, insertErr.details)
-        else console.log('[lesson] progress inserted for subtopic', subtopic.id)
+      const parsed = typeof slide.steps === 'string' ? JSON.parse(slide.steps) : slide.steps
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && parsed._type !== undefined) {
+        return { ...slide, type: parsed._type || slide.type, options: parsed._options || null, reveal: parsed._reveal || null, table_headers: parsed._table_headers || null, table_rows: parsed._table_rows || null, steps: parsed._steps || null }
       }
-    } catch (e) {
-      console.error('[lesson] progress save exception:', e.message)
-    }
+      return { ...slide, steps: Array.isArray(parsed) ? parsed : slide.steps }
+    } catch { return slide }
+  })
 
-    // Update XP
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        const { data: fresh } = await supabase
-          .from('students').select('xp, monthly_xp').eq('profile_id', user.id).single()
-        const { error: xpErr } = await supabase.from('students').update({
-          xp:         (fresh?.xp        || 0) + 10,
-          monthly_xp: (fresh?.monthly_xp || 0) + 10,
-        }).eq('profile_id', user.id)
-        if (xpErr) console.error('[lesson] XP update error:', xpErr.message)
-        else console.log('[lesson] XP updated +10')
-      }
-    } catch (e) { console.error('[lesson] XP error:', e.message) }
-  }
+  // ── Build practice bites from questions ───────────────────────────────────
+  // IMPORTANT: question_text and explanation_text are SEPARATE fields.
+  // question_text = what the student sees as the question (never replaced)
+  // explanation_text = the solution walkthrough (only shown after answering via "Why?")
+  const practiceBites = questions.map((q, i) => ({
+    type:             'practice',
+    title:            `Question ${i + 1}`,
+    question_text:    q.question_text,           // ← THE QUESTION (displayed first)
+    explanation_text: q.explanation || '',       // ← THE SOLUTION (shown only after pick)
+    options:          q.options || [],
+    hint:             q.hint || null,
+    question_id:      q.id,
+    difficulty:       q.difficulty || 'medium',
+    _isLast:          i === questions.length - 1,
+  }))
 
-  // ── Shared styles ───────────────────────────────────────────────────────────
-  const card = {
-    background: M.lessonCard,
-    border: M.lessonBorder,
-    borderRadius: M.cardRadius,
-    padding: '14px 16px',
-    boxShadow: M.cardShadow,
-  }
-  const accent = M.accentColor
+  // ── Hook bite — first screen after entry ──────────────────────────────────
+  const hookBite = lesson?.hook
+    ? [{ type: 'hook', title: subtopic?.title || lesson?.title, explanation: lesson.hook }]
+    : []
 
-  // ── TOP BAR ─────────────────────────────────────────────────────────────────
-  const TopBar = (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', flexShrink: 0,
-      borderBottom: `1px solid ${accent}18`, background: M.hudBg,
-    }}>
-      <button onClick={() => step > 0 ? setStep(s => s - 1) : router.back()} style={{
-        width: 32, height: 32, borderRadius: '50%', cursor: 'pointer',
-        background: M.lessonCard, border: M.lessonBorder,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 14, color: M.textSecondary,
-      }}>←</button>
+  // All bites in order
+  const bites = [...hookBite, ...decodedSlides, ...practiceBites]
 
-      <div style={{ flex: 1, height: 6, background: M.progressTrack, borderRadius: 99, overflow: 'hidden' }}>
-        <div style={{
-          width: `${progressPct}%`, height: '100%', borderRadius: 99,
-          background: `linear-gradient(90deg,${accent},${M.accent2 || accent})`,
-          transition: 'width 0.4s ease',
-        }} />
-      </div>
+  // step === -1 is the ENTRY SCREEN (mascot + title + Start button)
+  const [step, setStep] = useState(-1)
+  const [completed, setCompleted] = useState(false)
 
-      <div style={{
-        background: combo >= 3 ? accent : M.lessonCard,
-        border: M.lessonBorder, borderRadius: 20, padding: '4px 10px',
-        display: 'flex', alignItems: 'center', gap: 4, minWidth: 40,
-      }}>
-        <span style={{ fontSize: 10 }}>⚡</span>
-        <span style={{ fontFamily: 'Nunito, sans-serif', fontSize: 11, fontWeight: 900,
-          color: combo >= 3 ? M.textOnAccent : M.textSecondary }}>×{combo}</span>
-      </div>
-    </div>
-  )
+  const isEntry    = step === -1
+  const isComplete = step >= bites.length
+  const currentBite = !isEntry && !isComplete ? bites[step] : null
 
-  // ── STEP 0: Hook ─────────────────────────────────────────────────────────────
-  const HookStep = (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '16px 16px 14px', gap: 12, overflowY: 'auto', animation: 'slideUp 0.3s ease' }}>
-      {/* Title card */}
-      <div style={{ ...card, background: `linear-gradient(135deg,${accent}15,${accent}08)`, borderColor: `${accent}40` }}>
-        <div style={{ fontSize: 10, fontWeight: 800, color: accent, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 8 }}>
-          Today's Lesson
-        </div>
-        <div style={{ fontSize: 19, fontWeight: 900, color: M.textPrimary, lineHeight: 1.25, fontFamily: M.headingFont, marginBottom: 10 }}>
-          {subtopic?.title || lesson?.title}
-        </div>
-        <div style={{ fontSize: 13, color: M.textSecondary, lineHeight: 1.7, fontFamily: 'Nunito, sans-serif' }}>
-          {lesson?.summary}
-        </div>
-      </div>
-
-      {/* Mascot + hook */}
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12 }}>
-        <BicPencil pose="happy" size={64} style={{ flexShrink: 0 }} />
-        <div style={{ ...card, flex: 1, padding: '12px 14px', borderLeft: `3px solid ${accent}` }}>
-          <div style={{ fontSize: 13, color: M.textSecondary, lineHeight: 1.65, fontFamily: 'Nunito, sans-serif', fontStyle: 'italic' }}>
-            {hook || M.hookPhrase}
-          </div>
-        </div>
-      </div>
-
-      <button onClick={() => setStep(conceptSlides.length > 0 ? 1 : exampleSlides.length > 0 ? 2 : 4)}
-        style={{ ...M.primaryBtn, marginTop: 'auto', fontSize: 15 }}>
-        {mode === 'blaze' ? "⚡ LET'S GO!"
-          : mode === 'roots' ? '🇳🇬 Make we start!'
-          : mode === 'spark' ? '✨ Let\'s dive in!'
-          : mode === 'halima' ? '📚 Begin Lesson'
-          : "Let's start! →"}
-      </button>
-    </div>
-  )
-
-  // ── STEP 1: Concept slides ───────────────────────────────────────────────────
-  const typeLabel = { concept: 'The Big Idea', definition: 'Key Terms', introduction: 'Introduction', summary: 'Key Takeaway' }
-
-  const ConceptStep = conceptSlides.length > 0 ? (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '12px 16px', gap: 10, animation: 'slideUp 0.3s ease', overflowY: 'auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-        <div style={{ fontSize: 10, fontWeight: 800, color: accent, letterSpacing: 1.2, textTransform: 'uppercase', fontFamily: M.headingFont }}>
-          {typeLabel[slideType(currentSlide)] || 'Concept'}
-        </div>
-        <div style={{ display: 'flex', gap: 4 }}>
-          {conceptSlides.map((_, i) => (
-            <div key={i} style={{
-              width: i === slideIdx ? 18 : 6, height: 6, borderRadius: 3,
-              background: i <= slideIdx ? accent : `${accent}25`,
-              transition: 'all 0.25s',
-            }} />
-          ))}
-        </div>
-      </div>
-
-      <div style={{ ...card, flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <div style={{ fontSize: 15, fontWeight: 900, color: M.textPrimary, lineHeight: 1.3, fontFamily: M.headingFont }}>
-          {currentSlide?.title}
-        </div>
-
-        <SvgIllustration svg_code={currentSlide?.svg_code} M={M} />
-
-        <div style={{ fontSize: 13, color: M.textSecondary, lineHeight: 1.8, fontFamily: 'Nunito, sans-serif', whiteSpace: 'pre-line' }}>
-          {slideText(currentSlide)}
-        </div>
-
-        <FormulaBlock formula={currentSlide?.formula} formula_note={currentSlide?.formula_note} M={M} />
-        <HintBox hint={currentSlide?.hint} M={M} />
-      </div>
-
-      <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-        <button onClick={() => slideIdx > 0 ? setSlideIdx(i => i - 1) : setStep(0)}
-          style={{ ...M.ghostBtn, flex: 1 }}>← Back</button>
-        <button onClick={() => {
-          if (slideIdx + 1 < conceptSlides.length) { setSlideIdx(i => i + 1) }
-          else if (exampleSlides.length > 0) { setStep(2); setExIdx(0) }
-          else if (questions.length > 0) setStep(4)
-          else completeLesson(100)
-        }} style={{ ...M.primaryBtn, flex: 2 }}>
-          {slideIdx + 1 < conceptSlides.length ? 'Next →'
-            : exampleSlides.length > 0 ? 'See Examples →'
-            : questions.length > 0 ? 'Practice! →'
-            : 'Complete ✓'}
-        </button>
-      </div>
-    </div>
-  ) : null
-
-  // ── STEP 2: Worked examples ──────────────────────────────────────────────────
-  const ExampleStep = (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '12px 16px', gap: 10, animation: 'slideUp 0.3s ease', overflowY: 'auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-        <div style={{ fontSize: 10, fontWeight: 800, color: accent, letterSpacing: 1.2, textTransform: 'uppercase', fontFamily: M.headingFont }}>
-          Worked Example {exIdx + 1} of {exampleSlides.length}
-        </div>
-        <div style={{ display: 'flex', gap: 4 }}>
-          {exampleSlides.map((_, i) => (
-            <div key={i} style={{
-              width: i === exIdx ? 18 : 6, height: 6, borderRadius: 3,
-              background: i <= exIdx ? accent : `${accent}25`, transition: 'all 0.25s',
-            }} />
-          ))}
-        </div>
-      </div>
-
-      <div style={{ ...card, flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <div style={{ fontSize: 15, fontWeight: 900, color: M.textPrimary, fontFamily: M.headingFont, lineHeight: 1.3 }}>
-          {currentExample?.title}
-        </div>
-
-        {/* Problem statement */}
-        <div style={{ background: `${accent}0D`, border: `1.5px solid ${accent}25`, borderRadius: 10, padding: '12px 14px' }}>
-          <div style={{ fontSize: 10, fontWeight: 800, color: accent, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>Problem</div>
-          <div style={{ fontSize: 13, color: M.textPrimary, lineHeight: 1.7, fontFamily: 'Nunito, sans-serif' }}>
-            {slideText(currentExample)}
-          </div>
-        </div>
-
-        <SvgIllustration svg_code={currentExample?.svg_code} M={M} />
-
-        {/* Solution steps */}
-        <div>
-          <div style={{ fontSize: 10, fontWeight: 800, color: M.textSecondary, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>Solution</div>
-          <StepList steps={currentExample?.steps} M={M} />
-        </div>
-
-        <HintBox hint={currentExample?.hint} M={M} />
-      </div>
-
-      <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-        <button onClick={() => exIdx > 0 ? setExIdx(i => i - 1) : setStep(1)}
-          style={{ ...M.ghostBtn, flex: 1 }}>← Back</button>
-        <button onClick={() => {
-          if (exIdx + 1 < exampleSlides.length) { setExIdx(i => i + 1) }
-          else if (youTrySlide) setStep(3)
-          else if (questions.length > 0) setStep(4)
-          else completeLesson(100)
-        }} style={{ ...M.primaryBtn, flex: 2 }}>
-          {exIdx + 1 < exampleSlides.length ? 'Next Example →'
-            : youTrySlide ? 'Now You Try! →'
-            : questions.length > 0 ? 'Practice! →'
-            : 'Complete ✓'}
-        </button>
-      </div>
-    </div>
-  )
-
-  // ── STEP 3: You Try ──────────────────────────────────────────────────────────
-  const YouTryStep = youTrySlide ? (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '12px 16px', gap: 10, animation: 'slideUp 0.3s ease', overflowY: 'auto' }}>
-      <div style={{ fontSize: 10, fontWeight: 800, color: '#EF5350', letterSpacing: 1.2, textTransform: 'uppercase', fontFamily: M.headingFont, flexShrink: 0 }}>
-        🎯 Your Turn
-      </div>
-
-      <div style={{ ...card, flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <div style={{ fontSize: 15, fontWeight: 900, color: M.textPrimary, fontFamily: M.headingFont, lineHeight: 1.3 }}>
-          {youTrySlide.title}
-        </div>
-
-        {/* Problem */}
-        <div style={{ background: 'rgba(239,83,80,0.07)', border: '1.5px solid rgba(239,83,80,0.25)', borderRadius: 10, padding: '12px 14px' }}>
-          <div style={{ fontSize: 10, fontWeight: 800, color: '#EF5350', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>Your Problem</div>
-          <div style={{ fontSize: 13, color: M.textPrimary, lineHeight: 1.7, fontFamily: 'Nunito, sans-serif' }}>
-            {slideText(youTrySlide)}
-          </div>
-        </div>
-
-        <SvgIllustration svg_code={youTrySlide?.svg_code} M={M} />
-
-        {/* Hint always visible */}
-        <HintBox hint={youTrySlide?.hint} M={M} />
-
-        {/* Solution reveal */}
-        {!solutionShown ? (
-          <button onClick={() => setSolutionShown(true)} style={{
-            ...M.ghostBtn, borderStyle: 'dashed',
-            borderColor: `${accent}50`, color: accent, fontSize: 13, fontWeight: 800,
-          }}>
-            👁 Review Solution
-          </button>
-        ) : (
-          <div style={{ animation: 'slideUp 0.3s ease' }}>
-            <div style={{ fontSize: 10, fontWeight: 800, color: M.correctColor, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>
-              ✅ Full Solution
-            </div>
-            <StepList steps={youTrySlide?.steps} M={M} />
-          </div>
-        )}
-      </div>
-
-      <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-        <button onClick={() => { setStep(2); setExIdx(exampleSlides.length - 1) }}
-          style={{ ...M.ghostBtn, flex: 1 }}>← Back</button>
-        <button onClick={() => questions.length > 0 ? setStep(4) : completeLesson(100)}
-          style={{ ...M.primaryBtn, flex: 2 }}>
-          {questions.length > 0 ? (mode === 'blaze' ? '⚡ QUIZ TIME!' : 'Practice Quiz →') : 'Complete ✓'}
-        </button>
-      </div>
-    </div>
-  ) : null
-
-  // ── STEP 4: Practice (MCQ) ──────────────────────────────────────────────────
-  const diffColor = { easy: '#26A69A', medium: '#FFA726', hard: '#EF5350' }
-  const isAnswered = phase === 'answered_correct' || phase === 'answered_wrong'
-  const isCorrect  = phase === 'answered_correct'
-
-  const PracticeStep = questions.length > 0 ? (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '12px 16px', gap: 10, animation: 'slideUp 0.3s ease', overflowY: 'auto' }}>
-
-      {/* Progress dots */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-        <div style={{ fontSize: 10, fontWeight: 800, color: accent, letterSpacing: 1.2, textTransform: 'uppercase', fontFamily: M.headingFont }}>
-          Quick Check — {qIdx + 1} of {questions.length}
-        </div>
-        <div style={{ display: 'flex', gap: 4 }}>
-          {questions.map((_, i) => (
-            <div key={i} style={{
-              width: 8, height: 8, borderRadius: '50%',
-              background: i < qIdx ? M.correctColor : i === qIdx ? accent : `${accent}25`,
-              transition: 'background 0.2s',
-            }} />
-          ))}
-        </div>
-      </div>
-
-      {/* Question card */}
-      <div style={{ ...card, flexShrink: 0 }}>
-        {currentQ?.difficulty && (
-          <div style={{ fontSize: 9, fontWeight: 900, color: diffColor[currentQ.difficulty] || accent,
-            letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 6 }}>
-            {currentQ.difficulty}
-          </div>
-        )}
-        <div style={{ fontSize: 14, fontWeight: 800, color: M.textPrimary, lineHeight: 1.6, fontFamily: 'Nunito, sans-serif' }}>
-          <MathText text={currentQ?.question_text} />
-        </div>
-        {!isAnswered && <HintBox hint={currentQ?.hint} M={M} />}
-      </div>
-
-      {/* Answer options — always visible, colour-coded after pick */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, flexShrink: 0 }}>
-        {(currentQ?.options || []).map((opt, i) => {
-          const letters = ['A', 'B', 'C', 'D']
-          const isPicked  = isAnswered && selectedOpt === opt
-          const isOptCorrect = opt.is_correct
-          let borderColor = `${accent}22`
-          let bgColor     = M.lessonCard
-          let labelColor  = M.textPrimary
-          if (isAnswered) {
-            if (isOptCorrect)             { borderColor = M.correctColor; bgColor = `${M.correctColor}15`; labelColor = M.correctColor }
-            else if (isPicked)            { borderColor = M.wrongColor;   bgColor = `${M.wrongColor}12`;   labelColor = M.wrongColor   }
-            else                          { borderColor = `${accent}10`;  bgColor = `${M.lessonCard}`;     labelColor = M.textSecondary }
-          }
-          return (
-            <button key={i}
-              onClick={() => phase === 'question' && handleAnswer(opt)}
-              style={{
-                background: bgColor, border: `2px solid ${borderColor}`,
-                borderRadius: M.cardRadius, padding: '12px 8px',
-                fontFamily: 'Nunito, sans-serif', fontWeight: 800,
-                color: labelColor, cursor: phase === 'question' ? 'pointer' : 'default',
-                textAlign: 'center', transition: 'all 0.2s',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
-                minHeight: 64,
-              }}
-              onMouseEnter={e => { if (phase !== 'question') return; e.currentTarget.style.borderColor = accent; e.currentTarget.style.transform = 'translateY(-2px)' }}
-              onMouseLeave={e => { if (phase !== 'question') return; e.currentTarget.style.borderColor = `${accent}22`; e.currentTarget.style.transform = '' }}
-            >
-              <span style={{
-                width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
-                background: isAnswered && isOptCorrect ? M.correctColor
-                  : isAnswered && isPicked ? M.wrongColor : `${accent}22`,
-                color: isAnswered && (isOptCorrect || isPicked) ? '#fff' : accent,
-                fontSize: 11, fontWeight: 900,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                transition: 'all 0.2s',
-              }}>
-                {isAnswered && isOptCorrect ? '✓' : isAnswered && isPicked && !isOptCorrect ? '✗' : letters[i]}
-              </span>
-              <MathText text={opt.option_text || opt.text} style={{ fontSize: 12, lineHeight: 1.3 }} />
-            </button>
-          )
-        })}
-      </div>
-
-      {/* Result banner — always shown after answering */}
-      {isAnswered && (
-        <ResultPanel
-          isCorrect={isCorrect}
-          currentQ={currentQ}
-          accent={accent}
-          M={M}
-        />
-      )}
-
-      {/* Mascot — only shown when unanswered */}
-      {!isAnswered && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          <BicPencil pose="think" size={40} style={{ flexShrink: 0 }} />
-          <div style={{
-            flex: 1, padding: '7px 12px', background: M.lessonCard,
-            border: `1.5px solid ${accent}20`, borderRadius: 12,
-            fontSize: 12, fontWeight: 700, fontFamily: 'Nunito, sans-serif', color: M.textSecondary,
-          }}>
-            Pick the correct answer 👆
-          </div>
-        </div>
-      )}
-
-      {/* Continue — always shown after answering */}
-      {isAnswered && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>
-          <button onClick={advanceQuestion} style={{ ...M.primaryBtn, fontSize: 15 }}>
-            {qIdx + 1 < questions.length ? 'Next Question →' : 'Finish Lesson ✓'}
-          </button>
-          <button
-            onClick={async () => {
-              if (!currentQ?.id) return
-              await supabase.from('flagged_questions').insert({
-                question_id: currentQ.id, student_id: student?.id || null,
-                reason: 'Seems incorrect or unclear', status: 'open',
-              })
-            }}
-            style={{
-              background: 'none', border: 'none', color: M.textSecondary,
-              fontSize: 11, cursor: 'pointer', fontFamily: 'Nunito, sans-serif', padding: '2px',
-            }}>🚩 Report this question</button>
-        </div>
-      )}
-    </div>
-  ) : null
-
-  // ── STEP 5: Complete ─────────────────────────────────────────────────────────
-  const accuracy = results.length > 0
-    ? Math.round(results.filter(Boolean).length / results.length * 100)
-    : 100
-
-  const xpEarned = 10
+  const accent  = M.accentColor
   const isNova  = mode === 'nova'
   const isBlaze = mode === 'blaze'
   const isRoots = mode === 'roots'
   const isSpark = mode === 'spark'
 
-  const completeMsg =
-    accuracy === 100 ? (isRoots ? 'You sabi! Perfect score! 🇳🇬' : isBlaze ? 'PERFECT. FLAWLESS.' : 'Perfect score! 🏆')
-    : accuracy >= 80 ? (isRoots ? 'You do well! Keep going! 💪' : isBlaze ? 'SOLID WORK. KEEP GOING.' : 'Excellent work!')
-    : accuracy >= 60 ? (isRoots ? 'Good try! Practice more!' : 'Good effort — keep going!')
-    : (isRoots ? 'No worry — try again! 💪' : 'Keep practising — you\'ll get there!')
+  // Progress %: 0 on entry, 100 on complete
+  const progressPct = isEntry ? 0 : isComplete ? 100 : bites.length > 0 ? Math.round(((step) / bites.length) * 100) : 0
 
-  const CompleteStep = (
-    <div style={{
-      flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
-      justifyContent: 'center', padding: '0 24px 24px',
-      background: M.lessonBg, overflow: 'hidden', position: 'relative',
-    }}>
+  async function handleComplete() {
+    if (completed) return
+    setCompleted(true)
+    if (!student?.id || !subtopic?.id) return
+    try {
+      const { data: existing } = await supabase.from('student_progress').select('id').eq('student_id', student.id).eq('subtopic_id', subtopic.id).maybeSingle()
+      if (existing?.id) {
+        await supabase.from('student_progress').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', existing.id).eq('student_id', student.id)
+      } else {
+        await supabase.from('student_progress').insert({ student_id: student.id, subtopic_id: subtopic.id, status: 'completed', completed_at: new Date().toISOString() })
+      }
+    } catch (e) { console.error('[lesson] progress:', e.message) }
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: f } = await supabase.from('students').select('xp, monthly_xp').eq('profile_id', user.id).single()
+        await supabase.from('students').update({ xp: (f?.xp || 0) + 10, monthly_xp: (f?.monthly_xp || 0) + 10 }).eq('profile_id', user.id)
+      }
+    } catch (e) { console.error('[lesson] XP:', e.message) }
+  }
 
-      {/* Confetti dots — pure CSS */}
-      {accuracy >= 60 && [
+  function goNext() {
+    const nextStep = step + 1
+    if (nextStep >= bites.length) { handleComplete(); setStep(bites.length) }
+    else setStep(nextStep)
+  }
+
+  function goBack() {
+    if (step <= -1) { router.back(); return }
+    if (step === 0) { setStep(-1); return }
+    setStep(s => s - 1)
+  }
+
+  // ── ENTRY SCREEN — spec: mascot + topic title + Start/Continue button ─────
+  // No hook text here. Clean. Just sets the stage.
+  const EntryScreen = (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 28px', animation: 'slideUp 0.3s ease' }}>
+      {/* Mascot */}
+      <div style={{ marginBottom: 32 }}>
+        <BicPencil pose="happy" size={110} />
+      </div>
+
+      {/* Topic title — the only text on this screen */}
+      <div style={{ fontSize: 26, fontWeight: 900, color: M.textPrimary, lineHeight: 1.2, fontFamily: M.headingFont, textAlign: 'center', marginBottom: 12 }}>
+        {subtopic?.title || lesson?.title}
+      </div>
+
+      {/* Optional: lesson number / class level — tiny, secondary */}
+      {subtopic?.topic?.title && (
+        <div style={{ fontSize: 13, color: M.textSecondary, fontFamily: 'Nunito, sans-serif', fontWeight: 500, textAlign: 'center', marginBottom: 40 }}>
+          {subtopic.topic.title}
+        </div>
+      )}
+
+      {/* CTA — full-width */}
+      <button
+        onClick={() => setStep(0)}
+        style={{ ...M.primaryBtn, fontSize: 17, padding: '16px 32px', width: '100%', maxWidth: 320 }}>
+        {isBlaze ? "⚡ LET'S GO!" : isRoots ? '🇳🇬 Start Lesson' : isSpark ? '✨ Begin!' : 'Start Lesson →'}
+      </button>
+
+      {/* Bite count — shows student how long the lesson is */}
+      {bites.length > 0 && (
+        <div style={{ marginTop: 16, fontSize: 12, color: M.textSecondary, fontFamily: 'Nunito, sans-serif', fontWeight: 500 }}>
+          {bites.length} short steps
+        </div>
+      )}
+    </div>
+  )
+
+  // ── COMPLETE SCREEN ────────────────────────────────────────────────────────
+  const CompleteScreen = (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 28px 28px', background: M.lessonBg, overflow: 'hidden', position: 'relative' }}>
+      {[
         { left: '10%', top: '12%', color: '#C8F135', size: 10, delay: 0 },
         { left: '85%', top: '8%',  color: '#FFC933', size: 8,  delay: 0.1 },
         { left: '25%', top: '18%', color: accent,    size: 12, delay: 0.2 },
         { left: '70%', top: '20%', color: '#FF6B6B', size: 7,  delay: 0.15 },
-        { left: '50%', top: '6%',  color: '#C8F135', size: 9,  delay: 0.05 },
-        { left: '90%', top: '30%', color: accent,    size: 6,  delay: 0.25 },
-        { left: '5%',  top: '35%', color: '#FFC933', size: 11, delay: 0.18 },
       ].map((c, i) => (
-        <div key={i} style={{
-          position: 'absolute', left: c.left, top: c.top,
-          width: c.size, height: c.size, borderRadius: '50%',
-          background: c.color, opacity: 0.7,
-          animation: `float ${1.5 + i * 0.3}s ease-in-out ${c.delay}s infinite alternate`,
-          pointerEvents: 'none',
-        }} />
+        <div key={i} style={{ position: 'absolute', left: c.left, top: c.top, width: c.size, height: c.size, borderRadius: '50%', background: c.color, opacity: 0.7, animation: `float ${1.5 + i * 0.3}s ease-in-out ${c.delay}s infinite alternate`, pointerEvents: 'none' }} />
       ))}
 
-      {/* Trophy / mascot */}
-      <div style={{ animation: 'float 2.5s ease-in-out infinite', marginBottom: 8 }}>
-        <BicPencil pose={accuracy >= 60 ? 'celebrate' : 'think'} size={110} />
+      <div style={{ animation: 'float 2.5s ease-in-out infinite', marginBottom: 16 }}>
+        <BicPencil pose="celebrate" size={110} />
       </div>
 
-      {/* Lesson complete heading */}
-      <div style={{
-        fontFamily: M.headingFont, fontSize: 28, fontWeight: 900,
-        color: M.textPrimary, textAlign: 'center', lineHeight: 1.15, marginBottom: 4,
-      }}>
-        {accuracy >= 60 ? (isBlaze ? 'LESSON COMPLETE' : 'Lesson Complete!') : 'Lesson Done'}
+      <div style={{ fontFamily: M.headingFont, fontSize: 28, fontWeight: 900, color: M.textPrimary, textAlign: 'center', lineHeight: 1.15, marginBottom: 8 }}>
+        {isBlaze ? 'LESSON COMPLETE' : 'Lesson Complete! 🎉'}
       </div>
-      <div style={{
-        fontSize: 13, color: M.textSecondary, fontFamily: 'Nunito, sans-serif',
-        textAlign: 'center', lineHeight: 1.6, marginBottom: 20, maxWidth: 280,
-      }}>
-        {completeMsg}
+      <div style={{ fontSize: 15, color: M.textSecondary, fontFamily: 'Nunito, sans-serif', textAlign: 'center', lineHeight: 1.65, marginBottom: 32, maxWidth: 280 }}>
+        {isRoots ? 'You sabi this topic! Keep going! 🇳🇬' : isBlaze ? 'ANOTHER ONE DOWN. KEEP GOING.' : 'Great work — you made it through every step!'}
       </div>
 
-      {/* Big XP display — Brilliant style */}
-      <div style={{
-        display: 'flex', flexDirection: 'column', alignItems: 'center',
-        background: isBlaze ? '#FFD700' : `${accent}12`,
-        border: isBlaze ? '2px solid #0d0d0d' : `1.5px solid ${accent}30`,
-        borderRadius: isBlaze ? 12 : 20,
-        padding: '18px 40px', marginBottom: 20,
-        boxShadow: isBlaze ? '3px 3px 0 #0d0d0d' : `0 4px 20px ${accent}20`,
-        minWidth: 160,
-      }}>
-        <div style={{
-          fontSize: 11, fontWeight: 800, letterSpacing: 1.5,
-          textTransform: 'uppercase', color: isBlaze ? '#0d0d0d' : M.textSecondary,
-          fontFamily: 'Nunito, sans-serif', marginBottom: 4,
-        }}>TOTAL XP</div>
-        <div style={{
-          fontSize: 52, fontWeight: 900, color: isBlaze ? '#0d0d0d' : '#FFC933',
-          fontFamily: M.headingFont, lineHeight: 1, letterSpacing: -1,
-        }}>
-          +{xpEarned}
-          <span style={{ fontSize: 22, marginLeft: 6 }}>✨</span>
-        </div>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: isBlaze ? '#FFD700' : `${accent}12`, border: isBlaze ? '2px solid #0d0d0d' : `1.5px solid ${accent}30`, borderRadius: isBlaze ? 12 : 20, padding: '20px 48px', marginBottom: 32, boxShadow: isBlaze ? '3px 3px 0 #0d0d0d' : `0 4px 20px ${accent}20` }}>
+        <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase', color: isBlaze ? '#0d0d0d' : M.textSecondary, fontFamily: 'Nunito, sans-serif', marginBottom: 4 }}>XP EARNED</div>
+        <div style={{ fontSize: 52, fontWeight: 900, color: isBlaze ? '#0d0d0d' : '#FFC933', fontFamily: M.headingFont, lineHeight: 1, letterSpacing: -1 }}>+10<span style={{ fontSize: 22, marginLeft: 6 }}>✨</span></div>
       </div>
 
-      {/* Stats row */}
-      <div style={{ display: 'flex', gap: 10, width: '100%', maxWidth: 300, marginBottom: 24 }}>
-        {[
-          { label: 'Accuracy', value: `${accuracy}%`, color: accuracy >= 80 ? M.correctColor : '#FFA726' },
-          { label: 'Questions', value: `${results.filter(Boolean).length}/${results.length || questions.length}`, color: accent },
-          { label: 'Streak',   value: `×${combo}`,   color: combo >= 3 ? '#FFC933' : M.textSecondary },
-        ].map(({ label, value, color }) => (
-          <div key={label} style={{
-            flex: 1, background: M.lessonCard, border: M.lessonBorder,
-            borderRadius: M.cardRadius, textAlign: 'center', padding: '10px 4px',
-          }}>
-            <div style={{ fontSize: 16, fontWeight: 900, color, fontFamily: M.headingFont }}>{value}</div>
-            <div style={{ fontSize: 9, color: M.textSecondary, fontFamily: 'Nunito, sans-serif', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Action buttons */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 320 }}>
-        {nextSubtopicId ? (
-          <button
-            onClick={() => router.push(`/learn/lesson/${nextSubtopicId}`)}
-            style={{ ...M.primaryBtn, fontSize: 16, padding: '16px' }}>
-            {isBlaze ? '⚡ NEXT MISSION!' : isSpark ? '✨ Continue!' : isRoots ? '🇳🇬 Next Lesson' : 'Continue →'}
-          </button>
-        ) : (
-          <button
-            onClick={() => router.push('/learn')}
-            style={{ ...M.primaryBtn, fontSize: 16, padding: '16px' }}>
-            {isBlaze ? '⚡ BACK TO MAP' : '🗺️ Back to Learn Map'}
-          </button>
-        )}
-        <button onClick={() => router.push('/learn')} style={{ ...M.ghostBtn, fontSize: 14 }}>
-          Back to Learn Map
-        </button>
+        {nextSubtopicId
+          ? <button onClick={() => router.push(`/learn/lesson/${nextSubtopicId}`)} style={{ ...M.primaryBtn, fontSize: 16, padding: '16px' }}>
+              {isBlaze ? '⚡ NEXT MISSION!' : isSpark ? '✨ Continue!' : isRoots ? '🇳🇬 Next Lesson' : 'Continue →'}
+            </button>
+          : <button onClick={() => router.push('/learn')} style={{ ...M.primaryBtn, fontSize: 16, padding: '16px' }}>
+              {isBlaze ? '⚡ BACK TO MAP' : '🗺️ Back to Learn Map'}
+            </button>
+        }
+        <button onClick={() => router.push('/learn')} style={{ ...M.ghostBtn, fontSize: 14 }}>Back to Learn Map</button>
       </div>
     </div>
   )
 
-  // Correct overlay removed — question advances immediately on correct answer
+  // ── TOP BAR ────────────────────────────────────────────────────────────────
+  const TopBar = (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', flexShrink: 0, borderBottom: `1px solid ${accent}18`, background: M.hudBg }}>
+      <button onClick={goBack} style={{ width: 34, height: 34, borderRadius: '50%', cursor: 'pointer', background: M.lessonCard, border: M.lessonBorder, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: M.textSecondary, flexShrink: 0 }}>←</button>
+      <div style={{ flex: 1, height: 6, background: M.progressTrack, borderRadius: 99, overflow: 'hidden' }}>
+        <div style={{ width: `${progressPct}%`, height: '100%', borderRadius: 99, background: `linear-gradient(90deg,${accent},${M.accent2 || accent})`, transition: 'width 0.4s ease' }} />
+      </div>
+      {/* Step counter — hidden on entry and complete */}
+      {!isEntry && !isComplete && (
+        <div style={{ background: M.lessonCard, border: M.lessonBorder, borderRadius: 20, padding: '4px 11px', fontSize: 11, fontWeight: 800, color: M.textSecondary, fontFamily: 'Nunito, sans-serif', flexShrink: 0, whiteSpace: 'nowrap' }}>
+          {step + 1} / {bites.length}
+        </div>
+      )}
+    </div>
+  )
 
-  // ── Root render ──────────────────────────────────────────────────────────────
+  const biteProps = {
+    accent, M,
+    onNext:  goNext,
+    onBack:  goBack,
+    isFirst: step === 0,
+    supabase,
+    student,
+  }
+
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', fontFamily: M.font, background: M.lessonBg, position: 'relative', overflow: 'hidden' }}>
-
-
-      {/* Top progress strip */}
+      {/* Thin progress strip at very top */}
       <div style={{ height: 4, background: M.progressTrack, flexShrink: 0 }}>
         <div style={{ width: `${progressPct}%`, height: '100%', background: accent, transition: 'width 0.4s ease', borderRadius: '0 2px 2px 0' }} />
       </div>
 
       {TopBar}
 
+      {/* Content */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
-        {step === 0 && HookStep}
-        {step === 1 && (ConceptStep || <div style={{ flex: 1 }} />)}
-        {step === 2 && ExampleStep}
-        {step === 3 && (YouTryStep || <div style={{ flex: 1 }} />)}
-        {step === 4 && (PracticeStep || CompleteStep)}
-        {step === 5 && CompleteStep}
+        {isEntry    && EntryScreen}
+        {isComplete && CompleteScreen}
+        {!isEntry && !isComplete && currentBite && renderBite(currentBite, biteProps, step)}
       </div>
     </div>
   )
