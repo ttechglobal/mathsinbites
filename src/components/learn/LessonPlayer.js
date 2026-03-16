@@ -71,75 +71,152 @@ function BiteDots({ total, current, accent }) {
   )
 }
 
-// ─── Blackboard Step Working ──────────────────────────────────────────────────
-// The core solution renderer — used in examples, you_try, and practice "Why?".
+// ─── Board-style Mathematical Working ────────────────────────────────────────
 //
-// Design: exactly like a teacher writing on a board —
-//   each step is its own row: a tiny label pill at top-left,
-//   then the MATH on the line below. No decorative boxes.
-//   Hairline rule between steps. One outer card.
-//   Steps are ALL visible at once — no blocking tap-through.
+// Renders EXACTLY like a teacher solving on a classroom board:
 //
-// The text field should be pure mathematical working, e.g.:
-//   "3/4 + 1/4 = 4/4"   or   "LCD = 12"   or   "Answer: 7/12"
-// Use \n within a text field for multi-line operations in one step.
+//   Set up                       ← step label (tiny muted pill)
+//   5x + 10 = 25                 ← MATH LINE: large, bold, monospace
+//   Subtract 10 from both sides. ← EXPLANATION LINE: smaller, italic, Nunito
+//   5x = 15                      ← MATH LINE
+//   Divide both sides by 5.      ← EXPLANATION LINE
+//   x = 3                        ← MATH LINE
+//   ─────────────────────────────
+//   Answer: x = 3                ← ANSWER LINE: accent colour, largest, bold
+//
+// Line type rules (applied to each \n-separated line):
+//
+//   ANSWER LINE  — starts with "Answer:" or "Solution:"
+//   EXPLANATION  — starts with a capital letter AND contains 2+ lowercase words
+//                  AND has no = sign AND is not a fraction/number start
+//   MATH LINE    — everything else
+//
+// This matches the spec exactly:
+//   • Every equation on its own line (math)
+//   • Every sentence on its own line (explanation)
+//   • Answer highlighted in accent colour
+//   • No paragraph-style rendering ever
+//
 function StepList({ steps, M, accent }) {
   if (!steps?.length) return null
   const ac = accent || M.accentColor
 
+  // ── Line type detector ──────────────────────────────────────────────────
+  function lineType(line) {
+    const t = line.trim()
+    if (!t) return 'empty'
+
+    // Answer / Solution line
+    if (/^(Answer|Solution)\s*:/i.test(t)) return 'answer'
+
+    // Explanation: starts capital, has multiple word characters, no = sign,
+    // not starting with a digit, not a fraction-like pattern
+    const isWordStart   = /^[A-Z][a-z]/.test(t)
+    const hasWords      = (t.match(/[a-z]{2,}/g) || []).length >= 2
+    const hasEquals     = t.includes('=')
+    const startsDigit   = /^\d/.test(t)
+    const isFraction    = /^\d+\/\d+/.test(t)
+    const hasOperator   = /[+\-×÷*/^]/.test(t) && !isWordStart
+
+    if (isWordStart && hasWords && !hasEquals && !startsDigit && !isFraction && !hasOperator) {
+      return 'explanation'
+    }
+
+    return 'math'
+  }
+
   return (
-    <div style={{
-      borderRadius: 14,
-      border: `1.5px solid ${ac}25`,
-      background: M.mathBg,
-      overflow: 'hidden',
-    }}>
+    <div>
       {steps.map((s, i) => {
-        const rawText = s.text || s.content || String(s)
-        const label   = s.label || `Step ${i + 1}`
-        const isLast  = i === steps.length - 1
-        // Each \n within the text is a separate math line within the same step
-        const mathLines = rawText.split('\n').map(l => l.trim()).filter(Boolean)
+        const rawText   = s.text || s.content || String(s)
+        const label     = (s.label || '').trim()
+        const isLast    = i === steps.length - 1
+        const isAnswer  = /^(answer|solution)/i.test(label)
+
+        // Split on literal \n — each becomes one display line
+        const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean)
 
         return (
-          <div
-            key={i}
-            style={{
-              padding: '13px 18px 14px',
-              borderBottom: isLast ? 'none' : `1px solid ${ac}18`,
-            }}>
-            {/* Label — small accent pill, sits above the math */}
-            <div style={{
-              display: 'inline-block',
-              background: `${ac}16`,
-              borderRadius: 20,
-              padding: '2px 10px',
-              marginBottom: 8,
-            }}>
-              <span style={{
-                fontSize: 9, fontWeight: 900,
-                color: ac,
-                textTransform: 'uppercase',
-                letterSpacing: 1.1,
-                fontFamily: 'Nunito, sans-serif',
-              }}>{label}</span>
+          <div key={i} style={{ marginBottom: isLast ? 0 : 8 }}>
+
+            {/* Step label — only for non-answer steps that have a label */}
+            {label && !isAnswer && (
+              <div style={{
+                display: 'inline-block',
+                background: `${ac}14`,
+                borderRadius: 20,
+                padding: '1px 9px',
+                marginBottom: 6,
+                marginTop: i > 0 ? 10 : 2,
+              }}>
+                <span style={{
+                  fontSize: 9, fontWeight: 900, color: ac,
+                  textTransform: 'uppercase', letterSpacing: 1,
+                  fontFamily: 'Nunito, sans-serif',
+                }}>{label}</span>
+              </div>
+            )}
+
+            {/* Lines */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+              {lines.map((line, li) => {
+                const type = lineType(line)
+
+                if (type === 'answer') return (
+                  <div key={li} style={{
+                    fontFamily: "'Courier New', Courier, monospace",
+                    fontSize: 20,
+                    fontWeight: 900,
+                    color: ac,
+                    lineHeight: 2.2,
+                    letterSpacing: 0.3,
+                    marginTop: 6,
+                  }}>
+                    <MathText text={line} />
+                  </div>
+                )
+
+                if (type === 'explanation') return (
+                  <div key={li} style={{
+                    fontFamily: 'Nunito, sans-serif',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    fontStyle: 'italic',
+                    color: M.textSecondary,
+                    lineHeight: 1.6,
+                    marginTop: 3,
+                    marginBottom: 1,
+                    paddingLeft: 2,
+                  }}>
+                    {line}
+                  </div>
+                )
+
+                // math line
+                return (
+                  <div key={li} style={{
+                    fontFamily: "'Courier New', Courier, monospace",
+                    fontSize: 18,
+                    fontWeight: 700,
+                    color: M.textPrimary,
+                    lineHeight: 2.0,
+                    letterSpacing: 0.2,
+                  }}>
+                    <MathText text={line} />
+                  </div>
+                )
+              })}
             </div>
 
-            {/* Math working — one line per expression, large and clear */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {mathLines.map((line, li) => (
-                <div key={li} style={{
-                  fontFamily: "'Courier New', Courier, monospace",
-                  fontSize: 18,
-                  fontWeight: 700,
-                  color: M.textPrimary,
-                  lineHeight: 1.7,
-                  letterSpacing: 0.3,
-                }}>
-                  <MathText text={line} />
-                </div>
-              ))}
-            </div>
+            {/* Thin rule between steps — not after last */}
+            {!isLast && (
+              <div style={{
+                height: 1,
+                background: `${ac}15`,
+                marginTop: 10,
+                borderRadius: 1,
+              }} />
+            )}
           </div>
         )
       })}
@@ -332,13 +409,11 @@ function BitePrediction({ bite, accent, M, onNext, onBack, isFirst }) {
   )
 }
 
-// OBSERVATION ─ rows reveal one at a time — builds curiosity ──────────────────
+// OBSERVATION ─ full table shown at once — just look and read ─────────────────
 function BiteObservation({ bite, accent, M, onNext, onBack, isFirst }) {
-  const rows = bite.table_rows   || []
+  const rows = bite.table_rows    || []
   const hdrs = bite.table_headers || []
   const cols = Math.max(hdrs.length, rows[0]?.length || 0)
-  const [visibleRows, setVisibleRows] = useState(1)
-  const allVisible = visibleRows >= rows.length
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '16px 22px 16px', animation: 'slideUp 0.3s ease', overflowY: 'auto' }}>
@@ -359,59 +434,34 @@ function BiteObservation({ bite, accent, M, onNext, onBack, isFirst }) {
 
       {bite.svg_code && <div style={{ marginBottom: 16 }}><SvgIllustration svg_code={bite.svg_code} M={M} /></div>}
 
+      {/* Full table — all rows shown at once, no hiding */}
       {rows.length > 0 && (
-        <>
-          <div style={{ borderRadius: 14, overflow: 'hidden', border: `1.5px solid ${accent}25`, marginBottom: 12 }}>
-            {/* Header */}
-            {hdrs.length > 0 && (
-              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, background: accent }}>
-                {hdrs.map((h, i) => (
-                  <div key={i} style={{ padding: '11px 14px', fontSize: 12, fontWeight: 800, color: '#fff', fontFamily: 'Nunito, sans-serif', textAlign: 'center' }}>{h}</div>
-                ))}
-              </div>
-            )}
-            {/* Rows — appear one by one */}
-            {rows.slice(0, visibleRows).map((row, ri) => (
-              <div
-                key={ri}
-                style={{
-                  display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`,
-                  background: ri % 2 === 0 ? M.lessonCard : `${accent}07`,
-                  borderTop: `1px solid ${accent}15`,
-                  animation: ri === visibleRows - 1 ? 'slideUp 0.2s ease' : 'none',
-                }}>
-                {row.map((cell, ci) => (
-                  <div key={ci} style={{ padding: '12px 14px', fontSize: 16, fontWeight: 700, color: M.textPrimary, fontFamily: 'Nunito, sans-serif', textAlign: 'center' }}>
-                    <MathText text={String(cell)} />
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-
-          {/* Reveal next row — builds anticipation */}
-          {!allVisible ? (
-            <button
-              onClick={() => setVisibleRows(v => v + 1)}
-              style={{
-                padding: '11px', background: `${accent}10`,
-                border: `1.5px dashed ${accent}40`, borderRadius: 12, cursor: 'pointer',
-                fontSize: 13, fontWeight: 800, color: accent,
-                fontFamily: 'Nunito, sans-serif', marginBottom: 12,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-              }}>
-              <span>👁</span> Show next row ({visibleRows + 1}/{rows.length})
-            </button>
-          ) : (
-            <div style={{ fontSize: 12, color: M.correctColor, fontFamily: 'Nunito, sans-serif', fontWeight: 700, textAlign: 'center', marginBottom: 12 }}>
-              ✓ All data shown — do you see a pattern?
+        <div style={{ borderRadius: 14, overflow: 'hidden', border: `1.5px solid ${accent}25`, marginBottom: 20 }}>
+          {hdrs.length > 0 && (
+            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, background: accent }}>
+              {hdrs.map((h, i) => (
+                <div key={i} style={{ padding: '12px 14px', fontSize: 13, fontWeight: 800, color: '#fff', fontFamily: 'Nunito, sans-serif', textAlign: 'center' }}>{h}</div>
+              ))}
             </div>
           )}
-        </>
+          {rows.map((row, ri) => (
+            <div key={ri} style={{
+              display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`,
+              background: ri % 2 === 0 ? M.lessonCard : `${accent}07`,
+              borderTop: `1px solid ${accent}15`,
+            }}>
+              {row.map((cell, ci) => (
+                <div key={ci} style={{ padding: '13px 14px', fontSize: 17, fontWeight: 700, color: M.textPrimary, fontFamily: "'Courier New', Courier, monospace", textAlign: 'center' }}>
+                  <MathText text={String(cell)} />
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
       )}
 
       <div style={{ marginTop: 'auto' }}>
-        <NavButtons onNext={onNext} onBack={onBack} isFirst={isFirst} M={M} nextLabel={allVisible ? 'I see it! →' : 'Skip to all →'} />
+        <NavButtons onNext={onNext} onBack={onBack} isFirst={isFirst} M={M} nextLabel="I see a pattern! →" />
       </div>
     </div>
   )
@@ -536,7 +586,7 @@ function BiteRule({ bite, accent, M, onNext, onBack, isFirst }) {
   )
 }
 
-// WORKED EXAMPLE ─ problem stays visible, all steps shown classroom-style ──────
+// WORKED EXAMPLE ─ problem card + board-style working ────────────────────────
 function BiteExample({ bite, accent, M, onNext, onBack, isFirst }) {
   const steps = bite.steps || []
 
@@ -549,28 +599,33 @@ function BiteExample({ bite, accent, M, onNext, onBack, isFirst }) {
         <span style={{ fontSize: 11, fontWeight: 800, color: accent, letterSpacing: 0.8, textTransform: 'uppercase', fontFamily: 'Nunito, sans-serif' }}>Worked Example</span>
       </div>
 
-      {/* Problem card — stays visible while reading solution */}
-      <div style={{ background: `${accent}0C`, border: `1.5px solid ${accent}30`, borderRadius: 16, padding: '16px 18px', marginBottom: 18, flexShrink: 0 }}>
+      {/* Problem — clean card, clearly the question */}
+      <div style={{ background: `${accent}0C`, border: `1.5px solid ${accent}28`, borderRadius: 16, padding: '16px 18px', marginBottom: 20, flexShrink: 0 }}>
         <div style={{ fontSize: 10, fontWeight: 800, color: accent, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8, fontFamily: 'Nunito, sans-serif' }}>
-          The Problem
+          Question
         </div>
         <div style={{ fontSize: 16, color: M.textPrimary, lineHeight: 1.75, fontFamily: 'Nunito, sans-serif', fontWeight: 600 }}>
           <MathText text={bite.explanation || ''} />
         </div>
       </div>
 
-      {bite.svg_code && <div style={{ marginBottom: 18 }}><SvgIllustration svg_code={bite.svg_code} M={M} /></div>}
+      {bite.svg_code && <div style={{ marginBottom: 18, flexShrink: 0 }}><SvgIllustration svg_code={bite.svg_code} M={M} /></div>}
 
-      {/* Solution — all steps visible, classroom board style */}
+      {/* Working — sits on a light math background, no border, just breathing room */}
       {steps.length > 0 && (
-        <>
-          <div style={{ fontSize: 10, fontWeight: 800, color: M.textSecondary, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10, fontFamily: 'Nunito, sans-serif' }}>
-            Solution
+        <div style={{
+          background: M.mathBg,
+          borderRadius: 16,
+          padding: '18px 20px 14px',
+          marginBottom: 18,
+          flexShrink: 0,
+        }}>
+          {/* "Working" label — tiny, muted */}
+          <div style={{ fontSize: 9, fontWeight: 800, color: M.textSecondary, textTransform: 'uppercase', letterSpacing: 1.2, fontFamily: 'Nunito, sans-serif', marginBottom: 8, opacity: 0.6 }}>
+            Working
           </div>
-          <div style={{ marginBottom: 18 }}>
-            <StepList steps={steps} M={M} accent={accent} />
-          </div>
-        </>
+          <StepList steps={steps} M={M} accent={accent} />
+        </div>
       )}
 
       {/* Nav always visible */}
@@ -605,23 +660,28 @@ function BiteYouTry({ bite, accent, M, onNext, onBack, isFirst }) {
         </div>
       </div>
 
-      {/* Phase: attempt — try it yourself prompt */}
+      {/* Phase: attempt — Show Solution is prominent, hint is optional secondary */}
       {phase === 'attempt' && (
-        <div style={{ animation: 'slideUp 0.25s ease', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ fontSize: 14, color: M.textSecondary, fontFamily: 'Nunito, sans-serif', lineHeight: 1.65, fontWeight: 500, textAlign: 'center', padding: '4px 8px' }}>
-            Try it on paper first — then check below.
+        <div style={{ animation: 'slideUp 0.25s ease', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ fontSize: 13, color: M.textSecondary, fontFamily: 'Nunito, sans-serif', fontWeight: 500, textAlign: 'center', padding: '2px 0 6px' }}>
+            Try it on paper first, then check the solution.
           </div>
-          <button
-            onClick={() => setPhase(bite.hint ? 'hint' : 'solution')}
-            style={{ ...M.ghostBtn, borderStyle: 'dashed', borderColor: `${accent}45`, color: accent, fontSize: 14, fontWeight: 800, padding: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-            <span>💡</span>
-            {bite.hint ? 'I need a hint' : 'Show Solution'}
-          </button>
+
+          {/* Show Solution — BIG primary button, always visible */}
           <button
             onClick={() => setPhase('solution')}
-            style={{ background: 'none', border: 'none', color: M.textSecondary, fontSize: 12, cursor: 'pointer', fontFamily: 'Nunito, sans-serif', padding: '4px', textDecoration: 'underline' }}>
-            Skip to solution
+            style={{ ...M.primaryBtn, fontSize: 16, padding: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            <span>👁</span> Show Solution
           </button>
+
+          {/* Hint — smaller ghost option below, only if hint exists */}
+          {bite.hint && (
+            <button
+              onClick={() => setPhase('hint')}
+              style={{ ...M.ghostBtn, fontSize: 13, padding: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, borderStyle: 'dashed' }}>
+              <span>💡</span> I need a hint first
+            </button>
+          )}
         </div>
       )}
 
@@ -648,13 +708,18 @@ function BiteYouTry({ bite, accent, M, onNext, onBack, isFirst }) {
       {/* Phase: solution — all steps shown, nav always reachable */}
       {phase === 'solution' && (
         <div style={{ animation: 'slideUp 0.25s ease' }}>
-          <div style={{ fontSize: 10, fontWeight: 800, color: M.correctColor, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12, fontFamily: 'Nunito, sans-serif' }}>
-            ✅ Solution
-          </div>
-          {steps.length > 0
-            ? <div style={{ marginBottom: 18 }}><StepList steps={steps} M={M} accent={accent} /></div>
-            : <div style={{ fontSize: 14, color: M.textSecondary, fontFamily: 'Nunito, sans-serif', marginBottom: 18 }}>No solution steps provided.</div>
-          }
+          {steps.length > 0 ? (
+            <div style={{ background: M.mathBg, borderRadius: 16, padding: '18px 20px 14px', marginBottom: 18 }}>
+              <div style={{ fontSize: 9, fontWeight: 800, color: M.textSecondary, textTransform: 'uppercase', letterSpacing: 1.2, fontFamily: 'Nunito, sans-serif', marginBottom: 8, opacity: 0.6 }}>
+                Solution
+              </div>
+              <StepList steps={steps} M={M} accent={accent} />
+            </div>
+          ) : (
+            <div style={{ fontSize: 14, color: M.textSecondary, fontFamily: 'Nunito, sans-serif', marginBottom: 18 }}>
+              No solution steps provided.
+            </div>
+          )}
           <NavButtons onNext={onNext} onBack={onBack} isFirst={isFirst} M={M} nextLabel="I got it! →" />
         </div>
       )}
@@ -675,7 +740,7 @@ function BiteYouTry({ bite, accent, M, onNext, onBack, isFirst }) {
 // CORRECT FLOW: Question shown → student picks → colours update → feedback panel
 //               shows with "Why?" button → Continue/Next button appears.
 // ─────────────────────────────────────────────────────────────────────────────
-function BitePractice({ bite, accent, M, onNext, supabase, student }) {
+function BitePractice({ bite, accent, M, onNext, onCorrect, supabase, student }) {
   const [picked, setPicked] = useState(null)   // null = unanswered
   const opts       = bite.options || []
   const answered   = picked !== null
@@ -725,7 +790,12 @@ function BitePractice({ bite, accent, M, onNext, supabase, student }) {
           return (
             <button
               key={i}
-              onClick={() => { if (!answered) setPicked(i) }}   // only register first click
+              onClick={() => {
+                if (!answered) {
+                  setPicked(i)
+                  if (opt.is_correct && onCorrect) onCorrect()
+                }
+              }}
               style={{ background: bg, border, borderRadius: 14, padding: '14px 10px', fontFamily: 'Nunito, sans-serif', fontWeight: 800, color, cursor: answered ? 'default' : 'pointer', textAlign: 'center', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, minHeight: 72 }}
               onMouseEnter={e => { if (!answered) { e.currentTarget.style.borderColor = accent; e.currentTarget.style.transform = 'translateY(-2px)' } }}
               onMouseLeave={e => { if (!answered) { e.currentTarget.style.borderColor = `${accent}25`; e.currentTarget.style.transform = '' } }}
@@ -762,13 +832,15 @@ function BitePractice({ bite, accent, M, onNext, supabase, student }) {
           </div>
           {/* Explanation steps — only shown when "Why?" is tapped */}
           {showExp && expLines.length > 0 && (
-            <div style={{ padding: '14px 16px' }}>
-              <div style={{ fontSize: 10, fontWeight: 800, color: M.textSecondary, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>Step by step</div>
-              <StepList
-                steps={expLines.map(line => ({ text: line }))}
-                M={M}
-                accent={accent}
-              />
+            <div style={{ padding: '4px 16px 14px' }}>
+              <div style={{ background: M.mathBg, borderRadius: 14, padding: '16px 18px 12px' }}>
+                <div style={{ fontSize: 9, fontWeight: 800, color: M.textSecondary, textTransform: 'uppercase', letterSpacing: 1.2, fontFamily: 'Nunito, sans-serif', marginBottom: 8, opacity: 0.6 }}>Working</div>
+                <StepList
+                  steps={expLines.map(line => ({ text: line }))}
+                  M={M}
+                  accent={accent}
+                />
+              </div>
             </div>
           )}
         </div>
@@ -864,7 +936,8 @@ export default function LessonPlayer({ lesson, subtopic, student, nextSubtopicId
 
   // step === -1 is the ENTRY SCREEN (mascot + title + Start button)
   const [step, setStep] = useState(-1)
-  const [completed, setCompleted] = useState(false)
+  const [completed,    setCompleted]    = useState(false)
+  const [correctCount, setCorrectCount] = useState(0)   // tracks correct practice answers
 
   const isEntry    = step === -1
   const isComplete = step >= bites.length
@@ -879,10 +952,17 @@ export default function LessonPlayer({ lesson, subtopic, student, nextSubtopicId
   // Progress %: 0 on entry, 100 on complete
   const progressPct = isEntry ? 0 : isComplete ? 100 : bites.length > 0 ? Math.round(((step) / bites.length) * 100) : 0
 
-  async function handleComplete() {
+  async function handleComplete(finalCorrectCount, totalPractice) {
     if (completed) return
     setCompleted(true)
     if (!student?.id || !subtopic?.id) return
+
+    // Proportional XP: min 1 (0 correct) → max 10 (all correct)
+    // If no practice questions, award full 10 XP
+    const earnedXP = totalPractice > 0
+      ? Math.max(1, Math.round((finalCorrectCount / totalPractice) * 10))
+      : 10
+
     try {
       const { data: existing } = await supabase.from('student_progress').select('id').eq('student_id', student.id).eq('subtopic_id', subtopic.id).maybeSingle()
       if (existing?.id) {
@@ -895,14 +975,18 @@ export default function LessonPlayer({ lesson, subtopic, student, nextSubtopicId
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         const { data: f } = await supabase.from('students').select('xp, monthly_xp').eq('profile_id', user.id).single()
-        await supabase.from('students').update({ xp: (f?.xp || 0) + 10, monthly_xp: (f?.monthly_xp || 0) + 10 }).eq('profile_id', user.id)
+        await supabase.from('students').update({ xp: (f?.xp || 0) + earnedXP, monthly_xp: (f?.monthly_xp || 0) + earnedXP }).eq('profile_id', user.id)
       }
     } catch (e) { console.error('[lesson] XP:', e.message) }
   }
 
   function goNext() {
     const nextStep = step + 1
-    if (nextStep >= bites.length) { handleComplete(); setStep(bites.length) }
+    if (nextStep >= bites.length) {
+      const totalPractice = practiceBites.length
+      handleComplete(correctCount, totalPractice)
+      setStep(bites.length)
+    }
     else setStep(nextStep)
   }
 
@@ -974,7 +1058,14 @@ export default function LessonPlayer({ lesson, subtopic, student, nextSubtopicId
 
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: isBlaze ? '#FFD700' : `${accent}12`, border: isBlaze ? '2px solid #0d0d0d' : `1.5px solid ${accent}30`, borderRadius: isBlaze ? 12 : 20, padding: '20px 48px', marginBottom: 32, boxShadow: isBlaze ? '3px 3px 0 #0d0d0d' : `0 4px 20px ${accent}20` }}>
         <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase', color: isBlaze ? '#0d0d0d' : M.textSecondary, fontFamily: 'Nunito, sans-serif', marginBottom: 4 }}>XP EARNED</div>
-        <div style={{ fontSize: 52, fontWeight: 900, color: isBlaze ? '#0d0d0d' : '#FFC933', fontFamily: M.headingFont, lineHeight: 1, letterSpacing: -1 }}>+10<span style={{ fontSize: 22, marginLeft: 6 }}>✨</span></div>
+        <div style={{ fontSize: 52, fontWeight: 900, color: isBlaze ? '#0d0d0d' : '#FFC933', fontFamily: M.headingFont, lineHeight: 1, letterSpacing: -1 }}>
+          +{practiceBites.length > 0 ? Math.max(1, Math.round((correctCount / practiceBites.length) * 10)) : 10}<span style={{ fontSize: 22, marginLeft: 6 }}>✨</span>
+        </div>
+        {practiceBites.length > 0 && (
+          <div style={{ fontSize: 12, fontWeight: 600, color: isBlaze ? 'rgba(0,0,0,0.5)' : M.textSecondary, fontFamily: 'Nunito, sans-serif', marginTop: 6 }}>
+            {correctCount} of {practiceBites.length} correct
+          </div>
+        )}
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 320 }}>
@@ -1009,9 +1100,10 @@ export default function LessonPlayer({ lesson, subtopic, student, nextSubtopicId
 
   const biteProps = {
     accent, M,
-    onNext:  goNext,
-    onBack:  goBack,
-    isFirst: step === 0,
+    onNext:    goNext,
+    onBack:    goBack,
+    isFirst:   step === 0,
+    onCorrect: () => setCorrectCount(n => n + 1),
     supabase,
     student,
   }

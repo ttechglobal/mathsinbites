@@ -21,12 +21,18 @@ async function ask(prompt, maxTokens, label) {
 }
 
 // ── SVG generation ────────────────────────────────────────────────────────────
-// Spec: "2–3 visuals per lesson max", "very simple", "one idea only", "not cluttered"
-// We only generate SVG for the 3 bite types where a visual most helps:
-//   observation  → the data table visual
-//   concept      → the core idea diagram
-//   rule         → the formula/relationship diagram
-// All other types get no SVG — keeping the lesson clean.
+// Philosophy: SVG complements the text — it does NOT repeat it.
+// The lesson text already does the heavy lifting (explanation, context, numbers).
+// The SVG's only job: give the student ONE glance-able visual that makes the
+// core idea click faster. Simple, clean, Nigerian-student-relevant when possible.
+//
+// We generate SVGs for 3 bite types only (observation, concept, rule).
+// For each, we give the model the lesson's own title + content so it can
+// draw something that actually matches what the student is reading.
+//
+// Context matching: if the lesson has a real-world context (savings, market,
+// sports, data bundles, etc.), the SVG should reflect that scene — not an
+// abstract diagram. If it's purely abstract maths, a clean diagram is fine.
 
 async function genSvg(bite) {
   const SVG_TYPES = ['observation', 'concept', 'rule']
@@ -35,61 +41,86 @@ async function genSvg(bite) {
   const typeInstructions = {
 
     observation:
-`Draw a SIMPLE COMPARISON showing two things changing together.
-Use basic icons or shapes — not a complex table.
-Example style: show 2 stick figures next to "6 hours", then 4 stick figures next to "3 hours".
-Keep it to 2–3 rows of information maximum.
-Use arrows (↑ or ↓) to show direction of change.
-Label the key numbers clearly.
-No more than 6 elements total.`,
+`Your job: show a simple side-by-side or stacked comparison that makes the DATA pattern visible at a glance.
+
+MATCH the context in the lesson content. Examples:
+- If the lesson shows workers and hours → draw 2 rows of stick figures with time labels
+- If it shows savings growing → draw 3 stacked money-bag icons getting bigger
+- If it shows data bundle usage → draw a simple phone with bar levels going down
+- If it is abstract numbers → draw 2–3 rows with the key values and ↑ ↓ arrows
+
+Rules:
+- 2–3 rows of information maximum
+- Use ↑ or ↓ arrows to show direction of change
+- Label the key numbers clearly (bold, large)
+- Stick figures: draw as a circle (head) + short vertical line (body) only
+- No tables, no complex grids
+- No more than 8 visual elements total`,
 
     concept:
-`Draw ONE simple diagram that makes the core idea unmistakable.
-Good options:
-- Two bar lengths showing a ratio
-- A simple arrow showing direction (goes up / goes down)
-- A balance scale tipping one way
-- A simple fraction bar split into equal parts
-- A number line with a clear jump pattern
-ONE idea only. Label the 2–3 most important numbers or words.
-No more than 5 elements total. No background scenes.`,
+`Your job: draw ONE diagram that makes the core idea click in a single glance.
+
+MATCH the context in the lesson content. Examples:
+- If about compound interest/savings → a simple coin stack growing taller over 3 time steps
+- If about ratio/proportion → two bars of different lengths with labels showing the ratio
+- If about inverse proportion → one bar going up while another goes down (see-saw style)
+- If about fractions → a rectangle split into equal parts, some shaded
+- If about probability → a simple bag with dots (different colours)
+- If about speed/distance → a road with a car icon and distance/time labels
+- If about algebra (x unknown) → a balance scale, one side has x-box, other has a number
+
+Rules:
+- ONE idea only. ONE diagram. Do not split the canvas into multiple diagrams.
+- Label the 2–3 most important values or words
+- No background scenes (no sky, grass, buildings)
+- No more than 8 visual elements total`,
 
     rule:
-`Draw a simple formula layout or rule diagram.
-Show the formula centred, with each letter or symbol labelled simply below it.
-Example: y = k × x — label y, k, x each with a short word.
-Or show a simple input→output arrow if it is a proportion relationship.
-Keep it clean: formula + 3 short labels maximum.
-No more than 5 elements.`,
+`Your job: show the formula or relationship rule cleanly — the student should be able to read the rule at a glance.
+
+MATCH the context in the lesson content. Examples:
+- Formula with symbols (A = P(1 + r)^n) → show it centred, large, with each letter labelled below
+- Proportion rule (x × y = k) → show as a simple input→output arrow diagram
+- Percentage rule → show the fraction bar with "part / whole × 100"
+- If there is no formula, show a simple "IF [condition] → THEN [result]" box
+
+Rules:
+- Formula centred and large (font-size 22+)
+- Each variable labelled with a short word below (font-size 12)
+- Max 3 labels below the formula
+- Clean white background
+- No more than 6 elements total`,
   }
 
   const msg = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',
-    max_tokens: 1200,
+    max_tokens: 1400,
     messages: [{
       role: 'user',
-      content: `Create a very simple SVG for a school maths lesson screen.
+      content: `Create a very simple SVG illustration for a Nigerian secondary school maths lesson.
 
-Type: ${bite.type}
-Title: "${bite.title}"
-Content: "${(bite.explanation || '').slice(0, 200)}"
+Bite type: ${bite.type}
+Lesson title: "${bite.title}"
+Lesson content: "${(bite.explanation || '').slice(0, 280)}"
 
 ${typeInstructions[bite.type]}
 
-GOAL: A student glances at this and instantly understands ONE idea. Nothing more.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+GOAL: A 13-year-old Nigerian student glances at this for 2 seconds and the ONE key idea is immediately clear. The image COMPLEMENTS the text — it does not repeat it word for word. Keep it simple. The text already explains everything; this just makes it visual.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-STRICT SVG RULES:
+STRICT SVG RULES (follow ALL of these exactly):
 - viewBox="0 0 320 180" width="320" height="180"
 - White background: <rect width="320" height="180" fill="white"/>
-- Palette: #4F46E5 (blue, main), #10B981 (green, positive), #EF4444 (red, decrease), #1E293B (dark text)
+- Colour palette ONLY: #4F46E5 (blue/main), #10B981 (green/positive), #F97316 (orange/highlight), #EF4444 (red/decrease), #1E293B (dark text), #94A3B8 (muted), #F1F5F9 (light fill)
 - font-family="system-ui, sans-serif"
-- font-size: 16 for main labels, 12 for secondary
+- font-size="16" for main labels, font-size="12" for secondary labels
 - font-weight="700" for numbers and key words
-- Shapes: rect, circle, line, polyline — keep them simple
-- NO foreignObject, NO clip-path, NO filters, NO gradients
+- Use only: rect, circle, line, polyline, polygon, text — NO path, NO foreignObject, NO clip-path, NO filter, NO gradient, NO image
 - All elements within x=10..310, y=10..170
-- Total elements: aim for 5–10. Never more than 15.
-- Return ONLY the raw SVG tag. No markdown. Start with <svg.`,
+- Stick figures: circle r=6 (head) + line 12px (body) ONLY — nothing more
+- Total SVG elements: aim for 6–10. Never more than 14.
+- Return ONLY the raw SVG. No markdown, no explanation. Start with <svg`,
     }],
   })
   const raw = (msg.content[0]?.text || '').trim()
@@ -169,7 +200,7 @@ async function saveLesson(supabase, lessonId, bites, questions, subtopicId, user
 
 // ── Nigerian student context bank ─────────────────────────────────────────────
 // Spec: "wide range of relatable contexts", "familiar to student aged 12–17"
-// Mix of Nigerian everyday + universal school life
+// Mix of Nigerian everyday + real-life applications + school life
 const STUDENT_CONTEXTS = `
 NAMES (use variety across all ethnic groups):
 Emeka, Amina, Chidi, Ngozi, Tunde, Fatima, Bola, Kemi, Uche, Halima, Segun, Blessing, Musa, Chisom, Yusuf, Adaeze, Ladi, Taiwo, Nkechi, Danladi.
@@ -195,11 +226,45 @@ NIGERIAN EVERYDAY CONTEXTS (use occasionally for variety):
 • Keke napep or danfo fare
 • Saving pocket money (ajo/esusu style)
 
+REAL-LIFE APPLICATION CONTEXTS (use when the topic has direct real-world value):
+These make topics feel relevant and worth learning — not just school exercises.
+
+MONEY & FINANCE:
+• Compound interest: "Chidi's mum put ₦50,000 in a savings account. After 3 years, how much has it grown?"
+• Simple vs compound interest: comparing two savings plans, deciding which gives more money
+• Percentage increase/decrease: sale prices, salary raises, price hikes at the market
+• Profit and loss: selling phone credit, running a small tuck shop business
+• VAT and tax: total cost of buying items after tax is added
+
+DATA & DAILY LIFE:
+• Statistics/mean/average: comparing exam scores, phone battery life across days
+• Probability: chances of winning a raffle, likelihood of rain on sports day
+• Ratio: mixing drinks, cement, paint — getting the proportions right
+• Proportion: scaling a recipe up or down for more people
+
+TIME, DISTANCE, SPEED:
+• Journey planning: how long a bus ride takes at a certain speed
+• Football training: calculating pace, laps needed in a given time
+
+TECHNOLOGY & MODERN LIFE:
+• Data bundles: how many days a 1GB plan lasts if you use 120MB/day
+• Battery and charging: how long until a phone is fully charged
+• Percentages in social media: post reach, follower growth
+
+HEALTH & BODY:
+• Body mass index (BMI): healthy weight ranges
+• Medication dosage: calculating the right amount based on weight
+
+BUILDING & MEASURING:
+• Area and perimeter: tiling a room, fencing a compound
+• Volume: water tanks, filling a bucket, cement mixing
+
 RULES FOR USING CONTEXTS:
 - Rotate contexts so no two consecutive bites use the same setting
 - Prefer school/student settings for hook and examples
+- For topics with clear real-life value (interest, percentages, statistics, ratio, speed), use a real-world hook
 - Use simple, specific numbers (not large or awkward values)
-- Use ₦ for money when in a market/buying context
+- Use ₦ for money when in a market/buying/savings context
 - Always name a specific person in examples
 `
 
@@ -228,213 +293,338 @@ export async function POST(request) {
 
   // ════════════════════════════════════════════════════════════════════════════
   // BITES PROMPT
-  // Spec: 8–12 bites, one idea per screen, minimal text, guided discovery,
-  //       Observation → Thinking → Explanation → Practice flow
   // ════════════════════════════════════════════════════════════════════════════
-  const bitesPrompt = `You are building a bite-sized interactive maths lesson for a platform called MathsInBites.
-The lesson is for Nigerian secondary school students (context: ${ctx}).
-Philosophy: "Maths, one bite at a time."
+  const bitesPrompt = `You are generating a bite-sized maths lesson for MathsInBites.
+Students: Nigerian secondary school, ${level} level. Context: ${ctx}
+Platform philosophy: "Maths, one bite at a time." Make it feel relevant, not like a chore.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CORE PRINCIPLES — follow these strictly:
+BEFORE YOU WRITE ANYTHING — answer these questions first:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-1. Assume the student knows NOTHING about this topic.
-2. One idea per screen. One. Never two.
-3. Text: maximum 2 short sentences per bite. Short = a 12-year-old can say it in one breath.
-4. Guide discovery: student observes → thinks → discovers → sees the name.
-   Never reveal the concept before the student has seen and thought about it.
-5. Interact early: the 2nd bite must be interactive (prediction).
-   Interaction means student makes a choice, not just reads.
-6. Language: friendly, simple, conversational. Not textbook.
-7. Examples must feel like real student life (school, sports, sharing food, pocket money).
+1. WHY DOES ${title} MATTER IN REAL LIFE?
+   Think: where does a 13–17 year old actually encounter this?
+   • Compound interest → their savings grow faster than they think. Banks use this.
+   • LCM/HCF → tiling a floor, synchronising schedules, splitting things fairly.
+   • Ratio/Proportion → mixing food, medicine dosage, resizing images.
+   • Algebra → every unknown you ever need to find in real life.
+   • Probability → understanding risk, games, weather forecasts.
+   • Statistics → making sense of scores, health data, news.
+   • Speed/Distance/Time → journey planning, sports performance.
+   • Index/Powers → computer storage (KB, MB, GB), scientific notation.
+   If it has a clear real-life application, USE IT in the hook and concept bite.
+
+2. IS THIS TOPIC POTENTIALLY BORING?
+   Some topics feel abstract or pointless unless you show WHY they matter.
+   If the topic could seem dull, your hook MUST create curiosity or surprise.
+   The student should think "oh — THIS is what that is?" not "why am I learning this?"
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-LEARNING FLOW — generate bites in THIS ORDER:
+CORE RULES — follow ALL of these exactly:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-BITE 1 — type: "hook"
-What it does: Opens with a real everyday moment. No maths. Just curiosity.
-title: The lesson topic name written in a friendly way (e.g. "Sharing Equally" not "Division")
-explanation: EXACTLY 1 sentence. Describe a specific student moment that secretly uses ${title}.
-             Use a student's name. Use a school/sports/everyday context.
-             Example style: "Tunde and 3 friends want to share 24 oranges equally after football practice."
-             NOT: "In this lesson we will learn about..."
-
-BITE 2 — type: "prediction"
-What it does: Student predicts before they know the answer. Commits to a guess.
-title: A short question. E.g. "What do you think happens?"
-explanation: 1 sentence setting up the prediction scenario. Different context from Bite 1.
-options: 2–3 choices. Exactly 1 correct. Others must be plausible wrong guesses.
-reveal: 1 sentence. Shown after they answer (whether right or wrong). Warm. Forward-pointing.
-        E.g. "Good thinking! Let's look at the numbers to find out."
-
-BITE 3 — type: "observation"
-What it does: Shows a data table. Student looks and reads. No answer required.
-title: Short. E.g. "Look at this pattern"
-explanation: 1 sentence. Tell them what column to focus on.
-table_headers: Array of 2 column names. Keep names short (3 words max each).
-table_rows: 4–5 rows. Use REAL numbers that clearly show the mathematical pattern.
-            For inverse proportion: as first column doubles, second column halves.
-            For direct proportion: both columns increase together.
-            Use simple round numbers. No decimals unless essential.
-
-BITE 4 — type: "pattern"
-What it does: Student identifies what they noticed in the table. Interactive.
-title: "What do you notice?"
-explanation: 1 sentence asking them to describe the relationship they saw.
-options: 3 choices. 1 correct (accurate description of pattern). 2 wrong (plausible misreadings).
-reveal: 1–2 sentences. Confirm the pattern. Connect it to what comes next.
-        E.g. "Exactly! When one number doubles, the other halves. There's a name for this..."
-
-BITE 5 — type: "concept"
-What it does: Reveals the concept name. The "aha!" moment.
-title: The concept name. Bold and clear.
-explanation: EXACTLY 2 short sentences.
-             Sentence 1: What this type of relationship is called.
-             Sentence 2: One-line plain English definition using the pattern they just saw.
-             Example: "This is called Inverse Proportion. When one quantity goes up, the other goes down by the same factor."
-
-BITE 6 — type: "rule"
-What it does: States the mathematical rule and formula.
-title: "The Rule" or "How to use it"
-explanation: 1–2 sentences. How to apply this in calculations.
-formula: The formula in ^ and _ notation. E.g. "x × y = k" or "y = k/x". Or null if no formula.
-formula_note: One plain-English line explaining what each letter means. Or null.
-
-BITE 7 — type: "worked_example"
-What it does: Walks through one complete example step by step.
-title: Name the specific problem. E.g. "Finding the missing value"
-explanation: The problem. 1–2 sentences. School/student context. Name a student. Specific numbers.
-             Example: "Amina takes 4 minutes to run 1 lap of the field. How long for 3 laps?"
-steps: Array of step objects. EVERY step shown. Nothing skipped.
-       Each step: { "label": "Step 1 — short name", "text": "Show the number. Show the operation. Explain in plain English why." }
-       Minimum 3 steps. Maximum 5.
-
-BITE 8 — type: "worked_example"
-What it does: A second example. Different context. Slightly harder.
-title: Different angle on the same concept.
-explanation: 1–2 sentences. Different student name, different everyday situation.
-steps: Same format. Show all working clearly.
-
-BITE 9 — type: "you_try"
-What it does: Student attempts a fresh problem on their own, then reveals solution.
-title: "Your turn: [what they need to find]"
-explanation: The problem ONLY. 1–2 sentences. Fresh context, specific numbers.
-hint: 1 sentence. Gentle nudge toward the first step. E.g. "Start by identifying which value is changing."
-steps: Complete worked solution (shown when student taps "Show Solution").
-       Same step format as above. All working shown.
+1. Student knows ZERO about this topic. Start from scratch.
+2. ONE idea per screen. Never two.
+3. explanation fields: 1–2 SHORT sentences max. No long paragraphs.
+4. Language: friendly, simple, like talking to a 13-year-old. Not textbook.
+5. Contexts: school life first (sharing, sports, tuck shop, library). Nigerian names.
+   For topics with real-life value, use that real-world context in the hook.
+6. The observation bite comes BEFORE the prediction bite. Students see data FIRST, then guess.
+7. The prediction is a WARM-UP GUESS after seeing data — not a test.
+8. Worked example steps MUST be pure mathematical working — not sentences.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-ABSOLUTE RULES — break any of these and the lesson fails:
+LESSON FLOW — generate exactly this sequence:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-✗ Never write "In this lesson you will learn..."
-✗ Never write "By the end of this lesson..."
-✗ Never put 2 ideas in 1 bite
+BITE 1 — "hook"
+  title: Topic name, friendly (e.g. "Money That Grows", not "Compound Interest")
+         Make the title sound interesting, not like a textbook chapter.
+  explanation: EXACTLY 1 sentence. Must do ONE of these:
+    A) Show a real-life moment where this topic matters directly to the student.
+       E.g. for compound interest: "Amina saves ₦5,000 and watches it quietly grow
+       into ₦6,250 in just 2 years — without doing anything."
+    B) Create genuine surprise or curiosity about something familiar.
+       E.g. for prime numbers: "Every time you lock your phone, prime numbers are
+       keeping your data safe."
+    C) A specific vivid student scene that secretly shows the concept at work.
+       E.g. "Tunde notices that every time he doubles his running speed,
+       the time to finish one lap is cut in half."
+
+    NEVER: "Today we will learn about..." or generic textbook openers.
+    NEVER: A bland scene with no connection to why the topic matters.
+
+    ✓ GOOD HOOKS (real-world + curiosity):
+      Compound interest: "Kemi's uncle invested ₦20,000 in a savings plan — and
+       now, 5 years later, it has grown to ₦32,000 without him doing a thing."
+      LCM: "Chidi realises his phone rings every 4 minutes and his alarm buzzes
+       every 6 minutes — he wonders when they will both go off at the same time."
+      Speed/Distance: "Ngozi runs the same route every morning — but today she
+       wants to know exactly how fast she is going."
+      Probability: "Segun and his friends argue about who should buy the next
+       round of drinks — so they decide to flip a coin."
+      Statistics: "Five friends compare their test scores and want to know who
+       is performing best on average."
+
+    ✗ BAD HOOKS:
+      "In this lesson, we will explore compound interest."
+      "Tunde has some oranges to share."  (too generic — could be any topic)
+      "Amina is at the market buying tomatoes." (no connection to the topic)
+
+BITE 2 — "observation"
+  Purpose: Show the student DATA first — before any question or teaching.
+  title: Short, inviting. E.g. "Look at what happens over time"
+  explanation: 1 sentence. Tell them exactly which column to watch.
+  table_headers: 2 short column names (max 3 words each)
+  table_rows: 4–5 rows of REAL numbers showing the pattern clearly.
+    Use clean, round numbers. No awkward decimals.
+
+BITE 3 — "prediction"
+  Purpose: NOW that the student has seen the data, ask them to name what they noticed.
+  title: A simple question about what they just saw.
+  explanation: 1 sentence referring back to the data they just looked at.
+  options: 2–3 choices. 1 correct, others plausible misreadings.
+  reveal: 1 warm, forward-pointing sentence. Never say "wrong".
+
+BITE 4 — "pattern"
+  title: "What do you notice?"
+  explanation: 1 sentence asking them to describe the relationship more precisely.
+  options: 3 choices. 1 correct, 2 plausible misreadings.
+  reveal: 1–2 sentences confirming the pattern, connecting to the concept name.
+
+BITE 5 — "concept"   ← DO NOT CHANGE THIS BITE TYPE
+  title: The exact concept name
+  explanation: Exactly 2 sentences.
+    Sentence 1: What this is called + plain English definition.
+    Sentence 2: ONE short real-world sentence showing why this matters in daily life.
+    E.g. "Compound interest is when your savings earn interest on top of interest.
+    Banks and savings apps use this — it is why starting to save early makes a
+    huge difference."
+    For abstract topics: connect to something they have already encountered.
+    E.g. "A prime number is a number that can only be divided by 1 and itself.
+    They are used in phone encryption — every time you lock your screen, primes
+    are protecting your data."
+
+BITE 6 — "rule"   ← DO NOT CHANGE THIS BITE TYPE
+  title: "The Rule" or "How to use it"
+  explanation: 1–2 sentences. How to apply it.
+  formula: the formula using ^ _ notation. null if no formula.
+  formula_note: what each symbol means. null if not needed.
+
+BITE 7 — "worked_example"
+  title: Name what is being found.
+  explanation: The problem. 1–2 sentences. Student name, specific numbers.
+               Prefer real-world contexts for topics with practical applications.
+               E.g. for compound interest: savings growing over years.
+               E.g. for ratio: mixing a drink, splitting bill.
+               E.g. for speed: journey time calculation.
+  steps: Array of step objects. EVERY step shown. Nothing skipped.
+
+  ══════════════════════════════════════════════════════
+  STEPS FORMAT — CRITICAL — THIS IS THE MOST IMPORTANT PART
+  ══════════════════════════════════════════════════════
+
+  This is a MATHS LEARNING PLATFORM. Solutions must look exactly like a
+  teacher solving on a classroom board. One idea per line. Always.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  THE GOLDEN RULE: ONE IDEA PER LINE
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Every equation → its own line.
+  Every sentence → its own line.
+  After EVERY full stop → \\n (new line). No exceptions.
+  Never use → arrows to chain steps horizontally.
+  Never compress two operations into one line.
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  HOW EACH LINE IS RENDERED ON SCREEN:
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  The renderer detects each line type automatically:
+
+  MATH LINE     → starts with a digit, variable, or operator
+                  Rendered: large bold monospace (18px)
+                  Example: "5x = 15"
+
+  EXPLANATION   → starts with a capital letter, contains words, no = sign
+                  Rendered: smaller italic Nunito (13px)
+                  Example: "Subtract 10 from both sides."
+
+  ANSWER LINE   → starts with "Answer:" or "Solution:"
+                  Rendered: large bold accent colour (20px)
+                  Example: "Answer: x = 3"
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  CORRECT PATTERN — board working:
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  step.label = "Set up"
+  step.text  = "5x + 10 = 25"
+
+  step.label = "Simplify"
+  step.text  = "Subtract 10 from both sides.\\n5x = 25 - 10\\n5x = 15"
+
+  step.label = "Solve"
+  step.text  = "Divide both sides by 5.\\nx = 15 ÷ 5\\nx = 3"
+
+  step.label = "Answer"
+  step.text  = "Answer: x = 3"
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  MORE CORRECT EXAMPLES:
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Fractions (3/4 + 1/6):
+  {"label": "Find LCD",   "text": "LCD of 4 and 6 = 12"}
+  {"label": "Convert",    "text": "3/4 = 9/12\\n1/6 = 2/12"}
+  {"label": "Add",        "text": "9/12 + 2/12 = 11/12"}
+  {"label": "Answer",     "text": "Answer: 11/12"}
+
+  Inverse proportion (Workers × Time):
+  {"label": "Find k",     "text": "x × y = k\\n4 × 6 = 24\\nk = 24"}
+  {"label": "Substitute", "text": "8 × t = 24"}
+  {"label": "Solve",      "text": "Divide both sides by 8.\\nt = 24 ÷ 8\\nt = 3"}
+  {"label": "Answer",     "text": "Answer: 3 hours"}
+
+  Quadratic (factorising):
+  {"label": "Set up",     "text": "x^2 + 5x + 6 = 0"}
+  {"label": "Factorise",  "text": "Find two numbers that multiply to 6 and add to 5.\\n(x + 2)(x + 3) = 0"}
+  {"label": "Solve",      "text": "x + 2 = 0  or  x + 3 = 0\\nx = -2  or  x = -3"}
+  {"label": "Answer",     "text": "Answer: x = -2 or x = -3"}
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  BAD EXAMPLES — NEVER DO THESE:
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ✗ "Subtract 10 from both sides to get 5x = 15, then divide by 5 to get x = 3."
+  ✗ "4 × 6 = 24 → 8 × t = 24 → t = 3"
+  ✗ "We substitute k = 24 into the formula and solve for t."
+  ✗ "5x = 15. Divide both sides by 5. x = 3."
+
+  RULES SUMMARY:
+  - MINIMUM 3 steps, MAXIMUM 5 steps per example
+  - label = 2–4 words: "Set up", "Simplify", "Solve", "Answer"
+  - Final step ALWAYS: label = "Answer", text = "Answer: [value + units]"
+  - Explanation lines: max 8 words, starts capital letter, ends with full stop
+  - After every full stop: add \\n on the SAME step.text field
+  ══════════════════════════════════════════════════════
+
+BITE 8 — "worked_example"
+  Same format as Bite 7. Different student name, different context, slightly harder numbers.
+  If Bite 7 used a real-world context, use a different real-world context here.
+
+BITE 9 — "you_try"
+  title: "Your turn: [what to find]"
+  explanation: Fresh problem only. 1–2 sentences. New context, specific numbers.
+               Real-world context preferred for applicable topics.
+  hint: 1 sentence. Gentle nudge toward the first step.
+  steps: Complete worked solution. Same format as worked_example steps.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ABSOLUTE RULES — break any = lesson fails
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✗ Never use "In this lesson you will learn..."
 ✗ Never use 3+ sentences in explanation
-✗ Never skip a worked example step
-✗ Never use the same context/setting twice in a row
-✗ Never use placeholder values like "X", "Y", "[value]" in table_rows — use real numbers
+✗ Never use sentences in step.text — maths only
+✗ Never skip a step — show every operation
+✗ Never use placeholder numbers like [x] or [value] in table_rows
 ✗ Never use unicode superscripts — use ^ and _ notation only
-
-CONTEXT RULE: Use school and student life contexts first. Rotate settings.
-Good: sharing pencils, football practice, buying snacks, library books, race positions.
-Okay: market stalls, keke fare, suya (use sparingly for variety).
-Bad: "a company distributes tasks", "servers process requests", "a factory produces units".
+✗ Never use the same setting in two consecutive bites
+✗ Never write a hook that could apply to ANY topic — it must be specific to ${title}
+✗ Never make the hook abstract — it must show a real person in a real moment
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Return ONLY valid JSON below. No markdown. No extra text.
+Return ONLY valid JSON. No markdown. No extra text.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 {
   "lesson_title": "${title}",
-  "hook": "One sentence. The key student moment from Bite 1.",
+  "hook": "1 sentence. The student scene from Bite 1.",
   "bites": [
     {
       "order_index": 0,
       "type": "hook",
-      "title": "Lesson topic name — friendly",
-      "explanation": "One sentence. Specific student scene."
+      "title": "Friendly, intriguing topic name — not a textbook title",
+      "explanation": "Exactly 1 sentence. Real-world moment OR curiosity spark. Specific to ${title}."
     },
     {
       "order_index": 1,
+      "type": "observation",
+      "title": "Look at this data",
+      "explanation": "1 sentence. Tell them what to watch.",
+      "table_headers": ["Column 1", "Column 2"],
+      "table_rows": [["val","val"],["val","val"],["val","val"],["val","val"],["val","val"]]
+    },
+    {
+      "order_index": 2,
       "type": "prediction",
-      "title": "What do you think happens?",
-      "explanation": "1-sentence setup.",
+      "title": "What do you think is happening?",
+      "explanation": "1 sentence referring back to the data above.",
       "options": [
         {"option_text": "Option A", "is_correct": false},
         {"option_text": "Option B — correct", "is_correct": true},
         {"option_text": "Option C", "is_correct": false}
       ],
-      "reveal": "1 sentence after answering."
-    },
-    {
-      "order_index": 2,
-      "type": "observation",
-      "title": "Look at the numbers",
-      "explanation": "1-sentence prompt.",
-      "table_headers": ["Header 1", "Header 2"],
-      "table_rows": [["val","val"],["val","val"],["val","val"],["val","val"]]
+      "reveal": "Great — keep going and we will see exactly what this is called! 👇"
     },
     {
       "order_index": 3,
       "type": "pattern",
       "title": "What do you notice?",
-      "explanation": "1-sentence question.",
+      "explanation": "1 sentence question about the pattern.",
       "options": [
         {"option_text": "Description A", "is_correct": false},
-        {"option_text": "Description B — correct", "is_correct": true},
+        {"option_text": "Correct description", "is_correct": true},
         {"option_text": "Description C", "is_correct": false}
       ],
-      "reveal": "Confirm the pattern. 1–2 sentences."
+      "reveal": "Confirm pattern. Connect to coming concept. 1–2 sentences."
     },
     {
       "order_index": 4,
       "type": "concept",
       "title": "Concept name",
-      "explanation": "Exactly 2 short sentences."
+      "explanation": "Sentence 1: name + definition. Sentence 2: why this matters in real life."
     },
     {
       "order_index": 5,
       "type": "rule",
       "title": "The Rule",
       "explanation": "1–2 sentences.",
-      "formula": "formula or null",
-      "formula_note": "what each symbol means, or null"
+      "formula": "formula using ^ _ or null",
+      "formula_note": "symbol meanings or null"
     },
     {
       "order_index": 6,
       "type": "worked_example",
-      "title": "Example title",
-      "explanation": "Problem. 1–2 sentences. Student context.",
+      "title": "Finding [what is being found]",
+      "explanation": "Problem statement. 1–2 sentences. Student name + numbers. Real-world context where applicable.",
       "steps": [
-        {"label": "Step 1 — label", "text": "Show working clearly."},
-        {"label": "Step 2 — label", "text": "Continue."},
-        {"label": "Step 3 — label", "text": "Final answer with reason."}
+        {"label": "Find k",     "text": "x × y = k\n4 workers × 6 hours = 24\nk = 24"},
+        {"label": "Substitute", "text": "8 × t = 24"},
+        {"label": "Solve",      "text": "Divide both sides by 8.\nt = 24 ÷ 8\nt = 3"},
+        {"label": "Answer",     "text": "Answer: 3 hours"}
       ]
     },
     {
       "order_index": 7,
       "type": "worked_example",
       "title": "Another example",
-      "explanation": "Different student context, different numbers.",
+      "explanation": "Different student, different real-world or school context, slightly harder.",
       "steps": [
-        {"label": "Step 1 — label", "text": "..."},
-        {"label": "Step 2 — label", "text": "..."},
-        {"label": "Step 3 — label", "text": "..."}
+        {"label": "Set up",     "text": "...equation on its own line..."},
+        {"label": "Simplify",   "text": "Short explanation (max 8 words).\n...result on its own line..."},
+        {"label": "Solve",      "text": "Short explanation.\n...working...\n...result..."},
+        {"label": "Answer",     "text": "Answer: ..."}
       ]
     },
     {
       "order_index": 8,
       "type": "you_try",
       "title": "Your turn: [what to find]",
-      "explanation": "Fresh problem. 1–2 sentences.",
-      "hint": "One gentle nudge.",
+      "explanation": "New problem. 1–2 sentences. Real-world context preferred.",
+      "hint": "1 sentence. Gentle first-step nudge.",
       "steps": [
-        {"label": "Step 1", "text": "..."},
-        {"label": "Step 2", "text": "..."},
-        {"label": "Step 3", "text": "..."}
+        {"label": "Write what we know",  "text": "...actual maths..."},
+        {"label": "Use the rule",        "text": "...actual maths..."},
+        {"label": "Solve",               "text": "...actual maths..."},
+        {"label": "Answer",              "text": "Answer: ..."}
       ]
     }
   ]
@@ -465,7 +655,31 @@ QUESTION RULES:
 - 4 options each, exactly 1 correct
 - Wrong options must be real mistakes students make (e.g. adding instead of dividing, forgetting to invert, using wrong formula step)
 - hint: 1 gentle sentence pointing toward the first step
-- explanation: step-by-step. Each step on a new line using \\n. Show every calculation. Say why. Write like you are sitting next to the student.
+- explanation: BOARD-STYLE WORKING. Use \\n between EVERY line. One idea per line.
+  Pattern: equation → short explanation (ends with .) → result → explanation → answer
+  After EVERY full stop in an explanation: add \\n immediately.
+  Never chain steps with →. Never write a sentence paragraph.
+
+  HOW THE RENDERER READS THIS:
+  Lines starting with capital letters + words → rendered as italic explanation (small)
+  Lines starting with digits/variables/operators → rendered as bold math (large)
+  Lines starting with "Answer:" → rendered in accent colour (largest)
+
+  CORRECT format (linear equation):
+  "5x + 10 = 25\\nSubtract 10 from both sides.\\n5x = 15\\nDivide both sides by 5.\\nx = 3\\nAnswer: x = 3"
+
+  CORRECT format (proportion):
+  "x × y = k\\n3 × 8 = 24\\nk = 24\\n6 × y = 24\\nDivide both sides by 6.\\ny = 4\\nAnswer: 4 hours"
+
+  CORRECT format (fractions):
+  "LCD = 12\\n3/4 = 9/12\\n1/6 = 2/12\\n9/12 + 2/12 = 11/12\\nAnswer: 11/12"
+
+  WRONG (never do this):
+  "First subtract 10 from both sides to get 5x = 15, then divide by 5 to find x = 3."
+  "4 × 6 = 24 → 8 × t = 24 → t = 3"
+
+  Every line = short equation OR short explanation (max 8 words, ends with full stop).
+  Final line ALWAYS: "Answer: [value + units]"
 
 Return ONLY valid JSON. No markdown.
 
@@ -476,7 +690,7 @@ Return ONLY valid JSON. No markdown.
       "question_text": "Short question with student context and specific numbers.",
       "difficulty": "easy",
       "hint": "One gentle nudge toward the first step.",
-      "explanation": "Step 1: [what we do and why] → [calculation]\\nStep 2: [next step] → [calculation]\\nAnswer: [value] because [brief reason].",
+      "explanation": "x × y = k\n3 × 8 = 24\nk = 24\n6 × y = 24\nDivide both sides by 6.\ny = 4\nAnswer: 4 hours",
       "options": [
         {"option_text": "Correct answer", "is_correct": true},
         {"option_text": "Common mistake 1", "is_correct": false},

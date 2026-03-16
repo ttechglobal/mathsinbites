@@ -1,141 +1,595 @@
-import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
-import ChallengeMode from '@/components/learn/ChallengeMode'
+'use client'
 
-export default async function ChallengePage({ searchParams }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/auth/login')
+import { useState, useEffect, useRef } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
+import { useMode } from '@/lib/ModeContext'
 
-  const params  = await searchParams
-  const topicId = params?.topicId || null
-  const isDaily = params?.mode === 'daily'
-
-  const { data: student } = await supabase
-    .from('students').select('*').eq('profile_id', user.id).single()
-  if (!student) redirect('/auth/login')
-
-  let questions  = []
-  let topicTitle = 'Daily Challenge'
-
-  // Find the student's most recently active topic from progress
-  async function getActiveTopicIds() {
-    // Get student's completed subtopics
-    const { data: progress } = await supabase
-      .from('student_progress')
-      .select('subtopic_id, completed_at')
-      .eq('student_id', student.id)
-      .order('completed_at', { ascending: false })
-      .limit(20)
-
-    if (!progress?.length) return []
-
-    // Get topic IDs from those subtopics
-    const subtopicIds = progress.map(p => p.subtopic_id)
-    const { data: subtopics } = await supabase
-      .from('subtopics')
-      .select('topic_id')
-      .in('id', subtopicIds)
-
-    return [...new Set((subtopics || []).map(s => s.topic_id))]
-  }
-
-  if (isDaily) {
-    // Daily challenge: 5 questions — medium + hard only, from student's active topics
-    const activeTopicIds = await getActiveTopicIds()
-
-    if (activeTopicIds.length > 0) {
-      // Try to get medium+hard from their topics first
-      const { data: topicQs } = await supabase
-        .from('practice_questions')
-        .select('*, options:practice_question_options(*)')
-        .in('topic_id', activeTopicIds)
-        .in('difficulty', ['medium', 'hard'])
-        .eq('is_active', true)
-
-      if ((topicQs || []).length >= 3) {
-        const shuffled = (topicQs || []).sort(() => Math.random() - 0.5)
-        const medium = shuffled.filter(q => q.difficulty === 'medium').slice(0, 3)
-        const hard   = shuffled.filter(q => q.difficulty === 'hard').slice(0, 2)
-        questions = [...medium, ...hard].sort(() => Math.random() - 0.5)
-        // Pad to 5 if needed
-        if (questions.length < 5) {
-          const remaining = shuffled.filter(q => !questions.find(qq => qq.id === q.id)).slice(0, 5 - questions.length)
-          questions = [...questions, ...remaining]
-        }
+// ─── Math renderer ────────────────────────────────────────────────────────────
+function parseMath(text) {
+  const parts = []; let i = 0, buf = ''
+  while (i < text.length) {
+    const ch = text[i]
+    if ((ch === '^' || ch === '_') && i + 1 < text.length) {
+      if (buf) { parts.push({ t: 'text', v: buf }); buf = '' }
+      const type = ch === '^' ? 'sup' : 'sub'; i++
+      if (text[i] === '{') {
+        const end = text.indexOf('}', i)
+        parts.push({ t: type, v: end === -1 ? text.slice(i + 1) : text.slice(i + 1, end) })
+        i = end === -1 ? text.length : end + 1
+      } else {
+        let val = ''
+        while (i < text.length && /[a-zA-Z0-9.]/.test(text[i])) { val += text[i]; i++ }
+        if (val) parts.push({ t: type, v: val }); else buf += ch
       }
-    }
-
-    // Fallback: class level medium+hard questions
-    if (questions.length < 3 && student?.class_level) {
-      const { data: levelQs } = await supabase
-        .from('practice_questions')
-        .select('*, options:practice_question_options(*)')
-        .eq('class_level', student.class_level)
-        .in('difficulty', ['medium', 'hard'])
-        .eq('is_active', true)
-        .limit(50)
-
-      if ((levelQs || []).length > 0) {
-        const shuffled = (levelQs || []).sort(() => Math.random() - 0.5)
-        const medium = shuffled.filter(q => q.difficulty === 'medium').slice(0, 3)
-        const hard   = shuffled.filter(q => q.difficulty === 'hard').slice(0, 2)
-        questions = [...medium, ...hard].sort(() => Math.random() - 0.5)
-        if (questions.length < 5) {
-          questions = shuffled.slice(0, 5)
-        }
-      }
-    }
-
-    topicTitle = 'Daily Challenge'
-
-  } else if (topicId) {
-    // Topic challenge: medium+hard from specific topic
-    const { data: topic } = await supabase.from('topics').select('title').eq('id', topicId).single()
-    topicTitle = topic?.title || 'Challenge'
-
-    const { data } = await supabase
-      .from('practice_questions')
-      .select('*, options:practice_question_options(*)')
-      .eq('topic_id', topicId)
-      .in('difficulty', ['medium', 'hard'])
-      .eq('is_active', true)
-
-    questions = (data || []).sort(() => Math.random() - 0.5)
-
-    // Fallback to all difficulties if not enough medium/hard
-    if (questions.length < 3) {
-      const { data: all } = await supabase
-        .from('practice_questions')
-        .select('*, options:practice_question_options(*)')
-        .eq('topic_id', topicId)
-        .eq('is_active', true)
-      questions = (all || []).sort(() => Math.random() - 0.5)
-    }
+    } else { buf += ch; i++ }
   }
+  if (buf) parts.push({ t: 'text', v: buf })
+  return parts
+}
 
-  // Check if daily already completed today
-  let dailyDone = false
-  if (isDaily && student?.id) {
-    const today = new Date().toISOString().split('T')[0]
-    const { data: dc } = await supabase
-      .from('daily_challenges')
-      .select('id, completed')
-      .eq('student_id', student.id)
-      .eq('challenge_date', today)
-      .single()
-    dailyDone = dc?.completed === true
+function MathText({ text, style }) {
+  if (!text) return null
+  return (
+    <span style={style}>
+      {parseMath(String(text)).map((p, i) =>
+        p.t === 'sup' ? <sup key={i} style={{ fontSize: '0.72em', verticalAlign: 'super', lineHeight: 0 }}>{p.v}</sup>
+        : p.t === 'sub' ? <sub key={i} style={{ fontSize: '0.72em', verticalAlign: 'sub', lineHeight: 0 }}>{p.v}</sub>
+        : <span key={i}>{p.v}</span>
+      )}
+    </span>
+  )
+}
+
+// ─── Board-style explanation renderer ────────────────────────────────────────
+// Same lineType logic as LessonPlayer and PracticePage
+
+function lineType(line) {
+  const t = line.trim()
+  if (!t) return 'empty'
+  if (/^(Answer|Solution)\s*:/i.test(t)) return 'answer'
+  const isWordStart = /^[A-Z][a-z]/.test(t)
+  const hasWords    = (t.match(/[a-z]{2,}/g) || []).length >= 2
+  const hasEquals   = t.includes('=')
+  const startsDigit = /^\d/.test(t)
+  const isFraction  = /^\d+\/\d+/.test(t)
+  const hasOperator = /[+\-×÷*/^]/.test(t) && !isWordStart
+  if (isWordStart && hasWords && !hasEquals && !startsDigit && !isFraction && !hasOperator) return 'explanation'
+  return 'math'
+}
+
+function BoardExplanation({ text, accent, M }) {
+  if (!text?.trim()) return null
+  const ac    = accent || '#4F46E5'
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
+  if (!lines.length) return null
+
+  return (
+    <div style={{ background: M.mathBg || '#F8F9FF', borderRadius: 14, padding: '16px 18px 12px' }}>
+      <div style={{ fontSize: 9, fontWeight: 800, color: M.textSecondary, textTransform: 'uppercase', letterSpacing: 1.2, fontFamily: 'Nunito, sans-serif', marginBottom: 8, opacity: 0.65 }}>
+        Working
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+        {lines.map((line, i) => {
+          const type = lineType(line)
+          if (type === 'answer') return (
+            <div key={i} style={{ fontFamily: "'Courier New', Courier, monospace", fontSize: 20, fontWeight: 900, color: ac, lineHeight: 2.2, letterSpacing: 0.3, marginTop: 6 }}>
+              <MathText text={line} />
+            </div>
+          )
+          if (type === 'explanation') return (
+            <div key={i} style={{ fontFamily: 'Nunito, sans-serif', fontSize: 13, fontWeight: 600, fontStyle: 'italic', color: M.textSecondary, lineHeight: 1.6, marginTop: 3, marginBottom: 1, paddingLeft: 2 }}>
+              {line}
+            </div>
+          )
+          return (
+            <div key={i} style={{ fontFamily: "'Courier New', Courier, monospace", fontSize: 18, fontWeight: 700, color: M.textPrimary, lineHeight: 2.0, letterSpacing: 0.2 }}>
+              <MathText text={line} />
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ─── Timer component ──────────────────────────────────────────────────────────
+function TimerBar({ seconds, total, accent, M }) {
+  const pct = Math.max(0, (seconds / total) * 100)
+  const color = pct > 50 ? accent : pct > 25 ? '#FFC933' : '#EF4444'
+  return (
+    <div style={{ height: 6, background: `${color}25`, borderRadius: 99, overflow: 'hidden', marginBottom: 4 }}>
+      <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 99, transition: 'width 0.5s linear, background 0.3s ease' }} />
+    </div>
+  )
+}
+
+// ─── Challenge question component ────────────────────────────────────────────
+const QUESTION_TIME = 60  // seconds per question
+
+function ChallengeQuestion({ question, questionNumber, total, accent, M, mode, onNext }) {
+  const [picked,    setPicked]    = useState(null)
+  const [showExp,   setShowExp]   = useState(false)
+  const [timeLeft,  setTimeLeft]  = useState(QUESTION_TIME)
+  const [timedOut,  setTimedOut]  = useState(false)
+  const timerRef = useRef(null)
+
+  const isBlaze    = mode === 'blaze'
+  const opts       = question.options || []
+  const answered   = picked !== null || timedOut
+  const isCorrect  = !timedOut && opts[picked]?.is_correct
+  const correctOpt = opts.find(o => o.is_correct)
+  const hasExp     = !!(question.explanation?.trim())
+
+  // Start countdown when question mounts
+  useEffect(() => {
+    timerRef.current = setInterval(() => {
+      setTimeLeft(t => {
+        if (t <= 1) {
+          clearInterval(timerRef.current)
+          setTimedOut(true)
+          return 0
+        }
+        return t - 1
+      })
+    }, 1000)
+    return () => clearInterval(timerRef.current)
+  }, [])
+
+  function handlePick(i) {
+    if (answered) return
+    clearInterval(timerRef.current)
+    setPicked(i)
   }
 
   return (
-    <ChallengeMode
-      questions={questions}
-      topicTitle={topicTitle}
-      topicId={topicId}
-      student={student}
-      isDaily={isDaily}
-      dailyDone={dailyDone}
-      userId={user.id}
-    />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, animation: 'slideUp 0.28s ease' }}>
+
+      {/* Timer + question counter */}
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+          <div style={{ fontSize: 10, fontWeight: 800, color: timeLeft <= 8 ? '#EF4444' : M.textSecondary, fontFamily: 'Nunito, sans-serif', letterSpacing: 1, textTransform: 'uppercase' }}>
+            ⏱ {timeLeft}s
+          </div>
+          <div style={{ fontSize: 10, fontWeight: 800, color: accent, fontFamily: 'Nunito, sans-serif', letterSpacing: 1, textTransform: 'uppercase' }}>
+            ⚡ {questionNumber} / {total}
+          </div>
+        </div>
+        <TimerBar seconds={timeLeft} total={QUESTION_TIME} accent={accent} M={M} />
+      </div>
+
+      {/* Question text */}
+      <div style={{ background: M.lessonCard, border: M.lessonBorder, borderRadius: M.cardRadius, padding: '18px', boxShadow: M.cardShadow }}>
+        <div style={{ fontSize: 16, fontWeight: 800, color: M.textPrimary, lineHeight: 1.65, fontFamily: 'Nunito, sans-serif' }}>
+          <MathText text={question.question_text || question.title || ''} />
+        </div>
+      </div>
+
+      {/* Timed-out message (before options colour up) */}
+      {timedOut && !picked && (
+        <div style={{ background: `${M.wrongColor}10`, border: `1.5px solid ${M.wrongColor}30`, borderRadius: 12, padding: '10px 14px', fontSize: 13, fontWeight: 700, color: M.wrongColor, fontFamily: 'Nunito, sans-serif', animation: 'slideUp 0.2s ease' }}>
+          ⏰ Time's up!
+        </div>
+      )}
+
+      {/* Options — 2-column */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        {opts.map((opt, i) => {
+          const letters  = ['A', 'B', 'C', 'D']
+          const isChosen = answered && picked === i
+          const isRight  = opt.is_correct
+          let border = `2px solid ${accent}25`, bg = M.lessonCard, color = M.textPrimary
+          if (answered) {
+            if (isRight)       { border = `2px solid ${M.correctColor}`; bg = `${M.correctColor}15`; color = M.correctColor }
+            else if (isChosen) { border = `2px solid ${M.wrongColor}`;   bg = `${M.wrongColor}12`;   color = M.wrongColor   }
+            else               { border = `2px solid ${accent}10`;       color = M.textSecondary }
+          }
+          return (
+            <button
+              key={i}
+              onClick={() => handlePick(i)}
+              style={{ background: bg, border, borderRadius: 14, padding: '14px 10px', fontFamily: 'Nunito, sans-serif', fontWeight: 800, color, cursor: answered ? 'default' : 'pointer', textAlign: 'center', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, minHeight: 70 }}
+              onMouseEnter={e => { if (!answered) { e.currentTarget.style.borderColor = accent; e.currentTarget.style.transform = 'translateY(-2px)' } }}
+              onMouseLeave={e => { if (!answered) { e.currentTarget.style.borderColor = `${accent}25`; e.currentTarget.style.transform = '' } }}
+            >
+              <span style={{ width: 24, height: 24, borderRadius: '50%', background: answered && isRight ? M.correctColor : answered && isChosen ? M.wrongColor : `${accent}22`, color: answered && (isRight || isChosen) ? '#fff' : accent, fontSize: 11, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.2s' }}>
+                {answered && isRight ? '✓' : answered && isChosen && !isRight ? '✗' : letters[i]}
+              </span>
+              <MathText text={opt.option_text || opt.text || ''} style={{ fontSize: 13, lineHeight: 1.35 }} />
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Feedback panel */}
+      {answered && (
+        <div style={{ borderRadius: 14, overflow: 'hidden', border: `2px solid ${isCorrect ? M.correctColor : M.wrongColor}40`, background: isCorrect ? `${M.correctColor}08` : `${M.wrongColor}06`, animation: 'slideUp 0.25s ease' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: isCorrect ? `${M.correctColor}14` : `${M.wrongColor}12` }}>
+            <span style={{ fontSize: 22 }}>{isCorrect ? '🎉' : timedOut ? '⏰' : '💡'}</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 900, fontFamily: 'Nunito, sans-serif', color: isCorrect ? M.correctColor : M.wrongColor }}>
+                {isCorrect ? 'Correct! 🌟' : timedOut && !picked ? "Time's up!" : 'Not quite!'}
+              </div>
+              {!isCorrect && correctOpt && (
+                <div style={{ fontSize: 12, color: M.correctColor, fontFamily: 'Nunito, sans-serif', marginTop: 3, fontWeight: 700 }}>
+                  ✅ Answer: <MathText text={correctOpt.option_text} />
+                </div>
+              )}
+            </div>
+            {hasExp && (
+              <button
+                onClick={() => setShowExp(v => !v)}
+                style={{ background: showExp ? accent : 'transparent', border: `1.5px solid ${accent}`, borderRadius: 20, padding: '5px 13px', cursor: 'pointer', fontSize: 12, fontWeight: 800, fontFamily: 'Nunito, sans-serif', color: showExp ? '#fff' : accent, flexShrink: 0, transition: 'all 0.15s' }}>
+                {showExp ? 'Hide ▲' : 'Why? 💡'}
+              </button>
+            )}
+          </div>
+
+          {/* Board-style working */}
+          {showExp && hasExp && (
+            <div style={{ padding: '4px 16px 14px' }}>
+              <BoardExplanation text={question.explanation} accent={accent} M={M} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Next button */}
+      {answered && (
+        <button
+          onClick={() => onNext(isCorrect)}
+          style={{ ...M.primaryBtn, width: '100%', fontSize: 16, padding: '15px', animation: 'slideUp 0.2s ease' }}>
+          {questionNumber >= total ? 'See Results ✓' : 'Next →'}
+        </button>
+      )}
+    </div>
+  )
+}
+
+// ─── Results screen ───────────────────────────────────────────────────────────
+function ChallengeResults({ correct, total, xpEarned, trialsLeft, onRetry, onBack, accent, M, mode }) {
+  const isBlaze = mode === 'blaze'
+  const perfect = correct === total
+  const pct     = total > 0 ? Math.round((correct / total) * 100) : 0
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 0', gap: 24, animation: 'slideUp 0.35s ease', textAlign: 'center' }}>
+
+      <div style={{ animation: 'float 2s ease-in-out infinite', fontSize: 52 }}>
+        {perfect ? '🏆' : correct >= Math.ceil(total * 0.6) ? '⭐' : '💪'}
+      </div>
+
+      <div>
+        <div style={{ fontFamily: M.headingFont, fontSize: 26, fontWeight: 900, color: M.textPrimary, marginBottom: 6 }}>
+          {perfect ? 'Perfect! 🏆' : correct >= Math.ceil(total * 0.6) ? 'Well done! ⭐' : 'Keep practising! 💪'}
+        </div>
+        <div style={{ fontSize: 15, color: M.textSecondary, fontFamily: 'Nunito, sans-serif' }}>
+          You got <strong style={{ color: accent }}>{correct}</strong> out of <strong>{total}</strong> correct
+        </div>
+      </div>
+
+      {/* XP earned */}
+      <div style={{ background: isBlaze ? '#FFD700' : `${accent}12`, border: isBlaze ? '2px solid #0d0d0d' : `1.5px solid ${accent}30`, borderRadius: isBlaze ? 12 : 20, padding: '20px 48px', boxShadow: isBlaze ? '3px 3px 0 #0d0d0d' : `0 4px 20px ${accent}20` }}>
+        <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase', color: isBlaze ? '#0d0d0d' : M.textSecondary, fontFamily: 'Nunito, sans-serif', marginBottom: 4 }}>XP Earned</div>
+        <div style={{ fontSize: 52, fontWeight: 900, color: isBlaze ? '#0d0d0d' : '#FFC933', fontFamily: M.headingFont, lineHeight: 1, letterSpacing: -1 }}>
+          +{xpEarned}<span style={{ fontSize: 22, marginLeft: 6 }}>✨</span>
+        </div>
+        <div style={{ fontSize: 11, color: isBlaze ? 'rgba(0,0,0,0.5)' : M.textSecondary, fontFamily: 'Nunito, sans-serif', marginTop: 4 }}>
+          {correct} of {total} correct · {pct}%
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div style={{ width: '100%', maxWidth: 300 }}>
+        <div style={{ height: 10, background: `${accent}20`, borderRadius: 99, overflow: 'hidden' }}>
+          <div style={{ width: `${pct}%`, height: '100%', background: perfect ? M.correctColor : accent, borderRadius: 99, transition: 'width 0.9s ease' }} />
+        </div>
+      </div>
+
+      {/* Trials remaining indicator */}
+      <div style={{ fontSize: 12, color: M.textSecondary, fontFamily: 'Nunito, sans-serif', fontWeight: 600 }}>
+        {trialsLeft > 0
+          ? `🔁 ${trialsLeft} attempt${trialsLeft !== 1 ? 's' : ''} remaining today`
+          : "🔒 No more attempts today — come back tomorrow!"}
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 300 }}>
+        {onRetry && (
+          <button onClick={onRetry} style={{ ...M.primaryBtn, fontSize: 15, padding: '15px' }}>
+            {isBlaze ? '⚡ Try Again' : '🔄 Try Again'}
+          </button>
+        )}
+        <button onClick={onBack} style={{ ...M.ghostBtn, fontSize: 14 }}>
+          ← Back to Learn
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Intro / countdown screen ─────────────────────────────────────────────────
+function ChallengeIntro({ onStart, onBack, accent, M, mode }) {
+  const isBlaze = mode === 'blaze'
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 24px', gap: 24, textAlign: 'center', animation: 'slideUp 0.3s ease' }}>
+      <div style={{ animation: 'float 2.5s ease-in-out infinite', fontSize: 56 }}>⚡</div>
+      <div>
+        <div style={{ fontFamily: M.headingFont, fontSize: 28, fontWeight: 900, color: M.textPrimary, marginBottom: 8, lineHeight: 1.2 }}>
+          🏆 Daily Challenge
+        </div>
+        <div style={{ fontSize: 14, color: M.textSecondary, fontFamily: 'Nunito, sans-serif', lineHeight: 1.7, maxWidth: 280 }}>
+          {isBlaze ? '5 QUESTIONS. 60 SECONDS EACH. NO EXCUSES.' : '5 questions · 60 seconds each · Board-style working shown after each answer'}
+        </div>
+      </div>
+
+      {/* Stats chips */}
+      <div style={{ display: 'flex', gap: 10 }}>
+        {[
+          { icon: '⚡', label: '5 questions', color: accent },
+          { icon: '⏱', label: '60s per Q',   color: '#FFC933' },
+          { icon: '🏆', label: '+50 XP max',  color: M.correctColor },
+        ].map(({ icon, label, color }) => (
+          <div key={label} style={{ background: `${color}12`, border: `1px solid ${color}30`, borderRadius: 12, padding: '10px 12px', textAlign: 'center', flex: 1 }}>
+            <div style={{ fontSize: 18, marginBottom: 4 }}>{icon}</div>
+            <div style={{ fontSize: 10, fontWeight: 800, color, fontFamily: 'Nunito, sans-serif', lineHeight: 1.3 }}>{label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 300 }}>
+        <button onClick={onStart} style={{ ...M.primaryBtn, fontSize: 16, padding: '16px', width: '100%' }}>
+          {isBlaze ? '⚡ ACCEPT CHALLENGE' : 'Start Challenge →'}
+        </button>
+        <button onClick={onBack} style={{ ...M.ghostBtn, fontSize: 14 }}>← Back</button>
+      </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MAIN CHALLENGE PAGE
+// ─────────────────────────────────────────────────────────────────────────────
+export default function ChallengePage() {
+  const router       = useRouter()
+  const searchParams = useSearchParams()
+  const supabase     = createClient()
+  const { M, mode }  = useMode()
+
+  const challengeMode = searchParams.get('mode') || 'daily'  // 'daily' | 'topic'
+
+  const accent    = M.accentColor
+  const isBlaze   = mode === 'blaze'
+  const isNova    = mode === 'nova'
+  const bodyColor = isNova ? 'rgba(200,195,255,0.78)' : M.textSecondary
+
+  // ── State ──────────────────────────────────────────────────────────────────
+  const [phase,        setPhase]        = useState('loading')  // 'loading' | 'locked' | 'active' | 'done'
+  const [questions,    setQuestions]    = useState([])
+  const [error,        setError]        = useState(null)
+  const [currentIdx,   setCurrentIdx]   = useState(0)
+  const [results,      setResults]      = useState([])
+  const [student,      setStudent]      = useState(null)
+  const [trialsToday,  setTrialsToday]  = useState(0)   // 0, 1, or 2
+  const MAX_DAILY_TRIALS = 2
+
+  // ── Load student ───────────────────────────────────────────────────────────
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return
+      supabase.from('students').select('*').eq('profile_id', user.id).single()
+        .then(({ data }) => { if (data) setStudent(data) })
+    })
+  }, [])
+
+  // ── Load questions + check daily trial count ──────────────────────────────
+  // - Questions only from subtopics the student has completed (falls back to all)
+  // - Tracks how many challenges they have started today; locks at MAX_DAILY_TRIALS
+  useEffect(() => {
+    if (!student) return
+    async function load() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) { setError('Not logged in.'); setPhase('locked'); return }
+
+        // Check today's trial count from challenge_attempts table
+        // (falls back gracefully if the table doesn't exist yet)
+        const todayStart = new Date(); todayStart.setHours(0,0,0,0)
+        try {
+          const { data: attempts } = await supabase
+            .from('challenge_attempts')
+            .select('id')
+            .eq('student_id', student.id)
+            .gte('created_at', todayStart.toISOString())
+          setTrialsToday(attempts?.length || 0)
+          if ((attempts?.length || 0) >= MAX_DAILY_TRIALS) {
+            setPhase('locked')
+            return
+          }
+        } catch (_) {
+          // table may not exist yet — allow challenge to proceed
+          setTrialsToday(0)
+        }
+
+        // Load questions from completed subtopics
+        let lessonIds = []
+        const { data: progress } = await supabase
+          .from('student_progress')
+          .select('subtopic_id')
+          .eq('student_id', student.id)
+          .eq('status', 'completed')
+
+        if (progress?.length) {
+          const { data: lessons } = await supabase
+            .from('lessons').select('id').in('subtopic_id', progress.map(p => p.subtopic_id))
+          lessonIds = (lessons || []).map(l => l.id)
+        }
+
+        let query = supabase
+          .from('questions').select('*, options:question_options(*)').limit(80)
+        if (lessonIds.length > 0) query = query.in('lesson_id', lessonIds)
+
+        const { data: raw } = await query
+        if (!raw?.length) {
+          setError('No questions available yet. Complete some lessons first!')
+          setPhase('locked')
+          return
+        }
+
+        const shuffled = [...raw]
+          .sort(() => Math.random() - 0.5).slice(0, 5)
+          .map(q => ({ ...q, options: [...(q.options || [])].sort(() => Math.random() - 0.5) }))
+
+        setQuestions(shuffled)
+        setPhase('active')   // skip intro — jump straight in
+      } catch (e) {
+        setError('Failed to load challenge. Please try again.')
+        console.error('[challenge]', e)
+        setPhase('locked')
+      }
+    }
+    load()
+  }, [student])
+
+  // ── Handlers ───────────────────────────────────────────────────────────────
+  function handleNext(wasCorrect) {
+    const newResults = [...results, { correct: wasCorrect }]
+    setResults(newResults)
+    if (currentIdx + 1 >= questions.length) {
+      const correctCount = newResults.filter(r => r.correct).length
+      const xpEarned = correctCount === questions.length ? 50 : Math.max(5, Math.round((correctCount / questions.length) * 50))
+      awardXP(xpEarned)
+      recordAttempt()
+      setPhase('done')
+    } else {
+      setCurrentIdx(i => i + 1)
+    }
+  }
+
+  async function awardXP(amount) {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data: s } = await supabase.from('students').select('xp, monthly_xp').eq('profile_id', user.id).single()
+      await supabase.from('students').update({ xp: (s?.xp || 0) + amount, monthly_xp: (s?.monthly_xp || 0) + amount }).eq('profile_id', user.id)
+    } catch (e) { console.error('[challenge] XP:', e.message) }
+  }
+
+  async function recordAttempt() {
+    try {
+      await supabase.from('challenge_attempts').insert({ student_id: student?.id })
+    } catch (_) { /* table may not exist yet */ }
+    setTrialsToday(t => t + 1)
+  }
+
+  // Retry: only allowed if trialsToday < MAX_DAILY_TRIALS
+  function handleRetry() {
+    if (trialsToday >= MAX_DAILY_TRIALS) { setPhase('locked'); return }
+    const reshuffled = [...questions]
+      .sort(() => Math.random() - 0.5)
+      .map(q => ({ ...q, options: [...(q.options || [])].sort(() => Math.random() - 0.5) }))
+    setQuestions(reshuffled)
+    setResults([])
+    setCurrentIdx(0)
+    setPhase('active')
+  }
+
+  // ── Derived ────────────────────────────────────────────────────────────────
+  const correct   = results.filter(r => r.correct).length
+  const xpEarned  = correct === questions.length ? 50 : Math.max(5, Math.round((correct / Math.max(questions.length, 1)) * 50))
+  const currentQ  = questions[currentIdx]
+  const trialsLeft = Math.max(0, MAX_DAILY_TRIALS - trialsToday)
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+  return (
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: M.lessonBg, fontFamily: 'Nunito, sans-serif' }}>
+
+      {/* Top bar */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', flexShrink: 0, borderBottom: `1px solid ${accent}18`, background: M.hudBg }}>
+        <button onClick={() => router.push('/learn')}
+          style={{ width: 34, height: 34, borderRadius: '50%', cursor: 'pointer', background: M.lessonCard, border: M.lessonBorder, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: M.textSecondary, flexShrink: 0 }}>
+          ←
+        </button>
+        {phase === 'active' && (
+          <div style={{ flex: 1, height: 6, background: M.progressTrack, borderRadius: 99, overflow: 'hidden' }}>
+            <div style={{ width: `${Math.round((currentIdx / questions.length) * 100)}%`, height: '100%', borderRadius: 99, background: `linear-gradient(90deg,${accent},${M.accent2 || accent})`, transition: 'width 0.4s ease' }} />
+          </div>
+        )}
+        <div style={{ fontFamily: 'Nunito, sans-serif', fontSize: 13, fontWeight: 800, color: accent, flexShrink: 0 }}>
+          {phase === 'active' ? `⚡ Q${currentIdx + 1}/${questions.length}` : '🏆 Challenge'}
+        </div>
+      </div>
+
+      {/* Content */}
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        <div style={{ maxWidth: 520, margin: '0 auto', padding: '20px 18px 40px' }}>
+
+          {/* Loading */}
+          {phase === 'loading' && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 60, gap: 12, color: bodyColor }}>
+              <div style={{ fontSize: 32, animation: 'float 1.5s ease-in-out infinite' }}>⚡</div>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>Preparing your challenge…</div>
+            </div>
+          )}
+
+          {/* Locked — used up both trials, or error */}
+          {phase === 'locked' && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 60, gap: 20, textAlign: 'center', animation: 'slideUp 0.3s ease' }}>
+              <div style={{ fontSize: 52 }}>{error ? '📭' : '🔒'}</div>
+              <div>
+                <div style={{ fontFamily: M.headingFont, fontSize: 22, fontWeight: 900, color: M.textPrimary, marginBottom: 8 }}>
+                  {error ? 'Something went wrong' : 'Challenge limit reached'}
+                </div>
+                <div style={{ fontSize: 14, color: bodyColor, fontFamily: 'Nunito, sans-serif', lineHeight: 1.7, maxWidth: 280 }}>
+                  {error || `You have used both of today's challenge attempts. Come back tomorrow for a fresh challenge! 💪`}
+                </div>
+              </div>
+              {!error && (
+                <div style={{ background: `${accent}10`, border: `1.5px solid ${accent}25`, borderRadius: 16, padding: '14px 20px' }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: accent, fontFamily: 'Nunito, sans-serif', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>Today</div>
+                  <div style={{ fontSize: 20, fontWeight: 900, color: M.textPrimary, fontFamily: 'Nunito, sans-serif' }}>{MAX_DAILY_TRIALS}/{MAX_DAILY_TRIALS} attempts used</div>
+                </div>
+              )}
+              <button onClick={() => router.push('/learn')} style={{ ...M.primaryBtn, fontSize: 15, padding: '14px 32px' }}>
+                Back to Learn Map
+              </button>
+            </div>
+          )}
+
+          {/* Active question */}
+          {phase === 'active' && currentQ && (
+            <ChallengeQuestion
+              key={currentQ.id}
+              question={currentQ}
+              questionNumber={currentIdx + 1}
+              total={questions.length}
+              accent={accent}
+              M={M}
+              mode={mode}
+              onNext={handleNext}
+            />
+          )}
+
+          {/* Results */}
+          {phase === 'done' && (
+            <ChallengeResults
+              correct={correct}
+              total={questions.length}
+              xpEarned={xpEarned}
+              trialsLeft={trialsLeft}
+              onRetry={trialsLeft > 0 ? handleRetry : null}
+              onBack={() => router.push('/learn')}
+              accent={accent}
+              M={M}
+              mode={mode}
+            />
+          )}
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes float   { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+      `}</style>
+    </div>
   )
 }
