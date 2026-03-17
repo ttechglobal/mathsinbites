@@ -8,25 +8,34 @@ export default async function LearnPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')
 
-  // Get student — explicitly use profile_id foreign key
-  const { data: student, error: studentError } = await supabase
+  // ── Load all student profiles for this account ────────────────────────────
+  // One login can have multiple students (family plan / siblings).
+  const { data: allStudents } = await supabase
     .from('students')
-    .select('*, profiles!students_profile_id_fkey(*)')
+    .select('*')
     .eq('profile_id', user.id)
+    .order('created_at', { ascending: true })
+
+  if (!allStudents?.length) redirect('/auth/login')
+
+  // ── Find the active student ───────────────────────────────────────────────
+  // Priority: profiles.active_student_id → first student in list
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('active_student_id')
+    .eq('id', user.id)
     .single()
 
-  if (studentError) {
-    console.error('Student fetch error:', studentError)
+  const activeStudentId = profile?.active_student_id || allStudents[0].id
+  const student = allStudents.find(s => s.id === activeStudentId) || allStudents[0]
+
+  // If active_student_id wasn't set yet, set it now
+  if (!profile?.active_student_id) {
+    await supabase.from('profiles').update({ active_student_id: student.id }).eq('id', user.id)
   }
 
-  if (!student) {
-    redirect('/auth/login')
-  }
-
-  console.log('Student:', student?.display_name, '| Class:', student?.class_level)
-
-  // Get level matching student's class
-  const { data: level, error: levelError } = await supabase
+  // ── Load level curriculum for this student's class ────────────────────────
+  const { data: level } = await supabase
     .from('levels')
     .select(`
       *,
@@ -44,25 +53,17 @@ export default async function LearnPage() {
     .eq('code', student.class_level)
     .single()
 
-  if (levelError) {
-    console.error('Level fetch error:', levelError)
-  }
-
-  console.log('Level:', level?.name, '| Terms:', level?.terms?.length ?? 'none')
-
-  // Get student progress
-  const { data: progress, error: progressError } = await supabase
+  // ── Load student progress ─────────────────────────────────────────────────
+  const { data: progress } = await supabase
     .from('student_progress')
     .select('*')
     .eq('student_id', student.id)
 
-  if (progressError) {
-    console.error('Progress fetch error:', progressError)
-  }
-
   return (
     <LearnDashboard
       student={student}
+      allStudents={allStudents}
+      profileId={user.id}
       level={level || null}
       progress={progress || []}
     />
