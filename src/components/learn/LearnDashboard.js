@@ -8,6 +8,7 @@ import { MIBLogo, BicPencil } from '@/components/BiteMarkIcon'
 import BottomSheet from '@/components/BottomSheet'
 import ModePicker from '@/components/ModePicker'
 import ProfileSwitcher from '@/components/ProfileSwitcher'
+import WelcomeScreen from '@/components/WelcomeScreen'
 
 function MathFloats({ M }) {
   const syms = M?.floatSyms || ['x²', '∑', 'π', '√', '∫', 'θ', '∞', '±', 'Δ']
@@ -119,6 +120,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
   const [activeTab,       setActiveTab]       = useState('home')
   const [showModePicker,  setShowModePicker]  = useState(false)
   const [showSwitcher,    setShowSwitcher]    = useState(false)
+  const [showWelcome,     setShowWelcome]     = useState(false)
   const [popup,           setPopup]           = useState(null)
   const [editName,        setEditName]        = useState(initialStudent?.display_name || '')
   const [editSchool,      setEditSchool]      = useState(initialStudent?.school || '')
@@ -132,12 +134,18 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
 
   const isNova  = mode === 'nova'
   const isBlaze = mode === 'blaze'
-  const isSpark = mode === 'spark'
   const isRoots = mode === 'roots'
 
   const bodyColor   = isNova ? 'rgba(200,195,255,0.78)' : M.textSecondary
   const accent      = M.accentColor
   const termAccents = M.termAccents || ['#0d9488', '#f97316', '#8b5cf6']
+
+  // Show welcome screen once for new users
+  useEffect(() => {
+    if (typeof window !== 'undefined' && localStorage.getItem('mib_new_user')) {
+      setShowWelcome(true)
+    }
+  }, [])
 
   useEffect(() => {
     async function refreshAll() {
@@ -275,16 +283,49 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
     ? 'linear-gradient(135deg,#FFD700,#FFA500)'
     : isNova
       ? 'linear-gradient(135deg,#1E1B4B,#2D1F6E)'
-      : isSpark
-        ? 'linear-gradient(135deg,#FF8C42,#F59E0B)'
-        : isRoots
+      : isRoots
           ? 'linear-gradient(135deg,#C0392B,#8B1A1A)'
           : `linear-gradient(135deg,${accent},${M.accent2 || accent})`
 
-  // ── HUD — context-aware ──────────────────────────────────────────────────
-  // On home tab: logo + profile + mode (no home icon, no XP — they're on the page)
-  // On all other tabs: home | XP | mode | profile — evenly spaced full width
+  // ── HUD ──────────────────────────────────────────────────────────────────
   const onHome = activeTab === 'home'
+
+  const ProfileBtn = (
+    <button
+      onClick={() => setShowSwitcher(true)}
+      style={{
+        width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
+        background: isBlaze ? '#FFD700' : isNova ? 'rgba(124,58,237,0.3)' : `${accent}22`,
+        border: isBlaze ? '2px solid #0d0d0d' : `2px solid ${accent}50`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 13, fontWeight: 900, color: isBlaze ? '#0d0d0d' : accent,
+        cursor: 'pointer', position: 'relative',
+        boxShadow: isBlaze ? '2px 2px 0 #0d0d0d' : 'none',
+      }}>
+      {student?.display_name?.[0]?.toUpperCase() || '?'}
+      {allStudents.length > 1 && (
+        <div style={{ position: 'absolute', top: -4, right: -4, width: 16, height: 16, borderRadius: '50%', background: accent, border: '2px solid white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 900, color: '#fff' }}>
+          {allStudents.length}
+        </div>
+      )}
+    </button>
+  )
+
+  const ModeBtn = (
+    <button
+      onClick={() => setShowModePicker(true)}
+      style={{
+        background: isBlaze ? 'linear-gradient(135deg,#FFD700,#FFA500)' : isNova ? 'linear-gradient(135deg,#7C3AED,#4C1D95)' : isRoots ? 'linear-gradient(135deg,#C0392B,#8B1A1A)' : `linear-gradient(135deg,${accent},${M.accent2 || accent})`,
+        border: isBlaze ? '2px solid #0d0d0d' : 'none',
+        borderRadius: isBlaze ? 8 : 20, padding: '4px 10px 4px 8px', cursor: 'pointer',
+        display: 'flex', alignItems: 'center', gap: 4,
+        boxShadow: isBlaze ? '2px 2px 0 #0d0d0d' : '0 2px 10px rgba(0,0,0,0.18)',
+        color: '#fff', fontFamily: 'Nunito, sans-serif', fontWeight: 800,
+      }}>
+      <span style={{ fontSize: 13 }}>{M.emoji}</span>
+      <span style={{ fontSize: 9, letterSpacing: 0.8, textTransform: 'uppercase' }}>Mode</span>
+    </button>
+  )
 
   const HUD = (
     <div style={{
@@ -295,104 +336,27 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
       {isRoots && <AnkaraStripe />}
       <div style={{ maxWidth: 600, margin: '0 auto', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         {onHome ? (
-          /* ── HOME layout: logo left, profile + mode right ── */
           <>
             <MIBLogo size={28} theme={isNova ? 'dark' : 'light'} M={M} />
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              {/* Profile */}
-          <button
-            onClick={() => setShowSwitcher(true)}
-            style={{
-              width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
-              background: isBlaze ? '#FFD700' : isNova ? 'rgba(124,58,237,0.3)' : `${accent}22`,
-              border: isBlaze ? '2px solid #0d0d0d' : `2px solid ${accent}50`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 13, fontWeight: 900, color: isBlaze ? '#0d0d0d' : accent,
-              cursor: 'pointer', position: 'relative',
-              boxShadow: isBlaze ? '2px 2px 0 #0d0d0d' : 'none',
-            }}>
-            {student?.display_name?.[0]?.toUpperCase() || '?'}
-            {allStudents.length > 1 && (
-              <div style={{ position: 'absolute', top: -4, right: -4, width: 16, height: 16, borderRadius: '50%', background: accent, border: '2px solid white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 900, color: '#fff' }}>
-                {allStudents.length}
-              </div>
-            )}
-          </button>
-              {/* Mode */}
-          <button
-            onClick={() => setShowModePicker(true)}
-            style={{
-              background: isBlaze ? 'linear-gradient(135deg,#FFD700,#FFA500)' : isNova ? 'linear-gradient(135deg,#7C3AED,#4C1D95)' : isSpark ? 'linear-gradient(135deg,#FF8C42,#F59E0B)' : isRoots ? 'linear-gradient(135deg,#C0392B,#8B1A1A)' : `linear-gradient(135deg,${accent},${M.accent2 || accent})`,
-              border: isBlaze ? '2px solid #0d0d0d' : 'none',
-              borderRadius: isBlaze ? 8 : 20, padding: '4px 10px 4px 8px', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 4,
-              boxShadow: isBlaze ? '2px 2px 0 #0d0d0d' : '0 2px 10px rgba(0,0,0,0.18)',
-              color: '#fff', fontFamily: 'Nunito, sans-serif', fontWeight: 800,
-            }}>
-            <span style={{ fontSize: 13 }}>{M.emoji}</span>
-            <span style={{ fontSize: 9, letterSpacing: 0.8, textTransform: 'uppercase' }}>Mode</span>
-          </button>
+              {ProfileBtn}
+              {ModeBtn}
             </div>
           </>
         ) : (
-          /* ── ALL OTHER TABS: home | XP | mode | profile — evenly spaced ── */
           <>
-            {/* Home icon */}
             <button onClick={() => setActiveTab('home')}
               style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <div style={{
-                width: 34, height: 34, borderRadius: isBlaze ? 8 : 12,
-                background: isBlaze ? 'rgba(0,0,0,0.06)' : isNova ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
-                border: isBlaze ? '1.5px solid #0d0d0d' : `1.5px solid ${isNova ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.1)'}`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
-              }}>🏠</div>
+              <div style={{ width: 34, height: 34, borderRadius: isBlaze ? 8 : 12, background: isBlaze ? 'rgba(0,0,0,0.06)' : isNova ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)', border: isBlaze ? '1.5px solid #0d0d0d' : `1.5px solid ${isNova ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.1)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>
+                🏠
+              </div>
             </button>
-
-            {/* XP chip */}
-            <div style={{
-              background: isBlaze ? '#FFD700' : isNova ? 'rgba(124,58,237,0.2)' : `${accent}14`,
-              border: isBlaze ? '1.5px solid #0d0d0d' : `1.5px solid ${accent}30`,
-              borderRadius: isBlaze ? 8 : 20, padding: '4px 12px',
-              display: 'flex', gap: 4, alignItems: 'center',
-              boxShadow: isBlaze ? '2px 2px 0 #0d0d0d' : 'none',
-            }}>
+            <div style={{ background: isBlaze ? '#FFD700' : isNova ? 'rgba(124,58,237,0.2)' : `${accent}14`, border: isBlaze ? '1.5px solid #0d0d0d' : `1.5px solid ${accent}30`, borderRadius: isBlaze ? 8 : 20, padding: '4px 12px', display: 'flex', gap: 4, alignItems: 'center', boxShadow: isBlaze ? '2px 2px 0 #0d0d0d' : 'none' }}>
               <span style={{ fontSize: 11 }}>⚡</span>
               <span style={{ fontSize: 12, fontWeight: 900, color: isBlaze ? '#0d0d0d' : accent, fontFamily: 'Nunito, sans-serif' }}>{xp.toLocaleString()}</span>
             </div>
-
-            {/* Mode */}
-          <button
-            onClick={() => setShowModePicker(true)}
-            style={{
-              background: isBlaze ? 'linear-gradient(135deg,#FFD700,#FFA500)' : isNova ? 'linear-gradient(135deg,#7C3AED,#4C1D95)' : isSpark ? 'linear-gradient(135deg,#FF8C42,#F59E0B)' : isRoots ? 'linear-gradient(135deg,#C0392B,#8B1A1A)' : `linear-gradient(135deg,${accent},${M.accent2 || accent})`,
-              border: isBlaze ? '2px solid #0d0d0d' : 'none',
-              borderRadius: isBlaze ? 8 : 20, padding: '4px 10px 4px 8px', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 4,
-              boxShadow: isBlaze ? '2px 2px 0 #0d0d0d' : '0 2px 10px rgba(0,0,0,0.18)',
-              color: '#fff', fontFamily: 'Nunito, sans-serif', fontWeight: 800,
-            }}>
-            <span style={{ fontSize: 13 }}>{M.emoji}</span>
-            <span style={{ fontSize: 9, letterSpacing: 0.8, textTransform: 'uppercase' }}>Mode</span>
-          </button>
-            {/* Profile */}
-          <button
-            onClick={() => setShowSwitcher(true)}
-            style={{
-              width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
-              background: isBlaze ? '#FFD700' : isNova ? 'rgba(124,58,237,0.3)' : `${accent}22`,
-              border: isBlaze ? '2px solid #0d0d0d' : `2px solid ${accent}50`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 13, fontWeight: 900, color: isBlaze ? '#0d0d0d' : accent,
-              cursor: 'pointer', position: 'relative',
-              boxShadow: isBlaze ? '2px 2px 0 #0d0d0d' : 'none',
-            }}>
-            {student?.display_name?.[0]?.toUpperCase() || '?'}
-            {allStudents.length > 1 && (
-              <div style={{ position: 'absolute', top: -4, right: -4, width: 16, height: 16, borderRadius: '50%', background: accent, border: '2px solid white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 900, color: '#fff' }}>
-                {allStudents.length}
-              </div>
-            )}
-          </button>
+            {ModeBtn}
+            {ProfileBtn}
           </>
         )}
       </div>
@@ -532,28 +496,84 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
   // Shows: greeting, subject card, stats row, quick actions
   // ══════════════════════════════════════════════════════════════════════════
   // First two topics for the subject card preview
-  const previewTopics = allTopics.slice(0, 2)
+  // ── Greeting helpers — must be before mascotGreeting ────────────────────
   const firstName = student?.display_name?.split(' ')[0] || 'there'
   const timeOfDay = (() => {
     const h = new Date().getHours()
     return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'
   })()
 
+  // ── Intelligent mascot greeting ──────────────────────────────────────────
+  const mascotGreeting = (() => {
+    const h = new Date().getHours()
+    const timeWord = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening'
+    const myClassRankNum = myClassRank >= 0 ? myClassRank + 1 : null
+
+    // Priority order: encouragement based on context
+    if (doneLessons === 0) {
+      return `Hey ${firstName}! 👋 Welcome aboard! Your maths journey starts right now. Let's crush it together!`
+    }
+    if (streak === 0 && doneLessons > 0) {
+      return `Good ${timeWord}, ${firstName}! Don't let that streak slip — come back and keep your momentum going! 💪`
+    }
+    if (streak >= 7) {
+      return `${firstName}, you're on a ${streak}-day streak! 🔥 That kind of consistency is how champions are made. Keep going!`
+    }
+    if (myClassRankNum && myClassRankNum > 5 && boards.class?.length > 5) {
+      const gap = Math.max(0, (boards.class[0]?.monthly_xp || 0) - monthlyXp)
+      return `Good ${timeWord}, ${firstName}! Your classmates are pulling ahead — you're just ${gap} XP from the top. Let's go! ⚡`
+    }
+    if (myClassRankNum === 1) {
+      return `${firstName}, you're #1 in your class! 👑 Stay on top — keep learning and don't let anyone catch you!`
+    }
+    if (overallPct >= 80) {
+      return `${firstName}, you're ${overallPct}% done! 🏆 You're so close to completing the full curriculum. Finish strong!`
+    }
+    if (doneLessons > 0 && doneLessons < 5) {
+      return `Good ${timeWord}, ${firstName}! You've started — now let's build that habit. Even one lesson today makes a difference! 📚`
+    }
+    // Default friendly greetings
+    const defaults = [
+      `Good ${timeWord}, ${firstName}! Ready to learn something amazing today? 🚀`,
+      `Hey ${firstName}! Hope you're ready to crush your goals today! 💡`,
+      `${firstName}, let's make today count! Your future self will thank you. ✨`,
+      `Good ${timeWord}, ${firstName}! Every lesson gets you closer to your goals. Let's go! 🎯`,
+    ]
+    return defaults[doneLessons % defaults.length]
+  })()
+
+  const previewTopics = allTopics.slice(0, 2)
+
   const HomeTab = (
     <div style={{ height: '100%', overflowY: 'auto', background: isNova ? '#0F0C29' : M.mapBg || '#F4F5FA', position: 'relative' }}>
       {isNova ? <NovaStars /> : <MathFloats M={M} />}
       <div style={{ maxWidth: 520, margin: '0 auto', padding: '24px 18px 140px', position: 'relative', zIndex: 1 }}>
 
-        {/* ── Greeting ── */}
-        <div style={{ marginBottom: 22 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: bodyColor, fontFamily: 'Nunito, sans-serif', marginBottom: 2 }}>
-            {timeOfDay},
+        {/* ── Mascot greeting ── */}
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14, marginBottom: 22 }}>
+          {/* Mascot */}
+          <div style={{ flexShrink: 0, filter: `drop-shadow(0 6px 18px ${accent}40)` }}>
+            <BicPencil pose="celebrate" size={72} />
           </div>
-          <div style={{ fontSize: 28, fontWeight: 900, color: isNova ? '#F8F7FF' : M.textPrimary, fontFamily: 'Nunito, sans-serif', lineHeight: 1.1 }}>
-            {firstName} 👋
-          </div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: bodyColor, fontFamily: 'Nunito, sans-serif', marginTop: 4 }}>
-            {student?.class_level}{student?.school ? ` · ${student.school}` : ''}
+
+          {/* Speech bubble */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              background: isNova ? 'rgba(124,58,237,0.18)' : isBlaze ? '#FFD700' : `${accent}12`,
+              border: isBlaze ? '2px solid #0d0d0d' : `1.5px solid ${accent}30`,
+              borderRadius: isBlaze ? '12px 12px 12px 0' : '18px 18px 18px 0',
+              padding: '12px 16px',
+              boxShadow: isBlaze ? '3px 3px 0 #0d0d0d' : `0 4px 18px ${accent}18`,
+            }}>
+              <div style={{ fontSize: 11, fontWeight: 900, color: accent, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.7, fontFamily: 'Nunito, sans-serif' }}>
+                {M.name}
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: isNova ? '#F8F7FF' : isBlaze ? '#0d0d0d' : M.textPrimary, fontFamily: 'Nunito, sans-serif', lineHeight: 1.5 }}>
+                {mascotGreeting}
+              </div>
+            </div>
+            {/* Bubble tail */}
+            <div style={{ width: 0, height: 0, borderLeft: '10px solid transparent', borderRight: '0 solid transparent', borderTop: `10px solid ${isBlaze ? '#0d0d0d' : `${accent}30`}`, marginLeft: 14 }} />
           </div>
         </div>
 
@@ -908,32 +928,39 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
         </div>
       )}
 
-      {/* JUMP-TO-CURRENT BUTTON — fixed bottom-right, only arrow direction changes */}
-      {currentNodeDir && nextLesson && (
-        <button
-          onClick={jumpToCurrent}
-          style={{
-            position: 'absolute', bottom: 90, right: 16, zIndex: 11,
-            width: 46, height: 46, borderRadius: '50%', cursor: 'pointer',
-            background: isBlaze ? '#FFD700' : accent,
-            border: isBlaze ? '2px solid #0d0d0d' : 'none',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 20, fontWeight: 900,
-            boxShadow: isBlaze ? '3px 3px 0 #0d0d0d' : `0 6px 20px ${accent}65`,
-            animation: 'pulse-glow 2s ease-in-out infinite',
-            color: isBlaze ? '#0d0d0d' : '#fff',
-            transition: 'transform 0.2s ease',
-          }}>
-          {currentNodeDir === 'up' ? '↑' : '↓'}
-        </button>
+      {/* JUMP-TO-CURRENT — smooth fade in/out */}
+      {nextLesson && (
+        <div style={{
+          position: 'absolute', bottom: 90, right: 16, zIndex: 11,
+          opacity: currentNodeDir ? 1 : 0,
+          transform: currentNodeDir ? 'scale(1) translateY(0)' : 'scale(0.75) translateY(8px)',
+          pointerEvents: currentNodeDir ? 'auto' : 'none',
+          transition: 'opacity 0.45s cubic-bezier(0.4,0,0.2,1), transform 0.45s cubic-bezier(0.34,1.1,0.64,1)',
+        }}>
+          <button
+            onClick={jumpToCurrent}
+            style={{
+              width: 46, height: 46, borderRadius: '50%', cursor: 'pointer',
+              background: isBlaze ? '#FFD700' : accent,
+              border: isBlaze ? '2px solid #0d0d0d' : 'none',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 20, fontWeight: 900,
+              boxShadow: isBlaze ? '3px 3px 0 #0d0d0d' : `0 6px 20px ${accent}65`,
+              color: isBlaze ? '#0d0d0d' : '#fff',
+            }}>
+            {currentNodeDir === 'up' ? '↑' : '↓'}
+          </button>
+        </div>
       )}
 
-      {/* CONTINUE BANNER — appears when current lesson node is visible on screen */}
-      {currentNodeDir === null && nextLesson && (
+      {/* CONTINUE BANNER — smooth fade, visible when current node is on screen */}
+      {nextLesson && (
         <div style={{
           position: 'absolute', bottom: 90, left: '50%', transform: 'translateX(-50%)',
           zIndex: 11, width: 'calc(100% - 32px)', maxWidth: 420,
-          animation: 'slideUp 0.25s cubic-bezier(0.34,1.1,0.64,1)',
+          opacity: currentNodeDir === null ? 1 : 0,
+          pointerEvents: currentNodeDir === null ? 'auto' : 'none',
+          transition: 'opacity 0.5s cubic-bezier(0.4,0,0.2,1)',
         }}>
           <button
             onClick={() => router.push(`/learn/lesson/${nextLesson.id}`)}
@@ -1079,11 +1106,9 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
   // ══════════════════════════════════════════════════════════════════════════
   const challengeLabel = isBlaze
     ? '⚡ ACCEPT CHALLENGE'
-    : isSpark
-      ? '✨ Start Today\'s Challenge!'
-      : isRoots
-        ? '🇳🇬 Take Today\'s Challenge'
-        : 'Start Daily Challenge →'
+    : isRoots
+      ? '🇳🇬 Take Today\'s Challenge'
+      : 'Start Daily Challenge →'
 
   const ChallengeTab = (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '70vh', padding: '32px 20px 120px', maxWidth: 520, margin: '0 auto' }}>
@@ -1204,11 +1229,9 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
   // PROFILE TAB
   // ══════════════════════════════════════════════════════════════════════════
   const heroBg = isNova   ? 'linear-gradient(160deg,#1E1B4B,#0F0C29)'
-    : isSpark  ? 'linear-gradient(160deg,#FF8C42,#FFD93D)'
     : isRoots  ? 'linear-gradient(160deg,#C0392B,#8B1A1A)'
     : isBlaze  ? 'linear-gradient(160deg,#E63946,#1D3557)'
     : `linear-gradient(160deg,${accent},${M.accent2 || accent})`
-
 
   const PROFILE_AVATAR_COLORS = ['#7C3AED', '#0d9488', '#f97316', '#8b5cf6', '#e11d48', '#0ea5e9']
 
@@ -1340,13 +1363,13 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
         </div>
 
         {/* ── Learning mode ── */}
-        <button onClick={() => setShowModePicker(true)} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px', borderRadius: isBlaze ? 10 : 18, cursor: 'pointer', textAlign: 'left', width: '100%', background: isBlaze ? 'linear-gradient(135deg,#FFD700,#FFA500)' : isNova ? 'linear-gradient(135deg,rgba(124,58,237,0.25),rgba(76,29,149,0.15))' : isSpark ? 'linear-gradient(135deg,rgba(255,140,66,0.18),rgba(255,217,61,0.12))' : isRoots ? 'linear-gradient(135deg,rgba(192,57,43,0.15),rgba(46,106,79,0.1))' : `linear-gradient(135deg,${accent}1A,${M.accent2 || accent}0D)`, border: isBlaze ? '2px solid #0d0d0d' : isNova ? '1px solid rgba(124,58,237,0.4)' : isSpark ? '1px solid rgba(255,140,66,0.35)' : isRoots ? '1px solid rgba(192,57,43,0.35)' : `1.5px solid ${accent}35`, boxShadow: isBlaze ? '3px 3px 0 #0d0d0d' : M.cardShadow, fontFamily: 'Nunito, sans-serif' }}>
-          <div style={{ width: 54, height: 54, borderRadius: isBlaze ? 12 : '50%', flexShrink: 0, background: isBlaze ? '#fff' : isNova ? 'rgba(124,58,237,0.2)' : isSpark ? 'rgba(255,140,66,0.2)' : isRoots ? 'rgba(192,57,43,0.2)' : `${accent}18`, border: isBlaze ? '2px solid #0d0d0d' : `2px solid ${accent}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, boxShadow: isBlaze ? '2px 2px 0 #0d0d0d' : 'none' }}>{M.emoji}</div>
+        <button onClick={() => setShowModePicker(true)} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px', borderRadius: isBlaze ? 10 : 18, cursor: 'pointer', textAlign: 'left', width: '100%', background: isBlaze ? 'linear-gradient(135deg,#FFD700,#FFA500)' : isNova ? 'linear-gradient(135deg,rgba(124,58,237,0.25),rgba(76,29,149,0.15))' : isRoots ? 'linear-gradient(135deg,rgba(192,57,43,0.15),rgba(46,106,79,0.1))' : `linear-gradient(135deg,${accent}1A,${M.accent2 || accent}0D)`, border: isBlaze ? '2px solid #0d0d0d' : isNova ? '1px solid rgba(124,58,237,0.4)' : isRoots ? '1px solid rgba(192,57,43,0.35)' : `1.5px solid ${accent}35`, boxShadow: isBlaze ? '3px 3px 0 #0d0d0d' : M.cardShadow, fontFamily: 'Nunito, sans-serif' }}>
+          <div style={{ width: 54, height: 54, borderRadius: isBlaze ? 12 : '50%', flexShrink: 0, background: isBlaze ? '#fff' : isNova ? 'rgba(124,58,237,0.2)' : isRoots ? 'rgba(192,57,43,0.2)' : `${accent}18`, border: isBlaze ? '2px solid #0d0d0d' : `2px solid ${accent}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, boxShadow: isBlaze ? '2px 2px 0 #0d0d0d' : 'none' }}>{M.emoji}</div>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 15, fontWeight: 800, color: isBlaze ? '#0d0d0d' : isNova ? '#F8F7FF' : M.textPrimary, fontFamily: 'Nunito, sans-serif', marginBottom: 3 }}>{M.name}</div>
             <div style={{ fontSize: 11, color: isBlaze ? '#555' : bodyColor, fontFamily: 'Nunito, sans-serif', fontWeight: 500, lineHeight: 1.4 }}>{M.tagline || 'Tap to change learning style'}</div>
           </div>
-          <div style={{ fontSize: 10, fontWeight: 800, color: isBlaze ? '#0d0d0d' : '#fff', background: isBlaze ? '#0d0d0d' : isNova ? '#7C3AED' : isSpark ? '#FF8C42' : isRoots ? '#C0392B' : accent, borderRadius: isBlaze ? 6 : 20, padding: '4px 11px', fontFamily: 'Nunito, sans-serif', flexShrink: 0, boxShadow: isBlaze ? '2px 2px 0 #0d0d0d' : 'none' }}>CHANGE</div>
+          <div style={{ fontSize: 10, fontWeight: 800, color: isBlaze ? '#0d0d0d' : '#fff', background: isBlaze ? '#0d0d0d' : isNova ? '#7C3AED' : isRoots ? '#C0392B' : accent, borderRadius: isBlaze ? 6 : 20, padding: '4px 11px', fontFamily: 'Nunito, sans-serif', flexShrink: 0, boxShadow: isBlaze ? '2px 2px 0 #0d0d0d' : 'none' }}>CHANGE</div>
         </button>
 
         <button onClick={handleSignOut} style={{ width: '100%', padding: '13px', cursor: 'pointer', background: 'transparent', border: isBlaze ? '2px solid #ef4444' : '1.5px solid #fecaca', borderRadius: isBlaze ? 8 : 12, fontFamily: 'Nunito, sans-serif', fontSize: 13, fontWeight: 800, color: '#ef4444', boxShadow: isBlaze ? '2px 2px 0 #ef4444' : 'none' }}>
@@ -1375,6 +1398,10 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
       <BottomSheet open={showModePicker} onClose={() => setShowModePicker(false)} M={M}>
         <ModePicker onClose={() => setShowModePicker(false)} />
       </BottomSheet>
+
+      {showWelcome && (
+        <WelcomeScreen student={student} onDismiss={() => setShowWelcome(false)} />
+      )}
 
       {showSwitcher && (
         <ProfileSwitcher

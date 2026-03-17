@@ -4,8 +4,8 @@
 
 export const MODES = {
   normal: {
-    id: 'normal', name: 'Normal Mode', emoji: '📗',
-    tagline: 'Clean and simple — just learn',
+    id: 'normal', name: 'TayoSteady', emoji: '📗',
+    tagline: 'Steady, clear, focused — just you and maths',
     description: 'Classic green theme. Distraction-free, familiar, easy on the eyes.',
     font: 'Nunito, sans-serif', headingFont: 'Nunito, sans-serif',
     fontClass: 'font-nunito', headingFontClass: 'font-nunito',
@@ -81,7 +81,7 @@ export const MODES = {
   },
 
   nova: {
-    id: 'nova', name: 'Nova Mode', emoji: '🌌',
+    id: 'nova', name: 'KolaNova', emoji: '🌌',
     tagline: 'Learn like the universe depends on it',
     description: 'Dark, cosmic, electric. For learners who want to feel powerful.',
     font: 'Fredoka One, Nunito, sans-serif', headingFont: 'Fredoka One, sans-serif',
@@ -147,75 +147,8 @@ export const MODES = {
     floatFont: "'Fredoka One',sans-serif",
   },
 
-  spark: {
-    id: 'spark', name: 'Spark Mode', emoji: '✨',
-    tagline: 'Every question lights something up',
-    description: 'Bright, warm, joyful. For learners who love colour and energy.',
-    font: 'Baloo 2, Nunito, sans-serif', headingFont: 'Baloo 2, sans-serif',
-    fontClass: 'font-baloo', headingFontClass: 'font-baloo',
-
-    mapBg: 'linear-gradient(180deg,#87CEEB 0%,#B0E2FF 35%,#FFFBF5 65%)',
-    lessonBg: '#FFFBF5', hudBg: 'rgba(255,255,255,0.9)',
-    homeBg: 'linear-gradient(180deg,#87CEEB 0%,#FFFBF5 100%)',
-    hookBg: '#FFF7F0',
-
-    cardBg: '#FFFFFF', cardBorder: '1.5px solid #F0E6D8',
-    cardRadius: 16, cardShadow: '0 3px 12px rgba(0,0,0,0.07)',
-    lessonCard: '#FFFFFF', lessonBorder: '1.5px solid #F0E6D8',
-
-    textPrimary: '#2D2D2D', textSecondary: '#888888', textOnAccent: '#ffffff',
-
-    accentColor: '#FF8C42', accent2: '#4ECDC4',
-    correctColor: '#56C43A', wrongColor: '#E63946',
-
-    navBg: '#FFFFFF', navBorder: '#F0E6D8',
-    navActive: '#FF8C42', navActiveText: '#fff',
-    navText: '#BBB', navActivePill: 'rgba(255,140,66,0.12)',
-
-    sidebarBg: '#FFFFFF', sidebarBorder: '#F0E6D8',
-    sidebarText: '#2D2D2D', sidebarDim: '#888',
-    sidebarActive: 'rgba(255,140,66,0.1)', sidebarActiveBorder: '#FF8C42',
-
-    mathBg: '#FFF7F0', hintBg: 'rgba(255,140,66,0.07)',
-    progressTrack: '#F0E6D8',
-    correctOverlay: 'rgba(255,251,245,0.97)', wrongBg: '#fff0f0',
-
-    badgeBg: 'rgba(255,140,66,0.12)', badgeBorder: 'rgba(255,140,66,0.25)',
-    badgeText: '#333',
-
-    correctPhrase: 'Brilliant! You got it! 🎉',
-    wrongPhrase: "Oops! Let me show you:",
-    hookPhrase: "Imagine two friends selling snacks! Let's figure out how many each sold. This is fun! 🌟",
-    welcomeTitle: "Ade here! Let's make maths FUN! ✨",
-
-    primaryBtn: {
-      background: 'linear-gradient(135deg,#FF8C42,#FF6B35)', color: 'white',
-      border: 'none', borderRadius: 14, padding: '12px 18px',
-      fontFamily: 'Baloo 2, sans-serif', fontSize: 14, fontWeight: 900,
-      cursor: 'pointer', textAlign: 'center',
-    },
-    ghostBtn: {
-      background: 'transparent', color: '#aaa',
-      border: '1.5px solid #E8E8E8', borderRadius: 14, padding: '12px 18px',
-      fontFamily: 'Nunito, sans-serif', fontSize: 13, fontWeight: 700,
-      cursor: 'pointer', textAlign: 'center',
-    },
-
-    termAccents: ['#4ECDC4', '#FF8C42', '#C77DFF'],
-    nodeNext: 'linear-gradient(145deg,#FFD93D,#FF8C42)',
-    nodeLocked: 'linear-gradient(145deg,#F0F0F0,#E0E0E0)',
-    nodeNextGlow: '#FF8C42',
-    pathStroke: 'rgba(255,140,66,0.3)',
-
-    chestDone: '🎉', chestLocked: '🎁',
-    endText: 'More exciting topics loading! ⚡',
-    floatSyms: ['☀️','⭐','✨','🌟','💡','🎯','🔥','💫','🌈'],
-    floatColor: 'rgba(255,140,66,0.15)',
-    floatFont: "'Baloo 2',sans-serif",
-  },
-
   roots: {
-    id: 'roots', name: 'Roots Mode', emoji: '🇳🇬',
+    id: 'roots', name: 'ChinweRoots', emoji: '🇳🇬',
     tagline: 'Our culture, our maths, our pride',
     description: 'Ankara patterns, bold Nigerian colours. Proudly and uniquely ours.',
     font: 'Syne, Nunito, sans-serif', headingFont: 'Syne, sans-serif',
@@ -282,7 +215,7 @@ export const MODES = {
   },
 
   blaze: {
-    id: 'blaze', name: 'Blaze Mode', emoji: '💥',
+    id: 'blaze', name: 'ZapBlaze', emoji: '💥',
     tagline: 'Maths is your superpower',
     description: 'Bold comic energy, Nigerian superhero vibes. Maths has never looked this fierce.',
     font: 'Bangers, Nunito, sans-serif', headingFont: 'Bangers, sans-serif',
@@ -350,7 +283,7 @@ export const MODES = {
     floatFont: "'Bangers',sans-serif",
   },
   halima: {
-    id: 'halima', name: 'Northern Mode', emoji: '📚',
+    id: 'halima', name: 'HalimaShine', emoji: '📚',
     tagline: 'From Kano to the top of the class',
     description: 'Warm terracotta and sandy gold. For students who know hard work wins.',
     font: 'Sora, Nunito, sans-serif', headingFont: 'Sora, sans-serif',

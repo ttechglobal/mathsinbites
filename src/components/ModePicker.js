@@ -3,52 +3,58 @@
 import { MODES } from '@/lib/modes'
 import { useMode } from '@/lib/ModeContext'
 import KolaNova    from '@/components/mascots/KolaNova'
-import AdeSpark    from '@/components/mascots/AdeSpark'
 import ChinweRoots from '@/components/mascots/ChinweRoots'
 import ZapBlaze    from '@/components/mascots/ZapBlaze'
 import HalimaShine from '@/components/mascots/HalimaShine'
 import TayoSteady  from '@/components/mascots/TayoSteady'
 
-// Design concept colours
-const N = {
-  purpleDeep: '#0F0C29',
-  purpleCard: '#1E1B4B',
-  purpleMid:  '#4C1D95',
-  purpleHi:   '#7C3AED',
-  slate:      '#312E81',
-  gold:       '#FCD34D',
-  goldGlow:   '#F59E0B',
-  coral:      '#FF6B6B',
-  lime:       '#A3E635',
-  cyan:       '#67E8F9',
-  white:      '#F8F7FF',
-  lavender:   '#A5B4FC',
-  dimText:    '#6D6B8F',
-  border:     'rgba(165,180,252,0.15)',
-}
+// Spark removed. 5 modes: normal(Tayo), nova(Kola), roots(Chinwe), blaze(Zap), halima(Halima)
 
 const MASCOTS = {
-  normal:  TayoSteady,
-  nova:    KolaNova,
-  spark:   AdeSpark,
-  roots:   ChinweRoots,
-  blaze:   ZapBlaze,
-  halima:  HalimaShine,
+  normal: TayoSteady,
+  nova:   KolaNova,
+  roots:  ChinweRoots,
+  blaze:  ZapBlaze,
+  halima: HalimaShine,
 }
 
-// Per-mode accent + gradient for the card
-const MODE_STYLE = {
-  normal: { accent: '#0d9488', grad: 'linear-gradient(135deg,#0d9488,#0891b2)', glow: '#0d948840' },
-  nova:   { accent: N.purpleHi, grad: `linear-gradient(135deg,${N.purpleMid},${N.purpleHi})`, glow: `${N.purpleHi}50` },
-  spark:  { accent: '#FF8C42', grad: 'linear-gradient(135deg,#FF8C42,#FFD93D)', glow: '#FF8C4250' },
-  roots:  { accent: '#C0392B', grad: 'linear-gradient(135deg,#C0392B,#8B1A1A)', glow: '#C0392B50' },
-  blaze:  { accent: '#E63946', grad: 'linear-gradient(135deg,#E63946,#FFD700)', glow: '#E6394650' },
-  halima: { accent: '#C46428', grad: 'linear-gradient(135deg,#C46428,#D4A853)',  glow: '#C4642850' },
+const MODE_META = {
+  normal: {
+    accent: '#0d9488',
+    grad:   'linear-gradient(135deg,#0d9488,#0891b2)',
+    bg:     'linear-gradient(160deg,#0a2f2c,#0d2a27)',
+    desc:   'Clean · focused · distraction-free',
+  },
+  nova: {
+    accent: '#7C3AED',
+    grad:   'linear-gradient(135deg,#7C3AED,#4C1D95)',
+    bg:     'linear-gradient(160deg,#0F0C29,#1E1B4B)',
+    desc:   'Deep focus · cosmic vibes · night mode',
+  },
+  roots: {
+    accent: '#C0392B',
+    grad:   'linear-gradient(135deg,#C0392B,#2D6A4F)',
+    bg:     'linear-gradient(160deg,#2a0a06,#0a1f14)',
+    desc:   'Nigerian culture · warm · grounded',
+  },
+  blaze: {
+    accent: '#FFD700',
+    grad:   'linear-gradient(135deg,#FFD700,#FF8C00)',
+    bg:     'linear-gradient(160deg,#1a1000,#2a1800)',
+    desc:   'Bold · high energy · comic style',
+  },
+  halima: {
+    accent: '#C46428',
+    grad:   'linear-gradient(135deg,#C46428,#D4A853)',
+    bg:     'linear-gradient(160deg,#1a0e04,#2a1a08)',
+    desc:   'Calm · graceful · steady focus',
+  },
 }
+
+const MODE_ORDER = ['normal', 'nova', 'roots', 'blaze', 'halima']
 
 export default function ModePicker({ onPick, onClose }) {
   const { setMode, mode: currentMode } = useMode()
-  const modeList = [MODES.normal, MODES.nova, MODES.spark, MODES.roots, MODES.blaze, MODES.halima]
 
   function handlePick(modeId) {
     setMode(modeId)
@@ -57,117 +63,96 @@ export default function ModePicker({ onPick, onClose }) {
   }
 
   return (
-    <div style={{
-      background: N.purpleDeep,
-      minHeight: onPick ? '100vh' : 'auto',
-      display: 'flex', flexDirection: 'column',
-      fontFamily: 'Nunito, sans-serif',
-    }}>
-      {/* Header */}
-      <div style={{ padding: '4px 20px 18px', textAlign: 'center', flexShrink: 0 }}>
-        {/* Handle bar */}
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
-          <div style={{ width: 44, height: 4, borderRadius: 2, background: N.border }} />
-        </div>
+    <div style={{ background: '#0C0820', fontFamily: 'Nunito, sans-serif', paddingBottom: 28 }}>
 
-        <div style={{ fontFamily: 'Fredoka One, sans-serif', fontSize: 22, color: N.white, marginBottom: 6, lineHeight: 1 }}>
-          <span style={{ color: N.white }}>Choose Your </span>
-          <span style={{
-            background: `linear-gradient(135deg,${N.gold},${N.coral})`,
-            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-          }}>Vibe</span>
+      {/* Handle + header */}
+      <div style={{ padding: '16px 20px 20px', textAlign: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+          <div style={{ width: 44, height: 4, borderRadius: 2, background: 'rgba(165,180,252,0.2)' }} />
         </div>
-        <div style={{ fontSize: 12, color: N.lavender, lineHeight: 1.5 }}>
-          Same lessons. Your style. Change anytime.
+        <div style={{ fontSize: 20, fontWeight: 900, color: '#F8F7FF', marginBottom: 4, lineHeight: 1 }}>
+          Choose your learning mascot
+        </div>
+        <div style={{ fontSize: 12, color: 'rgba(165,180,252,0.6)', fontWeight: 600 }}>
+          Same lessons · your style · change anytime
         </div>
       </div>
 
-      {/* Mode cards */}
-      <div style={{ padding: '0 16px 28px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {modeList.map((m) => {
-          const { accent, grad, glow } = MODE_STYLE[m.id]
-          const Mascot = MASCOTS[m.id]
-          const isActive = m.id === currentMode
+      {/* Mode grid — 2 columns, then 1 centred on last */}
+      <div style={{ padding: '0 16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        {MODE_ORDER.map((id, i) => {
+          const m      = MODES[id]
+          if (!m) return null
+          const meta   = MODE_META[id]
+          const Mascot = MASCOTS[id]
+          const active = id === currentMode
+
+          // Last item if odd count — span full width
+          const isLast = i === MODE_ORDER.length - 1 && MODE_ORDER.length % 2 === 1
 
           return (
             <button
-              key={m.id}
-              onClick={() => handlePick(m.id)}
+              key={id}
+              onClick={() => handlePick(id)}
               style={{
-                background: isActive
-                  ? `linear-gradient(135deg,${N.slate},${N.purpleCard})`
-                  : 'rgba(255,255,255,0.04)',
-                border: isActive
-                  ? `2px solid ${accent}70`
-                  : `1px solid ${N.border}`,
-                borderRadius: 18,
-                padding: '14px 14px 14px 12px',
-                cursor: 'pointer',
-                textAlign: 'left',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                transition: 'all 0.18s',
-                boxShadow: isActive ? `0 0 24px ${glow}, 0 4px 16px rgba(0,0,0,0.3)` : '0 2px 10px rgba(0,0,0,0.2)',
-                position: 'relative',
-                overflow: 'hidden',
+                gridColumn: isLast ? '1 / -1' : undefined,
+                position: 'relative', overflow: 'hidden',
+                background: active ? meta.bg : 'rgba(255,255,255,0.04)',
+                border: active ? `2px solid ${meta.accent}80` : '1px solid rgba(165,180,252,0.12)',
+                borderRadius: 20, padding: '16px 14px 14px',
+                cursor: 'pointer', textAlign: 'center',
+                transition: 'all 0.2s',
+                boxShadow: active ? `0 0 28px ${meta.accent}35, 0 4px 16px rgba(0,0,0,0.4)` : '0 2px 12px rgba(0,0,0,0.25)',
               }}
             >
-              {/* Active glow strip on left edge */}
-              {isActive && (
-                <div style={{
-                  position: 'absolute', left: 0, top: 0, bottom: 0, width: 3,
-                  background: grad, borderRadius: '18px 0 0 18px',
-                }} />
+              {/* Active left stripe */}
+              {active && (
+                <div style={{ position: 'absolute', inset: 0, borderRadius: 20, border: `2px solid ${meta.accent}50`, pointerEvents: 'none' }} />
+              )}
+
+              {/* Active top glow line */}
+              {active && (
+                <div style={{ position: 'absolute', top: 0, left: 16, right: 16, height: 2, background: meta.grad, borderRadius: 99 }} />
               )}
 
               {/* Mascot */}
-              <div style={{ flexShrink: 0, width: 56, display: 'flex', justifyContent: 'center' }}>
-                <Mascot size={52} pose="idle" />
-              </div>
-
-              {/* Text */}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-                  <span style={{ fontSize: 15 }}>{m.emoji}</span>
-                  <span style={{ fontFamily: 'Fredoka One, sans-serif', fontSize: 16, color: N.white, lineHeight: 1 }}>
-                    {m.name}
-                  </span>
-                  {isActive && (
-                    <span style={{
-                      fontSize: 8, fontWeight: 900, letterSpacing: 0.8,
-                      background: grad,
-                      color: '#fff', borderRadius: 20, padding: '2px 8px',
-                      fontFamily: 'Nunito, sans-serif',
-                    }}>ACTIVE</span>
-                  )}
-                </div>
-                <div style={{
-                  fontSize: 11, color: isActive ? N.lavender : N.dimText,
-                  fontStyle: 'italic', marginBottom: 3, lineHeight: 1.3,
-                  fontWeight: 600,
-                }}>
-                  &ldquo;{m.tagline}&rdquo;
-                </div>
-                <div style={{ fontSize: 10, color: N.dimText, lineHeight: 1.4, fontWeight: 600 }}>
-                  {m.description}
-                </div>
-              </div>
-
-              {/* Select button */}
               <div style={{
-                flexShrink: 0,
-                background: isActive ? grad : 'rgba(255,255,255,0.06)',
-                border: isActive ? 'none' : `1px solid ${N.border}`,
-                borderRadius: 20, padding: '5px 12px',
-                fontSize: 10, fontWeight: 900, fontFamily: 'Nunito, sans-serif',
-                color: isActive ? '#fff' : N.lavender,
-                letterSpacing: 0.5,
-                boxShadow: isActive ? `0 0 12px ${glow}` : 'none',
-                whiteSpace: 'nowrap',
+                display: 'flex', justifyContent: 'center', marginBottom: 8,
+                filter: active ? `drop-shadow(0 6px 18px ${meta.accent}55)` : 'none',
+                transition: 'filter 0.2s',
               }}>
-                {isActive ? '✓ ON' : 'SELECT'}
+                <Mascot size={isLast ? 80 : 68} pose={active ? 'correct' : 'idle'} />
               </div>
+
+              {/* Name */}
+              <div style={{
+                fontSize: 14, fontWeight: 900, color: active ? meta.accent : '#F8F7FF',
+                marginBottom: 3, lineHeight: 1,
+                transition: 'color 0.2s',
+              }}>
+                {m.name}
+              </div>
+
+              {/* Desc */}
+              <div style={{
+                fontSize: 10, color: active ? 'rgba(255,255,255,0.65)' : 'rgba(165,180,252,0.45)',
+                fontWeight: 600, lineHeight: 1.4,
+              }}>
+                {meta.desc}
+              </div>
+
+              {/* Active badge */}
+              {active && (
+                <div style={{
+                  marginTop: 8,
+                  display: 'inline-block',
+                  background: meta.grad,
+                  borderRadius: 20, padding: '3px 10px',
+                  fontSize: 9, fontWeight: 900, color: '#fff', letterSpacing: 0.5,
+                }}>
+                  ✓ ACTIVE
+                </div>
+              )}
             </button>
           )
         })}
