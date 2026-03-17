@@ -247,7 +247,7 @@ function ChallengeQuestion({ question, questionNumber, total, accent, M, mode, o
 }
 
 // ─── Results screen ───────────────────────────────────────────────────────────
-function ChallengeResults({ correct, total, xpEarned, trialsLeft, onRetry, onBack, accent, M, mode }) {
+function ChallengeResults({ correct, total, xpEarned, onRetry, onBack, accent, M, mode }) {
   const isBlaze = mode === 'blaze'
   const perfect = correct === total
   const pct     = total > 0 ? Math.round((correct / total) * 100) : 0
@@ -284,13 +284,6 @@ function ChallengeResults({ correct, total, xpEarned, trialsLeft, onRetry, onBac
         <div style={{ height: 10, background: `${accent}20`, borderRadius: 99, overflow: 'hidden' }}>
           <div style={{ width: `${pct}%`, height: '100%', background: perfect ? M.correctColor : accent, borderRadius: 99, transition: 'width 0.9s ease' }} />
         </div>
-      </div>
-
-      {/* Trials remaining indicator */}
-      <div style={{ fontSize: 12, color: M.textSecondary, fontFamily: 'Nunito, sans-serif', fontWeight: 600 }}>
-        {trialsLeft > 0
-          ? `🔁 ${trialsLeft} attempt${trialsLeft !== 1 ? 's' : ''} remaining today`
-          : "🔒 No more attempts today — come back tomorrow!"}
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 300 }}>
@@ -369,46 +362,37 @@ export default function ChallengePage() {
   const [currentIdx,   setCurrentIdx]   = useState(0)
   const [results,      setResults]      = useState([])
   const [student,      setStudent]      = useState(null)
-  const [trialsToday,  setTrialsToday]  = useState(0)   // 0, 1, or 2
-  const MAX_DAILY_TRIALS = 2
 
-  // ── Load student ───────────────────────────────────────────────────────────
+  // ── Load active student via profiles.active_student_id ──────────────────
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return
-      supabase.from('students').select('*').eq('profile_id', user.id).single()
-        .then(({ data }) => { if (data) setStudent(data) })
-    })
+    async function loadStudent() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+        // Get active_student_id from profile first
+        const { data: profile } = await supabase.from('profiles').select('active_student_id').eq('id', user.id).single()
+        const studentId = profile?.active_student_id
+        if (!studentId) {
+          // fallback: first student for this profile
+          const { data: first } = await supabase.from('students').select('*').eq('profile_id', user.id).limit(1).single()
+          if (first) setStudent(first)
+          return
+        }
+        const { data: s } = await supabase.from('students').select('*').eq('id', studentId).single()
+        if (s) setStudent(s)
+      } catch (e) { console.error('[challenge] load student:', e.message) }
+    }
+    loadStudent()
   }, [])
 
   // ── Load questions + check daily trial count ──────────────────────────────
   // - Questions only from subtopics the student has completed (falls back to all)
-  // - Tracks how many challenges they have started today; locks at MAX_DAILY_TRIALS
   useEffect(() => {
     if (!student) return
     async function load() {
       try {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) { setError('Not logged in.'); setPhase('locked'); return }
-
-        // Check today's trial count from challenge_attempts table
-        // (falls back gracefully if the table doesn't exist yet)
-        const todayStart = new Date(); todayStart.setHours(0,0,0,0)
-        try {
-          const { data: attempts } = await supabase
-            .from('challenge_attempts')
-            .select('id')
-            .eq('student_id', student.id)
-            .gte('created_at', todayStart.toISOString())
-          setTrialsToday(attempts?.length || 0)
-          if ((attempts?.length || 0) >= MAX_DAILY_TRIALS) {
-            setPhase('locked')
-            return
-          }
-        } catch (_) {
-          // table may not exist yet — allow challenge to proceed
-          setTrialsToday(0)
-        }
 
         // Load questions from completed subtopics
         let lessonIds = []
@@ -458,8 +442,7 @@ export default function ChallengePage() {
       const correctCount = newResults.filter(r => r.correct).length
       const xpEarned = correctCount === questions.length ? 50 : Math.max(5, Math.round((correctCount / questions.length) * 50))
       awardXP(xpEarned)
-      recordAttempt()
-      setPhase('done')
+        setPhase('done')
     } else {
       setCurrentIdx(i => i + 1)
     }
@@ -474,16 +457,7 @@ export default function ChallengePage() {
     } catch (e) { console.error('[challenge] XP:', e.message) }
   }
 
-  async function recordAttempt() {
-    try {
-      await supabase.from('challenge_attempts').insert({ student_id: student?.id })
-    } catch (_) { /* table may not exist yet */ }
-    setTrialsToday(t => t + 1)
-  }
-
-  // Retry: only allowed if trialsToday < MAX_DAILY_TRIALS
   function handleRetry() {
-    if (trialsToday >= MAX_DAILY_TRIALS) { setPhase('locked'); return }
     const reshuffled = [...questions]
       .sort(() => Math.random() - 0.5)
       .map(q => ({ ...q, options: [...(q.options || [])].sort(() => Math.random() - 0.5) }))
@@ -497,7 +471,6 @@ export default function ChallengePage() {
   const correct   = results.filter(r => r.correct).length
   const xpEarned  = correct === questions.length ? 50 : Math.max(5, Math.round((correct / Math.max(questions.length, 1)) * 50))
   const currentQ  = questions[currentIdx]
-  const trialsLeft = Math.max(0, MAX_DAILY_TRIALS - trialsToday)
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -505,7 +478,7 @@ export default function ChallengePage() {
 
       {/* Top bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', flexShrink: 0, borderBottom: `1px solid ${accent}18`, background: M.hudBg }}>
-        <button onClick={() => router.push('/learn')}
+        <button onClick={() => router.back()}
           style={{ width: 34, height: 34, borderRadius: '50%', cursor: 'pointer', background: M.lessonCard, border: M.lessonBorder, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: M.textSecondary, flexShrink: 0 }}>
           ←
         </button>
@@ -531,26 +504,20 @@ export default function ChallengePage() {
             </div>
           )}
 
-          {/* Locked — used up both trials, or error */}
+          {/* Locked — only for errors (no questions found etc.) */}
           {phase === 'locked' && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 60, gap: 20, textAlign: 'center', animation: 'slideUp 0.3s ease' }}>
-              <div style={{ fontSize: 52 }}>{error ? '📭' : '🔒'}</div>
+              <div style={{ fontSize: 52 }}>📭</div>
               <div>
                 <div style={{ fontFamily: M.headingFont, fontSize: 22, fontWeight: 900, color: M.textPrimary, marginBottom: 8 }}>
-                  {error ? 'Something went wrong' : 'Challenge limit reached'}
+                  Something went wrong
                 </div>
                 <div style={{ fontSize: 14, color: bodyColor, fontFamily: 'Nunito, sans-serif', lineHeight: 1.7, maxWidth: 280 }}>
-                  {error || `You have used both of today's challenge attempts. Come back tomorrow for a fresh challenge! 💪`}
+                  {error || 'No questions available yet. Complete some lessons first!'}
                 </div>
               </div>
-              {!error && (
-                <div style={{ background: `${accent}10`, border: `1.5px solid ${accent}25`, borderRadius: 16, padding: '14px 20px' }}>
-                  <div style={{ fontSize: 12, fontWeight: 800, color: accent, fontFamily: 'Nunito, sans-serif', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>Today</div>
-                  <div style={{ fontSize: 20, fontWeight: 900, color: M.textPrimary, fontFamily: 'Nunito, sans-serif' }}>{MAX_DAILY_TRIALS}/{MAX_DAILY_TRIALS} attempts used</div>
-                </div>
-              )}
-              <button onClick={() => router.push('/learn')} style={{ ...M.primaryBtn, fontSize: 15, padding: '14px 32px' }}>
-                Back to Learn Map
+              <button onClick={() => router.back()} style={{ ...M.primaryBtn, fontSize: 15, padding: '14px 32px' }}>
+                ← Go Back
               </button>
             </div>
           )}
@@ -575,9 +542,8 @@ export default function ChallengePage() {
               correct={correct}
               total={questions.length}
               xpEarned={xpEarned}
-              trialsLeft={trialsLeft}
-              onRetry={trialsLeft > 0 ? handleRetry : null}
-              onBack={() => router.push('/learn')}
+              onRetry={handleRetry}
+              onBack={() => router.back()}
               accent={accent}
               M={M}
               mode={mode}

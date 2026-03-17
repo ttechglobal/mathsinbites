@@ -3,11 +3,10 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import KolaNova    from '@/components/mascots/KolaNova'
-import AdeSpark    from '@/components/mascots/AdeSpark'
+import TayoSteady  from '@/components/mascots/TayoSteady'
 import ChinweRoots from '@/components/mascots/ChinweRoots'
 import ZapBlaze    from '@/components/mascots/ZapBlaze'
 import HalimaShine from '@/components/mascots/HalimaShine'
-import TayoSteady  from '@/components/mascots/TayoSteady'
 import { BiteMarkIcon } from '@/components/BiteMarkIcon'
 
 // ─── palette ──────────────────────────────────────────────────────────────────
@@ -32,26 +31,26 @@ const C = {
 // ─── mode configs for the mascot showcase ─────────────────────────────────────
 const MODES_SHOWCASE = [
   {
+    id: 'normal',
+    label: 'TayoSteady',
+    sub: 'Normal Mode',
+    emoji: '📗',
+    mascot: TayoSteady,
+    accent: '#0d9488',
+    bg: 'rgba(13,148,136,0.08)',
+    border: 'rgba(13,148,136,0.25)',
+    quote: "Maths is not hard — it just needs patience. Let's take it one step at a time. You've got this! 📗",
+  },
+  {
     id: 'nova',
     label: 'KolaNova',
     sub: 'Nova Mode',
     emoji: '🌌',
     mascot: KolaNova,
     accent: '#7C3AED',
-    bg: 'rgba(124,58,237,0.06)',
+    bg: 'rgba(124,58,237,0.14)',
     border: 'rgba(124,58,237,0.25)',
     quote: '"The universe is written in the language of mathematics. Master it — and you\'ll understand everything 🌌"',
-  },
-  {
-    id: 'spark',
-    label: 'AdeSpark',
-    sub: 'Spark Mode',
-    emoji: '✨',
-    mascot: AdeSpark,
-    accent: '#FF8C42',
-    bg: 'rgba(255,140,66,0.06)',
-    border: 'rgba(255,140,66,0.25)',
-    quote: '"Every question you attempt — right OR wrong — makes you sharper. Keep going! ✨"',
   },
   {
     id: 'roots',
@@ -184,12 +183,11 @@ export default function LandingPage() {
           .lp-nav-login   { display: none !important; }
           .lp-nav-cta     { font-size: 13px !important; padding: 8px 16px !important; }
           .lp-hero-grid   { grid-template-columns: 1fr !important; padding: 88px 5% 48px !important; gap: 0 !important; }
-          .lp-hero-mascot { display: none !important; }
+          .lp-hero-mascot { margin-top: 32px !important; }
           .lp-hero-h1     { font-size: 34px !important; }
           .lp-hero-btns   { flex-direction: column !important; }
           .lp-hero-btns a { width: 100% !important; text-align: center !important; box-sizing: border-box !important; }
           .lp-hero-chips  { flex-wrap: wrap !important; gap: 6px !important; }
-          .lp-stats-bar   { gap: 24px !important; padding: 40px 5% !important; flex-wrap: wrap !important; }
           .lp-why-grid    { grid-template-columns: 1fr !important; }
           .lp-how-grid    { grid-template-columns: 1fr 1fr !important; }
           .lp-mascot-tabs { grid-template-columns: repeat(3, 1fr) !important; }
@@ -225,7 +223,7 @@ export default function LandingPage() {
 
         {/* desktop links */}
         <div style={{ display: 'flex', gap: 2 }} className="lp-nav-links">
-          {['Why it works', 'How it works', 'Mascots', 'Reviews'].map(l => (
+          {['Why it works', 'How it works', 'Mascots'].map(l => (
             <a key={l} href={`#${l.toLowerCase().replace(/ /g, '-')}`} style={{
               color: C.dim, textDecoration: 'none', fontWeight: 800, fontSize: 13,
               padding: '7px 13px', borderRadius: 10,
@@ -346,8 +344,8 @@ export default function LandingPage() {
               boxShadow: '0 8px 28px rgba(0,0,0,.4)',
             }}>
               <p style={{ fontSize: 12, fontWeight: 800, color: C.chalk, lineHeight: 1.5, margin: 0 }}>
-                <span style={{ color: C.electric }}>Hi! I'm KolaNova ✏️</span><br />
-                Ready to ace maths today?
+                <span style={{ color: C.electric }}>Hi! I&apos;m KolaNova ✏️</span><br />
+                Maths made fun, in bites. Let&apos;s go! 🚀
               </p>
             </div>
 
@@ -387,30 +385,16 @@ export default function LandingPage() {
       </header>
 
       {/* ═══════════════════════════════════════════ TICKER ═══ */}
-      <div style={{ overflow: 'hidden', padding: '12px 0', background: C.electric }}>
-        <div style={{ display: 'flex', gap: 44, whiteSpace: 'nowrap', animation: 'ticker 26s linear infinite' }}>
+      <div style={{ overflow: 'hidden', padding: '11px 0', background: '#C8F135', flexShrink: 0 }}>
+        <div style={{ display: 'flex', gap: 48, whiteSpace: 'nowrap', animation: 'ticker 32s linear infinite' }}>
           {[...Array(2)].map((_, r) => (
-            ['10,000+ students daily', 'NERDC aligned · JSS1–SS3', '500+ lessons ready now',
-              'National leaderboard', '6 learning modes', '🇳🇬 Proudly Nigerian'].map((t, i) => (
-              <span key={`${r}-${i}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 900, color: 'rgba(12,8,32,.7)' }}>
-                {t} <span style={{ color: 'rgba(12,8,32,.4)', fontSize: 16 }}>✦</span>
+            ['🇳🇬 Proudly Nigerian-built', 'NERDC-aligned curriculum', '5-minute daily lessons', 'JSS1 – SS3 covered', 'Relatable. Fun. Effective.', 'Learn maths in bites', '6 unique mascot modes', 'Free to start today'].map((t, i) => (
+              <span key={`${r}-${i}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 10, fontSize: 12, fontWeight: 900, color: 'rgba(12,8,32,0.65)', letterSpacing: 0.3 }}>
+                {t} <span style={{ color: 'rgba(12,8,32,0.3)', fontSize: 14 }}>✦</span>
               </span>
             ))
           ))}
         </div>
-      </div>
-
-      {/* ═══════════════════════════════════════════ STATS ═══ */}
-      <div className="lp-stats-bar" style={{
-        display: 'flex', justifyContent: 'center', gap: 'clamp(28px,6vw,80px)', flexWrap: 'wrap',
-        padding: '60px 6%', background: C.deep, borderBottom: `1px solid ${C.border}`,
-      }}>
-        {[['10K+','Students daily'],['500+','Curriculum lessons'],['36','States represented'],['94%','Report better grades']].map(([n, l]) => (
-          <div key={n} style={{ textAlign: 'center' }}>
-            <div style={{ fontFamily: "'Fredoka One', sans-serif", fontSize: 'clamp(44px,6vw,60px)', lineHeight: 1, color: C.electric }}>{n}</div>
-            <div style={{ fontSize: 13, color: C.dim, fontWeight: 800, marginTop: 5 }}>{l}</div>
-          </div>
-        ))}
       </div>
 
       {/* ═══════════════════════════════════════════ WHY IT WORKS ═══ */}
@@ -499,7 +483,7 @@ export default function LandingPage() {
       <section id="mascots" className="lp-section" style={{ padding: '92px 6%', background: C.paper2, position: 'relative', overflow: 'hidden' }}>
         <FloatingSymbols dark={false} />
         <div style={{ textAlign: 'center', position: 'relative', zIndex: 2 }}>
-          <SectionTag color={C.orange}>6 Mascots</SectionTag>
+          <SectionTag color={C.orange}>Meet Your Mascots</SectionTag>
           <h2 style={{ fontFamily: "'Fredoka One', sans-serif", fontSize: 'clamp(28px,4vw,44px)', color: C.ink, lineHeight: 1.12, marginBottom: 14 }}>
             Your mascot. Your vibe.<br /><span style={{ color: '#5C2EDD' }}>Your rules.</span>
           </h2>
@@ -569,41 +553,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ═══════════════════════════════════════════ TESTIMONIALS ═══ */}
-      <section id="reviews" className="lp-section" style={{ padding: '92px 6%', background: C.ink, position: 'relative', overflow: 'hidden' }}>
-        <FloatingSymbols dark />
-        <div style={{ textAlign: 'center', position: 'relative', zIndex: 2 }}>
-          <SectionTag color="#ff9999">Real Results</SectionTag>
-          <h2 style={{ fontFamily: "'Fredoka One', sans-serif", fontSize: 'clamp(28px,4vw,44px)', lineHeight: 1.12, marginBottom: 14 }}>
-            Real students. Real schools.<br />Real results.
-          </h2>
-        </div>
-        <div className="lp-testi-grid" style={{
-          display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))',
-          gap: 18, marginTop: 50, position: 'relative', zIndex: 2,
-        }}>
-          {[
-            { q: '"I was failing maths every term. Three weeks of MathsInBites later — 78% on my last test. My mum actually cried."', name: 'Emeka O.', role: 'JSS2 · King\'s College, Lagos', avi: '👦🏿' },
-            { q: '"The Northern Mode feels like it was made for me. I never thought I\'d say that about a maths app — but I actually look forward to it every evening."', name: 'Halima M.', role: 'JSS3 · GGSS Kano', avi: '👧🏾' },
-            { q: '"He used to argue about studying. Now he argues when I tell him to stop. He\'s chasing a boy in Abuja for the national #1 spot."', name: 'Mrs. Fatima K.', role: 'Parent · Kano State', avi: '👩🏾' },
-          ].map((t, i) => (
-            <article key={i} style={{
-              background: C.panel, border: `1.5px solid ${C.border}`,
-              borderRadius: 22, padding: '26px',
-            }}>
-              <div style={{ fontSize: 13, letterSpacing: 3, color: C.gold, marginBottom: 13 }}>★★★★★</div>
-              <p style={{ fontSize: 13.5, color: 'rgba(240,237,255,.88)', lineHeight: 1.8, fontWeight: 700, fontStyle: 'italic', marginBottom: 18 }}>{t.q}</p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'rgba(165,153,255,.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>{t.avi}</div>
-                <div>
-                  <div style={{ fontWeight: 900, fontSize: 12.5, color: C.chalk }}>{t.name}</div>
-                  <div style={{ fontSize: 10.5, color: C.dim2, fontWeight: 700 }}>{t.role}</div>
-                </div>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
+
 
       {/* ═══════════════════════════════════════════ CTA ═══ */}
       <section className="lp-section" style={{

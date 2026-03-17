@@ -209,9 +209,10 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
   const allSubtopics = (level?.terms || [])
     .sort((a, b) => a.term_number - b.term_number)
     .flatMap(t =>
-      (t.units || []).flatMap(u =>
-        (u.topics || []).flatMap(tp =>
-          (tp.subtopics || []).map(s => ({ ...s, topicTitle: tp.title, termName: t.name }))
+      [...(t.units || [])].sort((a,b) => (a.order_index||0) - (b.order_index||0)).flatMap(u =>
+        [...(u.topics || [])].sort((a,b) => (a.order_index||0) - (b.order_index||0)).flatMap(tp =>
+          [...(tp.subtopics || [])].sort((a,b) => (a.order_index||0) - (b.order_index||0))
+            .map(s => ({ ...s, topicTitle: tp.title, termName: t.name }))
         )
       )
     )
@@ -243,7 +244,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
   ]
   const activeFace = rankFaces[rankFaceIdx % rankFaces.length]
 
-  const allTopics = (level?.terms || []).flatMap(t => (t.units || []).flatMap(u => u.topics || []))
+  const allTopics = (level?.terms || []).sort((a,b)=>a.term_number-b.term_number).flatMap(t => [...(t.units||[])].sort((a,b)=>(a.order_index||0)-(b.order_index||0)).flatMap(u => [...(u.topics||[])].sort((a,b)=>(a.order_index||0)-(b.order_index||0))))
 
   async function saveProfile() {
     if (!editName.trim()) return
@@ -351,11 +352,11 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
                 🏠
               </div>
             </button>
+            {ModeBtn}
             <div style={{ background: isBlaze ? '#FFD700' : isNova ? 'rgba(124,58,237,0.2)' : `${accent}14`, border: isBlaze ? '1.5px solid #0d0d0d' : `1.5px solid ${accent}30`, borderRadius: isBlaze ? 8 : 20, padding: '4px 12px', display: 'flex', gap: 4, alignItems: 'center', boxShadow: isBlaze ? '2px 2px 0 #0d0d0d' : 'none' }}>
               <span style={{ fontSize: 11 }}>⚡</span>
               <span style={{ fontSize: 12, fontWeight: 900, color: isBlaze ? '#0d0d0d' : accent, fontFamily: 'Nunito, sans-serif' }}>{xp.toLocaleString()}</span>
             </div>
-            {ModeBtn}
             {ProfileBtn}
           </>
         )}
@@ -463,9 +464,9 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
     const termDone = termSubs.length > 0 && termProg === termSubs.length
     pathItems.push({ kind: 'term', term, termIdx, tAccent, termProg, termDone, termSubs })
 
-    ;(term.units || []).forEach(unit => {
-      ;(unit.topics || []).forEach(topic => {
-        const subs      = topic.subtopics || []
+    ;[...(term.units || [])].sort((a,b)=>(a.order_index||0)-(b.order_index||0)).forEach(unit => {
+      ;[...(unit.topics || [])].sort((a,b)=>(a.order_index||0)-(b.order_index||0)).forEach(topic => {
+        const subs = [...(topic.subtopics || [])].sort((a,b)=>(a.order_index||0)-(b.order_index||0))
         const doneCount = subs.filter(s => completedIds.has(s.id)).length
         const allDone   = subs.length > 0 && doneCount === subs.length
 
@@ -475,7 +476,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
           const isDone    = completedIds.has(sub.id)
           const isCurrent = sub.id === nextLesson?.id
           const isLocked  = !isDone && !isCurrent && subIdx > 0 && !completedIds.has(subs[subIdx - 1]?.id)
-          pathItems.push({ kind: 'lesson', sub, tAccent, isDone, isCurrent, isLocked, subIdx })
+          pathItems.push({ kind: 'lesson', sub, tAccent, isDone, isCurrent, isLocked, subIdx, globalIdx: pathItems.filter(p=>p.kind==='lesson').length })
         })
 
         if (subs.length > 0) {
@@ -503,46 +504,35 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
     return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'
   })()
 
-  // ── Intelligent mascot greeting ──────────────────────────────────────────
+  // ── Mascot greeting — simple and encouraging ────────────────────────────
   const mascotGreeting = (() => {
-    const h = new Date().getHours()
-    const timeWord = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening'
-    const myClassRankNum = myClassRank >= 0 ? myClassRank + 1 : null
-
-    // Priority order: encouragement based on context
-    if (doneLessons === 0) {
-      return `Hey ${firstName}! 👋 Welcome aboard! Your maths journey starts right now. Let's crush it together!`
-    }
-    if (streak === 0 && doneLessons > 0) {
-      return `Good ${timeWord}, ${firstName}! Don't let that streak slip — come back and keep your momentum going! 💪`
-    }
-    if (streak >= 7) {
-      return `${firstName}, you're on a ${streak}-day streak! 🔥 That kind of consistency is how champions are made. Keep going!`
-    }
-    if (myClassRankNum && myClassRankNum > 5 && boards.class?.length > 5) {
-      const gap = Math.max(0, (boards.class[0]?.monthly_xp || 0) - monthlyXp)
-      return `Good ${timeWord}, ${firstName}! Your classmates are pulling ahead — you're just ${gap} XP from the top. Let's go! ⚡`
-    }
-    if (myClassRankNum === 1) {
-      return `${firstName}, you're #1 in your class! 👑 Stay on top — keep learning and don't let anyone catch you!`
-    }
-    if (overallPct >= 80) {
-      return `${firstName}, you're ${overallPct}% done! 🏆 You're so close to completing the full curriculum. Finish strong!`
-    }
-    if (doneLessons > 0 && doneLessons < 5) {
-      return `Good ${timeWord}, ${firstName}! You've started — now let's build that habit. Even one lesson today makes a difference! 📚`
-    }
-    // Default friendly greetings
-    const defaults = [
-      `Good ${timeWord}, ${firstName}! Ready to learn something amazing today? 🚀`,
-      `Hey ${firstName}! Hope you're ready to crush your goals today! 💡`,
-      `${firstName}, let's make today count! Your future self will thank you. ✨`,
-      `Good ${timeWord}, ${firstName}! Every lesson gets you closer to your goals. Let's go! 🎯`,
+    const greetings = [
+      `Hi ${firstName}! Ready to make today count? Let's learn something great! 🚀`,
+      `Hey ${firstName}! Every lesson brings you closer to your best. Let's go! 💡`,
+      `${firstName}! Maths gets easier one lesson at a time. You've got this! 📚`,
+      `Hi ${firstName}! Small steps every day lead to big results. Let's learn! ⚡`,
+      `Hey ${firstName}! Your future self is counting on today's you. Let's go! 🎯`,
+      `${firstName}! Champions are made by showing up. You showed up — now let's learn! 🏆`,
     ]
-    return defaults[doneLessons % defaults.length]
+    if (doneLessons === 0) return `Hi ${firstName}! 👋 Welcome to MathsInBites — maths made fun, one lesson at a time. Let's go!`
+    if (streak >= 7) return `${firstName}, ${streak} days strong! 🔥 That's the spirit — keep the momentum going!`
+    if (myClassRank === 0) return `${firstName}, you're #1 in your class! 👑 Keep learning and stay on top!`
+    return greetings[doneLessons % greetings.length]
   })()
 
-  const previewTopics = allTopics.slice(0, 2)
+  // Smart preview topics: show current + next, or first 2 if not started
+  const previewTopics = (() => {
+    if (doneLessons === 0) return allTopics.slice(0, 2)
+    // Find the topic containing the next lesson
+    const currentTopic = allTopics.find(t =>
+      (t.subtopics || []).some(s => s.id === nextLesson?.id)
+    )
+    if (!currentTopic) return allTopics.slice(0, 2)
+    const currentIdx = allTopics.indexOf(currentTopic)
+    // Show current topic + next one (or previous if last)
+    const next = allTopics[currentIdx + 1] || allTopics[currentIdx - 1]
+    return next ? [currentTopic, next] : [currentTopic]
+  })()
 
   const HomeTab = (
     <div style={{ height: '100%', overflowY: 'auto', background: isNova ? '#0F0C29' : M.mapBg || '#F4F5FA', position: 'relative' }}>
@@ -580,9 +570,9 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
         {/* ── Stats row ── */}
         <div style={{ display: 'flex', gap: 10, marginBottom: 22 }}>
           {[
-            { emoji: '⚡', value: xp.toLocaleString(), label: 'XP', color: accent },
+            { emoji: activeFace.emoji, value: activeFace.display, label: `${activeFace.label} Rank`, color: accent, fade: !rankVisible },
             { emoji: '🔥', value: String(streak || 0), label: 'Streak', color: '#FF9500' },
-            { emoji: activeFace.emoji, value: activeFace.display, label: `${activeFace.label}`, color: accent, fade: !rankVisible },
+            { emoji: '⚡', value: xp.toLocaleString(), label: 'XP', color: accent },
             { emoji: '🎓', value: String(doneLessons), label: 'Done', color: M.correctColor },
           ].map((s, i) => (
             <div key={i} onClick={i === 2 ? () => setActiveTab('leaderboard') : undefined}
@@ -790,17 +780,17 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
 
             // ── LESSON NODE — centred, label below ──
             if (item.kind === 'lesson') {
-              const { sub, tAccent, isDone, isCurrent, isLocked } = item
+              const { sub, tAccent, isDone, isCurrent, isLocked, subIdx, globalIdx } = item
               const isSelected = selectedNode?.sub?.id === sub.id
               const nodeSize = isCurrent ? 64 : isDone ? 52 : isLocked ? 38 : 46
 
               return (
-                <div key={`lesson-${sub.id}`} ref={isCurrent ? currentNodeRef : null} style={{ position: 'relative', zIndex: 2, marginBottom: isCurrent ? 10 : 4 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, paddingBottom: 8 }}>
+                <div key={`lesson-${sub.id}`} ref={isCurrent ? currentNodeRef : null} style={{ position: 'relative', zIndex: 2, marginBottom: 8 }}>
+                  <div style={{ display: 'flex', flexDirection: globalIdx % 2 === 0 ? 'row' : 'row-reverse', alignItems: 'center', paddingLeft: globalIdx % 2 === 0 ? '5%' : 0, paddingRight: globalIdx % 2 === 0 ? 0 : '5%', gap: 10, paddingBottom: 2 }}>
                     <button
                       onClick={() => !isLocked && setSelectedNode(isSelected ? null : { sub, isCurrent, isDone, tAccent })}
                       style={{
-                        width: nodeSize, height: nodeSize, borderRadius: '50%', flexShrink: 0, position: 'relative',
+                        width: Math.round(nodeSize * 1.2), height: nodeSize, borderRadius: '40%', flexShrink: 0, position: 'relative',
                         background: isDone ? `linear-gradient(145deg,${M.correctColor},${M.correctColor}99)` : isCurrent ? `linear-gradient(145deg,${accent},${M.accent2 || accent}CC)` : isLocked ? (isNova ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)') : (isNova ? 'rgba(255,255,255,0.13)' : 'rgba(0,0,0,0.07)'),
                         border: isDone ? `3px solid ${M.correctColor}` : isCurrent ? `3px solid ${accent}` : isLocked ? `2px solid ${isNova ? 'rgba(255,255,255,0.12)' : '#e0e0e0'}` : `2.5px solid ${tAccent}55`,
                         boxShadow: isCurrent ? `0 0 0 10px ${accent}16, 0 10px 32px ${accent}48` : isDone ? `0 0 0 6px ${M.correctColor}18, 0 5px 18px ${M.correctColor}32` : isSelected ? `0 0 0 6px ${tAccent}28` : '0 3px 12px rgba(0,0,0,0.11)',
@@ -816,15 +806,14 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
                       {isDone ? <span style={{ fontSize: nodeSize * 0.32, color: '#fff' }}>✓</span>
                         : isCurrent ? <span style={{ fontSize: nodeSize * 0.36, color: '#fff', marginLeft: 3 }}>▶</span>
                         : isLocked  ? <span style={{ fontSize: nodeSize * 0.38 }}>🔒</span>
-                        : <div style={{ width: nodeSize * 0.3, height: nodeSize * 0.3, borderRadius: '50%', background: `${tAccent}65` }} />
+                        : <span style={{ fontSize: nodeSize * 0.40, opacity: 0.8 }}>{M.emoji}</span>
                       }
                     </button>
 
-                    <div style={{ textAlign: 'center', maxWidth: isCurrent ? 210 : 180, paddingBottom: 2 }}>
+                    <div style={{ textAlign: 'left', maxWidth: isCurrent ? 200 : 170 }}>
                       <div style={{ fontSize: isCurrent ? 14 : 12, fontWeight: isCurrent ? 900 : isDone ? 500 : 600, color: isDone ? bodyColor : isNova ? '#F8F7FF' : M.textPrimary, fontFamily: 'Nunito, sans-serif', lineHeight: 1.35 }}>
                         {sub.title}
                       </div>
-                      {isDone && <div style={{ fontSize: 9, color: M.correctColor, fontFamily: 'Nunito, sans-serif', fontWeight: 800, marginTop: 2 }}>+10 XP ✓</div>}
                       {isCurrent && <div style={{ fontSize: 11, fontWeight: 700, color: accent, fontFamily: 'Nunito, sans-serif', marginTop: 4 }}>Tap to start →</div>}
                     </div>
                   </div>
@@ -1056,40 +1045,6 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
       </button>
 
       {/* Quick topic shortcuts — top 5 topics */}
-      {allTopics.length > 0 && (
-        <>
-          <div style={{ fontSize: 10, fontWeight: 800, color: M.textSecondary, letterSpacing: '0.12em', textTransform: 'uppercase', fontFamily: 'Nunito, sans-serif', marginBottom: 10 }}>
-            Quick Jump
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {allTopics.slice(0, 5).map(topic => {
-              const subs      = topic.subtopics || []
-              const doneCount = subs.filter(s => completedIds.has(s.id)).length
-              const hasDone   = doneCount > 0
-              return (
-                <button
-                  key={topic.id}
-                  onClick={() => router.push(`/learn/practice?topicId=${topic.id}`)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: M.cardBg, border: hasDone ? `1.5px solid ${accent}28` : M.cardBorder, borderRadius: M.cardRadius, boxShadow: M.cardShadow, cursor: 'pointer', textAlign: 'left', width: '100%', fontFamily: 'Nunito, sans-serif' }}>
-                  <div style={{ width: 34, height: 34, borderRadius: isBlaze ? '30%' : '50%', flexShrink: 0, background: hasDone ? `${accent}18` : 'rgba(0,0,0,0.04)', border: hasDone ? `1.5px solid ${accent}30` : '1.5px solid #eee', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>
-                    {hasDone ? '✏️' : '📖'}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: M.textPrimary }}>{topic.title}</div>
-                    {hasDone && <div style={{ fontSize: 10, color: M.correctColor, fontWeight: 600, marginTop: 1 }}>✓ {doneCount}/{subs.length} done</div>}
-                  </div>
-                  <span style={{ fontSize: 10, fontWeight: 800, color: hasDone ? accent : M.textSecondary, background: hasDone ? `${accent}12` : 'rgba(0,0,0,0.05)', borderRadius: 20, padding: '3px 9px', flexShrink: 0 }}>Go</span>
-                </button>
-              )
-            })}
-            {allTopics.length > 5 && (
-              <button onClick={() => router.push('/learn/practice')} style={{ padding: '11px', background: 'transparent', border: `1.5px solid ${accent}25`, borderRadius: 12, cursor: 'pointer', fontSize: 12, fontWeight: 800, color: accent, fontFamily: 'Nunito, sans-serif' }}>
-                See all {allTopics.length} topics →
-              </button>
-            )}
-          </div>
-        </>
-      )}
 
       {allTopics.length === 0 && (
         <div style={{ textAlign: 'center', padding: '48px 0' }}>

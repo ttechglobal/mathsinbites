@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useMode } from '@/lib/ModeContext'
+import { BicPencil } from '@/components/BiteMarkIcon'
 
 // ─── Math renderer ────────────────────────────────────────────────────────────
 function parseMath(text) {
@@ -343,6 +344,20 @@ export default function PracticePage() {
 
   const preTopicId = searchParams.get('topicId') || null
   const accent     = M.accentColor
+
+  // ── Practice mascot greeting ──────────────────────────────────────────────
+  const practiceGreeting = (() => {
+    const msgs = [
+      'Practice makes perfect! The more you do, the better you get. 💪',
+      "Time to sharpen your skills! Let's go through some questions. ✏️",
+      'Every question you attempt makes you sharper. Keep going! 🎯',
+      "The secret to maths? Repetition. Let's practise! 📚",
+      "Champions practise even when they don't feel like it. You showed up — let's go! 🏆",
+      "Quick drill time! A few focused questions and you'll be unstoppable. ⚡",
+    ]
+    return msgs[new Date().getHours() % msgs.length]
+  })()
+
   const bodyColor  = M.textSecondary
   const isBlaze    = mode === 'blaze'
   const isNova     = mode === 'nova'
@@ -542,10 +557,17 @@ export default function PracticePage() {
           {!loading && !starting && !error && phase === 'topics' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16, animation: 'slideUp 0.3s ease' }}>
 
-              <div>
-                <div style={{ fontFamily: M.headingFont, fontSize: 22, fontWeight: 900, color: M.textPrimary, marginBottom: 4 }}>✏️ Practice</div>
-                <div style={{ fontSize: 13, color: bodyColor, fontFamily: 'Nunito, sans-serif' }}>
-                  Pick a topic, or go mixed. Tap to configure your session.
+              {/* Mascot greeting */}
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, marginBottom: 4 }}>
+                <div style={{ flexShrink: 0, filter: `drop-shadow(0 4px 12px ${accent}40)` }}>
+                  <BicPencil pose="celebrate" size={64} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ background: isNova ? 'rgba(124,58,237,0.15)' : isBlaze ? '#FFD700' : `${accent}12`, border: isBlaze ? '2px solid #0d0d0d' : `1.5px solid ${accent}30`, borderRadius: isBlaze ? '10px 10px 10px 0' : '16px 16px 16px 0', padding: '10px 14px', boxShadow: isBlaze ? '2px 2px 0 #0d0d0d' : `0 3px 14px ${accent}18` }}>
+                    <div style={{ fontSize: 9, fontWeight: 900, color: accent, marginBottom: 3, textTransform: 'uppercase', letterSpacing: 0.7, fontFamily: 'Nunito, sans-serif' }}>{M.name}</div>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: isNova ? '#F8F7FF' : isBlaze ? '#0d0d0d' : M.textPrimary, fontFamily: 'Nunito, sans-serif', lineHeight: 1.45 }}>{practiceGreeting}</div>
+                  </div>
+                  <div style={{ width: 0, height: 0, borderLeft: '8px solid transparent', borderRight: '0 solid transparent', borderTop: `8px solid ${isBlaze ? '#0d0d0d' : `${accent}30`}`, marginLeft: 12 }} />
                 </div>
               </div>
 
