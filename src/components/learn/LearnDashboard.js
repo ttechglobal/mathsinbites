@@ -122,6 +122,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
   const [activeTab,       setActiveTab]       = useState('home')
   const [showModePicker,  setShowModePicker]  = useState(false)
   const [showSwitcher,    setShowSwitcher]    = useState(false)
+
   const [showWelcome,     setShowWelcome]     = useState(false)
   const [popup,           setPopup]           = useState(null)
   const [editName,        setEditName]        = useState(initialStudent?.display_name || '')
@@ -370,7 +371,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
   const TABS = [
     { id: 'learn',       icon: '📚', label: 'Learn'     },
     { id: 'practice',    icon: '✏️', label: 'Practice'  },
-    { id: 'challenge',   icon: '⚡', label: 'Challenge' },
+    { id: 'challenge',   icon: '⚡', label: '120s Fame' },
     { id: 'leaderboard', icon: '🏆', label: 'Leaders'   },
     { id: 'profile',     icon: '👤', label: 'Profile'   },
   ]
@@ -674,7 +675,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
             style={{ flex: 1, padding: '14px 10px', cursor: 'pointer', textAlign: 'center', background: 'rgba(255,196,0,0.1)', border: '1.5px solid rgba(255,196,0,0.35)', borderRadius: isBlaze ? 10 : 16, fontFamily: 'Nunito, sans-serif', position: 'relative' }}>
             <div style={{ position: 'absolute', top: -8, right: 8, background: 'linear-gradient(135deg,#FFD700,#FF9500)', color: '#fff', fontSize: 8, fontWeight: 900, borderRadius: 20, padding: '2px 8px', fontFamily: 'Nunito, sans-serif' }}>+50 XP</div>
             <div style={{ fontSize: 22, marginBottom: 4 }}>⚡</div>
-            <div style={{ fontSize: 12, fontWeight: 800, color: '#A06000', fontFamily: 'Nunito, sans-serif' }}>Daily Challenge</div>
+            <div style={{ fontSize: 11, fontWeight: 800, color: '#A06000', fontFamily: 'Nunito, sans-serif' }}>120s of Fame</div>
           </button>
           <button onClick={() => setActiveTab('practice')}
             style={{ flex: 1, padding: '14px 10px', cursor: 'pointer', textAlign: 'center', background: isNova ? 'rgba(255,255,255,0.06)' : `${accent}08`, border: isNova ? '1px solid rgba(255,255,255,0.1)' : `1.5px solid ${accent}25`, borderRadius: isBlaze ? 10 : 16, fontFamily: 'Nunito, sans-serif' }}>
@@ -729,9 +730,6 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
         {/* ── LEARNING PATH — centred spine, all nodes centred, labels below ── */}
         <div style={{ maxWidth: 520, margin: '0 auto', padding: '24px 0 170px', position: 'relative' }}>
 
-          {/* Dashed vertical spine */}
-          <div style={{ position: 'absolute', left: '50%', top: 16, bottom: 16, width: 4, transform: 'translateX(-50%)', background: isNova ? 'repeating-linear-gradient(to bottom,rgba(255,255,255,0.15) 0,rgba(255,255,255,0.15) 10px,transparent 10px,transparent 22px)' : 'repeating-linear-gradient(to bottom,rgba(0,0,0,0.12) 0,rgba(0,0,0,0.12) 10px,transparent 10px,transparent 22px)', borderRadius: 2, zIndex: 0, pointerEvents: 'none' }} />
-
           {pathItems.map((item, idx) => {
 
             // ── TERM WORLD BANNER ──
@@ -784,7 +782,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
               const nodeSize = isCurrent ? 64 : isDone ? 52 : isLocked ? 38 : 46
 
               return (
-                <div key={`lesson-${sub.id}`} ref={isCurrent ? currentNodeRef : null} style={{ position: 'relative', zIndex: 2, padding: '16px 0',
+                <div key={`lesson-${sub.id}`} ref={isCurrent ? currentNodeRef : null} style={{ position: 'relative', zIndex: 2, padding: '22px 0',
                     paddingLeft:  globalIdx % 4 === 1 ? '22%' : globalIdx % 4 === 3 ? '12%' : '17%',
                     paddingRight: globalIdx % 4 === 1 ? '8%'  : globalIdx % 4 === 3 ? '18%' : '13%',
                   }}>
@@ -1101,39 +1099,44 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
   )
 
   // ══════════════════════════════════════════════════════════════════════════
-  // CHALLENGE TAB
+  // CHALLENGE TAB — "60 Seconds of Fame"
+  // Answer as many questions as you can in 2 minutes. Score = questions correct.
   // ══════════════════════════════════════════════════════════════════════════
-  const challengeLabel = isBlaze
-    ? '⚡ ACCEPT CHALLENGE'
-    : isRoots
-      ? '🇳🇬 Take Today\'s Challenge'
-      : 'Start Daily Challenge →'
-
   const ChallengeTab = (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '70vh', padding: '32px 20px 120px', maxWidth: 520, margin: '0 auto' }}>
-      <div style={{ animation: 'float 2.5s ease-in-out infinite', marginBottom: 20 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '70vh', padding: '32px 20px 120px', maxWidth: 520, margin: '0 auto', textAlign: 'center' }}>
+
+      {/* Mascot */}
+      <div style={{ animation: 'float 2.5s ease-in-out infinite', marginBottom: 16, filter: `drop-shadow(0 8px 28px ${accent}55)` }}>
         <BicPencil pose="celebrate" size={110} />
       </div>
-      <div style={{ fontFamily: M.headingFont, fontSize: 26, fontWeight: 900, color: M.textPrimary, textAlign: 'center', marginBottom: 8, lineHeight: 1.2 }}>
-        🏆 Daily Challenge
+
+      {/* Title */}
+      <div style={{ fontFamily: M.headingFont, fontSize: 28, fontWeight: 900, color: M.textPrimary, marginBottom: 4, lineHeight: 1.1 }}>
+        ⚡ 120 Seconds
       </div>
-      <div style={{ fontSize: 13, color: bodyColor, fontFamily: 'Nunito, sans-serif', fontWeight: 500, lineHeight: 1.7, textAlign: 'center', maxWidth: 300, marginBottom: 28 }}>
-        {isRoots ? '5 questions every day. Get all correct — collect 50 XP and climb the leaderboard! 🇳🇬' : isBlaze ? '5 QUESTIONS. TIMED. NO HINTS. ALL CORRECT = 50 XP.' : '5 personalised questions every day. Get them all right to earn 50 XP!'}
+      <div style={{ fontFamily: M.headingFont, fontSize: 18, fontWeight: 700, color: accent, marginBottom: 18, letterSpacing: 0.5 }}>
+        of Fame
       </div>
-      <div style={{ display: 'flex', gap: 10, marginBottom: 28 }}>
-        {[
-          { icon: '⚡', label: '5 questions',  color: accent },
-          { icon: '⏱', label: '60s per Q',    color: '#FFC933' },
-          { icon: '🏆', label: '+50 XP bonus', color: M.correctColor },
-        ].map(({ icon, label, color }) => (
-          <div key={label} style={{ background: `${color}12`, border: `1px solid ${color}30`, borderRadius: 12, padding: '10px 12px', textAlign: 'center', flex: 1 }}>
-            <div style={{ fontSize: 18, marginBottom: 4 }}>{icon}</div>
-            <div style={{ fontSize: 10, fontWeight: 800, color, fontFamily: 'Nunito, sans-serif', lineHeight: 1.3 }}>{label}</div>
-          </div>
-        ))}
+
+      {/* Description */}
+      <div style={{ fontSize: 13, color: bodyColor, fontWeight: 600, lineHeight: 1.7, maxWidth: 260, marginBottom: 28 }}>
+        {isRoots
+          ? 'How many questions can you answer in 2 minutes? Show your class! 🇳🇬'
+          : 'Can you be the best? Answer as many questions as you can in 2 minutes.'}
       </div>
-      <button onClick={() => router.push('/learn/challenge?mode=daily')} style={{ ...M.primaryBtn, fontSize: 16, padding: '16px 40px', width: '100%', maxWidth: 300 }}>
-        {challengeLabel}
+
+      {/* Personal best pill */}
+      {student?.blitz_best > 0 && (
+        <div style={{ background: `${accent}12`, border: `1.5px solid ${accent}30`, borderRadius: 20, padding: '8px 20px', marginBottom: 28, fontSize: 13, fontWeight: 700, color: bodyColor, fontFamily: 'Nunito, sans-serif' }}>
+          Your best: <strong style={{ color: accent }}>{student.blitz_best} correct</strong>
+        </div>
+      )}
+
+      {/* CTA */}
+      <button
+        onClick={() => router.push('/learn/challenge?mode=blitz')}
+        style={{ ...M.primaryBtn, fontSize: 19, padding: '18px 64px', borderRadius: isBlaze ? 10 : 24, boxShadow: isBlaze ? '4px 4px 0 #0d0d0d' : `0 10px 32px ${accent}55`, animation: 'pulse-glow 2.5s ease-in-out infinite' }}>
+        {isBlaze ? '⚡ GO!' : isRoots ? '🇳🇬 Go!' : 'Go →'}
       </button>
     </div>
   )
