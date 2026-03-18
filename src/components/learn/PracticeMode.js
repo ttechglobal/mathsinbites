@@ -137,7 +137,7 @@ function SetupScreen({ allTopics, currentTopicId, allQuestions, M, mode, onStart
     <div style={{ minHeight:'100vh', background:M.lessonBg, fontFamily:M.font, display:'flex', flexDirection:'column' }}>
       {/* Top bar */}
       <div style={{ padding:'10px 16px', display:'flex', alignItems:'center', gap:10, borderBottom:`1px solid ${accent}18`, background:M.hudBg }}>
-        <button onClick={() => router.back()} style={{ width:32, height:32, borderRadius:'50%', background:M.lessonCard, border:M.lessonBorder, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:M.textSecondary, fontSize:14 }}>←</button>
+        <button onClick={() => router.push('/learn')} style={{ width:32, height:32, borderRadius:'50%', background:M.lessonCard, border:M.lessonBorder, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:M.textSecondary, fontSize:14 }}>←</button>
         <div style={{ flex:1, fontSize:14, fontWeight:800, color:M.textPrimary, fontFamily:M.headingFont }}>
           ✏️ {isTopic ? topicName : 'Mixed Practice'}
         </div>

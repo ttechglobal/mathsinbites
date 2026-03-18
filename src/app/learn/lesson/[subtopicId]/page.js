@@ -58,11 +58,23 @@ export default async function LessonPage({ params }) {
     questions = questionsData || []
   }
 
-  const { data: student } = await supabase
+  // ── Load the ACTIVE student — mirrors learn/page.js logic ──────────────────
+  // A user can have multiple student profiles (family plan).
+  // Always use the active_student_id from profiles, not just the first match.
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('active_student_id')
+    .eq('id', user.id)
+    .single()
+
+  const { data: allStudents } = await supabase
     .from('students')
     .select('*')
     .eq('profile_id', user.id)
-    .single()
+    .order('created_at', { ascending: true })
+
+  const activeId = profile?.active_student_id || allStudents?.[0]?.id
+  const student  = allStudents?.find(s => s.id === activeId) || allStudents?.[0] || null
 
   const lessonData = lesson ? { ...lesson, slides, questions } : null
 

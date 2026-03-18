@@ -134,19 +134,29 @@ export default function ChallengePage() {
   }, [])
 
   // ── Board loader ─────────────────────────────────────────────────────────────
-  function loadBoard(scope, stu) {
+  function loadBoard(scope, stu, freshScore = null) {
     const thisMonth = new Date().toISOString().slice(0, 7)
     let q = supabase.from('students')
-      .select('id, display_name, blitz_monthly_best, class_level, school')
-      .eq('blitz_month', thisMonth)
+      .select('id, display_name, blitz_monthly_best, class_level, school, blitz_month')
       .gt('blitz_monthly_best', 0)
       .order('blitz_monthly_best', { ascending: false })
-      .limit(10)
+      .limit(20)
     if (scope === 'class' && stu?.class_level)
       q = q.eq('class_level', stu.class_level)
     else if (scope === 'school' && stu?.school)
       q = q.ilike('school', `%${stu.school.split(' ')[0]}%`)
-    q.then(({ data }) => { if (data) setBoard(data) })
+    q.then(({ data }) => {
+      if (!data) return
+      const thisMonthRows = data.filter(r => r.blitz_month === thisMonth)
+      const alreadyIn = thisMonthRows.some(r => r.id === stu?.id)
+      const myBest = freshScore ?? (stu?.blitz_month === thisMonth ? (stu?.blitz_monthly_best || 0) : 0)
+      let final = thisMonthRows
+      if (!alreadyIn && myBest > 0) {
+        final = [...thisMonthRows, { id: stu.id, display_name: stu.display_name, blitz_monthly_best: myBest, class_level: stu.class_level, school: stu.school, blitz_month: thisMonth }]
+          .sort((a, b) => (b.blitz_monthly_best || 0) - (a.blitz_monthly_best || 0))
+      }
+      setBoard(final)
+    })
   }
 
   // ── Timer ──────────────────────────────────────────────────────────────────
@@ -172,28 +182,27 @@ export default function ChallengePage() {
           const fc  = correctRef.current
           const stu = studentRef.current   // always fresh — no stale closure
           if (!stu) return 0
-          // Use profile_id for updates — RLS UPDATE policy checks profile_id = auth.uid()
-          const pid = stu.profile_id
-          if (!pid) return 0
+          // Use student.id (PK) — profile_id is not unique on family accounts
+          const sid = stu.id
+          if (!sid) return 0
 
           const thisMonth = new Date().toISOString().slice(0, 7)
           // Save all-time personal best
           if (fc > (stu.blitz_best || 0)) {
             supabase.from('students')
               .update({ blitz_best: fc })
-              .eq('profile_id', pid)
-              .then(() => setBlitzBest(fc))
+              .eq('id', sid)
+              .then(({ error }) => { if (!error) setBlitzBest(fc) })
           }
-          // Save monthly best (resets each month automatically)
+          // Save monthly best
           const prevMonthly = stu.blitz_month === thisMonth ? (stu.blitz_monthly_best || 0) : 0
           if (fc > prevMonthly) {
             supabase.from('students')
               .update({ blitz_monthly_best: fc, blitz_month: thisMonth })
-              .eq('profile_id', pid)
+              .eq('id', sid)
           }
-          // No XP awarded for blitz — score is its own reward
-          // Reload board after game so new score appears immediately
-          setTimeout(() => loadBoard(boardScope || 'class', stu), 800)
+          // Reload board with fresh score so current user appears immediately
+          setTimeout(() => loadBoard(boardScope || 'class', stu, fc), 1500)
 
           return 0
         }
@@ -244,7 +253,7 @@ export default function ChallengePage() {
 
         {/* ── Top bar ── */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', flexShrink: 0, borderBottom: `1px solid ${accent}18`, background: M.hudBg }}>
-          <button onClick={() => { clearInterval(timerRef.current); router.back() }}
+          <button onClick={() => { clearInterval(timerRef.current); router.push('/learn') }}
             style={{ width: 34, height: 34, borderRadius: '50%', cursor: 'pointer', background: M.lessonCard, border: M.lessonBorder, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: M.textSecondary }}>
             ←
           </button>
@@ -282,7 +291,7 @@ export default function ChallengePage() {
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 80, gap: 20, textAlign: 'center' }}>
                 <div style={{ fontSize: 52 }}>📭</div>
                 <div style={{ fontSize: 18, fontWeight: 900, color: M.textPrimary }}>{error}</div>
-                <button onClick={() => router.back()} style={{ ...M.primaryBtn, padding: '14px 32px' }}>← Go Back</button>
+                <button onClick={() => router.push('/learn')} style={{ ...M.primaryBtn, padding: '14px 32px' }}>← Go Back</button>
               </div>
             )}
 
@@ -436,9 +445,9 @@ export default function ChallengePage() {
                   <button onClick={startBlitzReal} style={{ ...M.primaryBtn, fontSize: 16, padding: '16px' }}>
                     {isBlaze ? '⚡ GO AGAIN' : correct < (blitzBest || correct + 1) ? `🔄 Beat your best (${blitzBest})` : '🔄 Play Again'}
                   </button>
-                  <button onClick={() => router.back()}
+                  <button onClick={() => router.push('/learn')}
                     style={{ padding: '14px', background: 'transparent', border: `1.5px solid ${accent}30`, borderRadius: isBlaze ? 10 : 16, fontFamily: 'Nunito, sans-serif', fontSize: 14, fontWeight: 700, color: bodyColor, cursor: 'pointer' }}>
-                    Back
+                    ← Back
                   </button>
                 </div>
               </div>

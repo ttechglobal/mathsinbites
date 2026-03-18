@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useMode } from '@/lib/ModeContext'
-import { BicPencil } from '@/components/BiteMarkIcon'
 
 // ─── Math renderer ────────────────────────────────────────────────────────────
 function parseMath(text) {
@@ -217,6 +216,7 @@ function QuestionCard({ question, accent, M, onAnswered, timed }) {
 function ResultsScreen({ correct, total, title, onRetry, onNewTopic, accent, M, mode }) {
   const isBlaze = mode === 'blaze'
   const pct     = total > 0 ? Math.round((correct / total) * 100) : 0
+  const xpEarned = correct   // 1 XP per correct answer
   const grade   = pct === 100 ? 'Perfect! 🏆' : pct >= 80 ? 'Great work! 🌟' : pct >= 60 ? 'Good effort! 👍' : pct >= 40 ? 'Keep practising! 💪' : 'Review the topic! 📖'
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 0', gap: 24, animation: 'slideUp 0.35s ease', textAlign: 'center' }}>
@@ -237,6 +237,13 @@ function ResultsScreen({ correct, total, title, onRetry, onNewTopic, accent, M, 
           <div style={{ width: `${pct}%`, height: '100%', background: pct === 100 ? M.correctColor : accent, borderRadius: 99, transition: 'width 0.9s ease' }} />
         </div>
       </div>
+
+      {/* XP earned */}
+      {xpEarned > 0 && (
+        <div style={{ background: `${accent}12`, border: `1.5px solid ${accent}30`, borderRadius: 20, padding: '8px 20px', fontSize: 13, fontWeight: 800, color: accent, fontFamily: 'Nunito, sans-serif' }}>
+          +{xpEarned} XP earned ⚡
+        </div>
+      )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 300 }}>
         <button onClick={onRetry}    style={{ ...M.primaryBtn, fontSize: 15, padding: '15px' }}>🔄 Practice Again</button>
         <button onClick={onNewTopic} style={{ ...M.ghostBtn,   fontSize: 14 }}>← Choose a Different Topic</button>
@@ -344,19 +351,6 @@ export default function PracticePage() {
 
   const preTopicId = searchParams.get('topicId') || null
   const accent     = M.accentColor
-
-  // ── Practice mascot greeting ──────────────────────────────────────────────
-  const practiceGreeting = (() => {
-    const msgs = [
-      'Practice makes perfect! The more you do, the better you get. 💪',
-      "Time to sharpen your skills! Let's go through some questions. ✏️",
-      'Every question you attempt makes you sharper. Keep going! 🎯',
-      "The secret to maths? Repetition. Let's practise! 📚",
-      "Champions practise even when they don't feel like it. You showed up — let's go! 🏆",
-      "Quick drill time! A few focused questions and you'll be unstoppable. ⚡",
-    ]
-    return msgs[new Date().getHours() % msgs.length]
-  })()
 
   const bodyColor  = M.textSecondary
   const isBlaze    = mode === 'blaze'
@@ -480,7 +474,22 @@ export default function PracticePage() {
   }
 
   function handleNext() {
-    if (currentIdx + 1 >= questions.length) setPhase('done')
+    if (currentIdx + 1 >= questions.length) {
+      setPhase('done')
+      // Award XP: 1 per correct answer — save after session completes
+      const correctCount = answers.filter(Boolean).length + (answers.length === currentIdx ? 0 : 0)
+      // Re-count after this answer is registered (answers state may be one behind)
+      // Use a slight delay to let state settle
+      setTimeout(async () => {
+        try {
+          const finalCorrect = answers.filter(Boolean).length
+          if (finalCorrect === 0) return
+          // Atomic increment — avoids read-then-write race condition and RLS issues
+          const { error } = await supabase.rpc('increment_xp', { amount: finalCorrect })
+          if (error) console.error('[practice] XP save:', error.message)
+        } catch (e) { console.error('[practice] XP save:', e.message) }
+      }, 100)
+    }
     else setCurrentIdx(i => i + 1)
   }
 
@@ -496,7 +505,7 @@ export default function PracticePage() {
   function handleBack() {
     if (phase === 'active')  { setSheet(null); setPhase('topics') }
     else if (phase === 'done') { setPhase('topics') }
-    else                     { router.back() }
+    else                     { router.push('/learn') }
   }
 
   // ── Derived ────────────────────────────────────────────────────────────────
@@ -556,21 +565,6 @@ export default function PracticePage() {
           {/* ── TOPICS SCREEN ── */}
           {!loading && !starting && !error && phase === 'topics' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16, animation: 'slideUp 0.3s ease' }}>
-
-              {/* ── Mascot greeting hero ── */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', paddingTop: 8, paddingBottom: 4 }}>
-                {/* Mascot */}
-                <div style={{ filter: `drop-shadow(0 8px 20px ${accent}45)`, marginBottom: 14, animation: 'float 3.5s ease-in-out infinite' }}>
-                  <BicPencil pose="celebrate" size={88} />
-                </div>
-                {/* Speech bubble */}
-                <div style={{ background: isNova ? 'rgba(124,58,237,0.15)' : isBlaze ? '#FFD700' : `${accent}10`, border: isBlaze ? '2.5px solid #0d0d0d' : `1.5px solid ${accent}35`, borderRadius: isBlaze ? 14 : 20, padding: '14px 20px', maxWidth: 300, boxShadow: isBlaze ? '3px 3px 0 #0d0d0d' : `0 4px 18px ${accent}18`, marginBottom: 4 }}>
-                  <div style={{ fontSize: 10, fontWeight: 900, color: accent, marginBottom: 5, textTransform: 'uppercase', letterSpacing: 0.8, fontFamily: 'Nunito, sans-serif' }}>{M.name} ✏️</div>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: isNova ? '#F8F7FF' : isBlaze ? '#0d0d0d' : M.textPrimary, fontFamily: 'Nunito, sans-serif', lineHeight: 1.5 }}>{practiceGreeting}</div>
-                </div>
-                {/* Bubble tail — centred */}
-                <div style={{ width: 0, height: 0, borderLeft: '10px solid transparent', borderRight: '10px solid transparent', borderTop: `10px solid ${isBlaze ? '#0d0d0d' : `${accent}35`}`, marginBottom: 2 }} />
-              </div>
 
               {/* Mixed Practice card */}
               <button

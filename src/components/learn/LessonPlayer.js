@@ -899,16 +899,23 @@ export default function LessonPlayer({ lesson, subtopic, student, nextSubtopicId
   const questions = lesson?.questions || []
 
   // ── Decode slides that have encoded interactive data in the steps field ────
-  const decodedSlides = slides.map(slide => {
-    if (!slide.steps) return slide
-    try {
-      const parsed = typeof slide.steps === 'string' ? JSON.parse(slide.steps) : slide.steps
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && parsed._type !== undefined) {
-        return { ...slide, type: parsed._type || slide.type, options: parsed._options || null, reveal: parsed._reveal || null, table_headers: parsed._table_headers || null, table_rows: parsed._table_rows || null, steps: parsed._steps || null }
-      }
-      return { ...slide, steps: Array.isArray(parsed) ? parsed : slide.steps }
-    } catch { return slide }
-  })
+  // Also: filter out 'hook' type slides (the hook comes from lesson.hook and is
+  // rendered as hookBite — keeping it in decodedSlides would show it twice).
+  // Also: filter out 'prediction' and 'pattern' bites — they interrupt the lesson
+  // flow without adding value; the observation → concept flow is smoother without them.
+  const SKIP_TYPES = new Set(['hook', 'prediction', 'pattern'])
+  const decodedSlides = slides
+    .map(slide => {
+      if (!slide.steps) return slide
+      try {
+        const parsed = typeof slide.steps === 'string' ? JSON.parse(slide.steps) : slide.steps
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && parsed._type !== undefined) {
+          return { ...slide, type: parsed._type || slide.type, options: parsed._options || null, reveal: parsed._reveal || null, table_headers: parsed._table_headers || null, table_rows: parsed._table_rows || null, steps: parsed._steps || null }
+        }
+        return { ...slide, steps: Array.isArray(parsed) ? parsed : slide.steps }
+      } catch { return slide }
+    })
+    .filter(slide => !SKIP_TYPES.has(slide.type))
 
   // ── Build practice bites from questions ───────────────────────────────────
   // IMPORTANT: question_text and explanation_text are SEPARATE fields.
@@ -955,29 +962,69 @@ export default function LessonPlayer({ lesson, subtopic, student, nextSubtopicId
   async function handleComplete(finalCorrectCount, totalPractice) {
     if (completed) return
     setCompleted(true)
-    if (!student?.id || !subtopic?.id) return
+    if (!student?.id || !subtopic?.id) {
+      console.error('[lesson] handleComplete: missing student.id or subtopic.id', { studentId: student?.id, subtopicId: subtopic?.id })
+      return
+    }
 
-    // Proportional XP: min 1 (0 correct) → max 10 (all correct)
-    // If no practice questions, award full 10 XP
-    const earnedXP = totalPractice > 0
-      ? Math.max(1, Math.round((finalCorrectCount / totalPractice) * 10))
-      : 10
+    // XP scale: 0 correct → 1 XP, 1 correct → 4 XP, all correct → 10 XP
+    // If no practice questions, award full 10 XP for completing the lesson
+    let earnedXP = 10
+    if (totalPractice > 0) {
+      if (finalCorrectCount === 0)                  earnedXP = 1
+      else if (finalCorrectCount === totalPractice) earnedXP = 10
+      else {
+        earnedXP = Math.round(4 + ((finalCorrectCount - 1) / Math.max(totalPractice - 1, 1)) * 6)
+        earnedXP = Math.max(4, Math.min(9, earnedXP))
+      }
+    }
 
-    try {
-      const { data: existing } = await supabase.from('student_progress').select('id').eq('student_id', student.id).eq('subtopic_id', subtopic.id).maybeSingle()
-      if (existing?.id) {
-        await supabase.from('student_progress').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', existing.id).eq('student_id', student.id)
-      } else {
-        await supabase.from('student_progress').insert({ student_id: student.id, subtopic_id: subtopic.id, status: 'completed', completed_at: new Date().toISOString() })
-      }
-    } catch (e) { console.error('[lesson] progress:', e.message) }
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        const { data: f } = await supabase.from('students').select('xp, monthly_xp').eq('profile_id', user.id).single()
-        await supabase.from('students').update({ xp: (f?.xp || 0) + earnedXP, monthly_xp: (f?.monthly_xp || 0) + earnedXP }).eq('profile_id', user.id)
-      }
-    } catch (e) { console.error('[lesson] XP:', e.message) }
+    // ── Save lesson progress ────────────────────────────────────────────────
+    // NOTE: Supabase client NEVER throws — always check { error } in the return value.
+    const { data: existing, error: selErr } = await supabase
+      .from('student_progress')
+      .select('id')
+      .eq('student_id', student.id)
+      .eq('subtopic_id', subtopic.id)
+      .maybeSingle()
+
+    if (selErr) {
+      console.error('[lesson] progress select error:', selErr.message, selErr)
+    } else if (existing?.id) {
+      const { error: updErr } = await supabase
+        .from('student_progress')
+        .update({ status: 'completed', completed_at: new Date().toISOString() })
+        .eq('id', existing.id)
+      if (updErr) console.error('[lesson] progress update error:', updErr.message, updErr)
+    } else {
+      const { error: insErr } = await supabase
+        .from('student_progress')
+        .insert({ student_id: student.id, subtopic_id: subtopic.id, status: 'completed', completed_at: new Date().toISOString() })
+      if (insErr) console.error('[lesson] progress insert error:', insErr.message, insErr)
+    }
+
+    // ── Award XP ────────────────────────────────────────────────────────────
+    // Use student.id (the active student's PK) — not profile_id — because a family
+    // account has multiple student rows sharing the same profile_id, and .single()
+    // would fail with "result contains N rows".
+    const { data: fresh, error: freshErr } = await supabase
+      .from('students')
+      .select('xp, monthly_xp')
+      .eq('id', student.id)
+      .single()
+    if (freshErr) {
+      console.error('[lesson] XP fetch error:', freshErr.message, freshErr)
+      return
+    }
+
+    const { error: xpErr } = await supabase
+      .from('students')
+      .update({
+        xp:         (fresh?.xp         || 0) + earnedXP,
+        monthly_xp: (fresh?.monthly_xp || 0) + earnedXP,
+      })
+      .eq('id', student.id)
+    if (xpErr) console.error('[lesson] XP update error:', xpErr.message, xpErr)
   }
 
   function goNext() {
@@ -991,7 +1038,7 @@ export default function LessonPlayer({ lesson, subtopic, student, nextSubtopicId
   }
 
   function goBack() {
-    if (step <= -1) { router.back(); return }
+    if (step <= -1) { router.push('/learn'); return }
     if (step === 0) { setStep(-1); return }
     setStep(s => s - 1)
   }

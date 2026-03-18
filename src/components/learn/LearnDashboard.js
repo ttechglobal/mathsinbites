@@ -786,9 +786,10 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
                     paddingLeft:  globalIdx % 4 === 1 ? '22%' : globalIdx % 4 === 3 ? '12%' : '17%',
                     paddingRight: globalIdx % 4 === 1 ? '8%'  : globalIdx % 4 === 3 ? '18%' : '13%',
                   }}>
-                  <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', paddingLeft: 0, paddingRight: 0, gap: 10, paddingBottom: 2 }}>
+                  <div
+                    onClick={() => !isLocked && setSelectedNode(isSelected ? null : { sub, isCurrent, isDone, tAccent })}
+                    style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', paddingLeft: 0, paddingRight: 0, gap: 10, paddingBottom: 2, cursor: isLocked ? 'default' : 'pointer' }}>
                     <button
-                      onClick={() => !isLocked && setSelectedNode(isSelected ? null : { sub, isCurrent, isDone, tAccent })}
                       style={{
                         width: Math.round(nodeSize * 1.2), height: nodeSize, borderRadius: '40%', flexShrink: 0, position: 'relative',
                         background: isDone ? `linear-gradient(145deg,${M.correctColor},${M.correctColor}99)` : isCurrent ? `linear-gradient(145deg,${accent},${M.accent2 || accent}CC)` : isLocked ? (isNova ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)') : (isNova ? 'rgba(255,255,255,0.13)' : 'rgba(0,0,0,0.07)'),
@@ -799,6 +800,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
                         opacity: isLocked ? 0.55 : 1,
                         transform: isSelected ? 'scale(1.1)' : 'scale(1)',
                         transition: 'all 0.22s cubic-bezier(0.34,1.2,0.64,1)',
+                        pointerEvents: 'none',
                       }}>
                       {isCurrent && !isBlaze && (
                         <div style={{ position: 'absolute', inset: -10, borderRadius: '50%', border: `2px solid ${accent}28`, animation: 'pulse-glow 2s ease-in-out infinite', pointerEvents: 'none' }} />
@@ -1136,7 +1138,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
       <button
         onClick={() => router.push('/learn/challenge?mode=blitz')}
         style={{ ...M.primaryBtn, fontSize: 19, padding: '18px 64px', borderRadius: isBlaze ? 10 : 24, boxShadow: isBlaze ? '4px 4px 0 #0d0d0d' : `0 10px 32px ${accent}55`, animation: 'pulse-glow 2.5s ease-in-out infinite' }}>
-        {isBlaze ? '⚡ GO!' : isRoots ? '🇳🇬 Go!' : 'Go →'}
+        {isBlaze ? '⚡ START' : isRoots ? '🇳🇬 Start!' : '→ Enter'}
       </button>
     </div>
   )
