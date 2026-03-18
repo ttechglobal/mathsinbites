@@ -557,18 +557,19 @@ export default function PracticePage() {
           {!loading && !starting && !error && phase === 'topics' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16, animation: 'slideUp 0.3s ease' }}>
 
-              {/* Mascot greeting */}
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, marginBottom: 4 }}>
-                <div style={{ flexShrink: 0, filter: `drop-shadow(0 4px 12px ${accent}40)` }}>
-                  <BicPencil pose="celebrate" size={64} />
+              {/* ── Mascot greeting hero ── */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', paddingTop: 8, paddingBottom: 4 }}>
+                {/* Mascot */}
+                <div style={{ filter: `drop-shadow(0 8px 20px ${accent}45)`, marginBottom: 14, animation: 'float 3.5s ease-in-out infinite' }}>
+                  <BicPencil pose="celebrate" size={88} />
                 </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ background: isNova ? 'rgba(124,58,237,0.15)' : isBlaze ? '#FFD700' : `${accent}12`, border: isBlaze ? '2px solid #0d0d0d' : `1.5px solid ${accent}30`, borderRadius: isBlaze ? '10px 10px 10px 0' : '16px 16px 16px 0', padding: '10px 14px', boxShadow: isBlaze ? '2px 2px 0 #0d0d0d' : `0 3px 14px ${accent}18` }}>
-                    <div style={{ fontSize: 9, fontWeight: 900, color: accent, marginBottom: 3, textTransform: 'uppercase', letterSpacing: 0.7, fontFamily: 'Nunito, sans-serif' }}>{M.name}</div>
-                    <div style={{ fontSize: 13, fontWeight: 800, color: isNova ? '#F8F7FF' : isBlaze ? '#0d0d0d' : M.textPrimary, fontFamily: 'Nunito, sans-serif', lineHeight: 1.45 }}>{practiceGreeting}</div>
-                  </div>
-                  <div style={{ width: 0, height: 0, borderLeft: '8px solid transparent', borderRight: '0 solid transparent', borderTop: `8px solid ${isBlaze ? '#0d0d0d' : `${accent}30`}`, marginLeft: 12 }} />
+                {/* Speech bubble */}
+                <div style={{ background: isNova ? 'rgba(124,58,237,0.15)' : isBlaze ? '#FFD700' : `${accent}10`, border: isBlaze ? '2.5px solid #0d0d0d' : `1.5px solid ${accent}35`, borderRadius: isBlaze ? 14 : 20, padding: '14px 20px', maxWidth: 300, boxShadow: isBlaze ? '3px 3px 0 #0d0d0d' : `0 4px 18px ${accent}18`, marginBottom: 4 }}>
+                  <div style={{ fontSize: 10, fontWeight: 900, color: accent, marginBottom: 5, textTransform: 'uppercase', letterSpacing: 0.8, fontFamily: 'Nunito, sans-serif' }}>{M.name} ✏️</div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: isNova ? '#F8F7FF' : isBlaze ? '#0d0d0d' : M.textPrimary, fontFamily: 'Nunito, sans-serif', lineHeight: 1.5 }}>{practiceGreeting}</div>
                 </div>
+                {/* Bubble tail — centred */}
+                <div style={{ width: 0, height: 0, borderLeft: '10px solid transparent', borderRight: '10px solid transparent', borderTop: `10px solid ${isBlaze ? '#0d0d0d' : `${accent}35`}`, marginBottom: 2 }} />
               </div>
 
               {/* Mixed Practice card */}

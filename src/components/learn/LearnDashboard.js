@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useMode } from '@/lib/ModeContext'
+import { useSessionTracker } from '@/hooks/useSessionTracker'
 import { MIBLogo, BicPencil } from '@/components/BiteMarkIcon'
 import BottomSheet from '@/components/BottomSheet'
 import ModePicker from '@/components/ModePicker'
@@ -109,6 +110,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
   const { M, mode } = useMode()
 
   const [student,         setStudent]         = useState(initialStudent)
+  useSessionTracker(student?.id)   // passive ping every 60s — admin analytics only
   const [progressData,    setProgressData]    = useState(progress)
   // ── Leaderboard: all 3 boards pre-fetched in parallel for instant switching ──
   const [boards,          setBoards]          = useState({ class: [], school: [], overall: [] })
@@ -476,7 +478,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
           const isDone    = completedIds.has(sub.id)
           const isCurrent = sub.id === nextLesson?.id
           const isLocked  = !isDone && !isCurrent && subIdx > 0 && !completedIds.has(subs[subIdx - 1]?.id)
-          pathItems.push({ kind: 'lesson', sub, tAccent, isDone, isCurrent, isLocked, subIdx, globalIdx: pathItems.filter(p=>p.kind==='lesson').length })
+          pathItems.push({ kind: 'lesson', sub, tAccent, isDone, isCurrent, isLocked, subIdx, topicTitle: topic.title, globalIdx: pathItems.filter(p=>p.kind==='lesson').length })
         })
 
         if (subs.length > 0) {
@@ -573,9 +575,8 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
             { emoji: activeFace.emoji, value: activeFace.display, label: `${activeFace.label} Rank`, color: accent, fade: !rankVisible },
             { emoji: '🔥', value: String(streak || 0), label: 'Streak', color: '#FF9500' },
             { emoji: '⚡', value: xp.toLocaleString(), label: 'XP', color: accent },
-            { emoji: '🎓', value: String(doneLessons), label: 'Done', color: M.correctColor },
           ].map((s, i) => (
-            <div key={i} onClick={i === 2 ? () => setActiveTab('leaderboard') : undefined}
+            <div key={i} onClick={i === 0 ? () => setActiveTab('leaderboard') : undefined}
               style={{ flex: 1, textAlign: 'center', padding: '12px 4px', background: isNova ? 'rgba(255,255,255,0.07)' : '#fff', border: isNova ? '1px solid rgba(255,255,255,0.1)' : `1.5px solid ${s.color}18`, borderRadius: isBlaze ? 10 : 16, boxShadow: isBlaze ? '2px 2px 0 #0d0d0d' : '0 2px 12px rgba(0,0,0,0.05)', cursor: i === 2 ? 'pointer' : 'default', opacity: s.fade ? 0 : 1, transition: 'opacity 0.5s ease' }}>
               <div style={{ fontSize: 16, marginBottom: 3 }}>{s.emoji}</div>
               <div style={{ fontSize: 16, fontWeight: 900, color: isNova ? '#F8F7FF' : s.color, fontFamily: 'Nunito, sans-serif', lineHeight: 1 }}>{s.value}</div>
@@ -650,7 +651,11 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
 
             {/* Continue / Start button */}
             <button
-              onClick={() => doneLessons > 0 ? setActiveTab('learn') : setActiveTab('learn')}
+              onClick={() => {
+                setActiveTab('learn')
+                // After tab switch, scroll to current lesson node
+                setTimeout(() => { currentNodeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }) }, 120)
+              }}
               style={{
                 width: '100%', padding: '14px', cursor: 'pointer', textAlign: 'center',
                 background: isBlaze ? '#0d0d0d' : accent,
@@ -762,17 +767,11 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
             // ── TOPIC CHAPTER CARD ──
             if (item.kind === 'topic') {
               const { topic, tAccent, doneCount, allDone } = item
-              const topicIcon = getTopicIcon(topic.title)
               return (
                 <div key={`topic-${topic.id}`} ref={el => { topicNodeRefs.current[topic.title] = el }} style={{ padding: '0 18px', marginTop: 28, marginBottom: 20, position: 'relative', zIndex: 2 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px', background: isNova ? 'rgba(255,255,255,0.07)' : '#fff', borderRadius: isBlaze ? 12 : 20, border: allDone ? `2px solid ${M.correctColor}55` : `2px solid ${tAccent}32`, boxShadow: allDone ? `0 4px 18px ${M.correctColor}18` : '0 4px 18px rgba(0,0,0,0.07)' }}>
-                    <div style={{ width: 46, height: 46, borderRadius: isBlaze ? 10 : 14, flexShrink: 0, background: allDone ? `linear-gradient(135deg,${M.correctColor},${M.correctColor}BB)` : `linear-gradient(135deg,${tAccent}28,${tAccent}0C)`, border: allDone ? `2px solid ${M.correctColor}` : `2px solid ${tAccent}50`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: allDone ? `0 5px 16px ${M.correctColor}38` : `0 5px 14px ${tAccent}28` }}>
-                      {allDone ? <span style={{ fontSize: 20, color: '#fff' }}>✓</span> : <span style={{ fontFamily: 'monospace', fontSize: topicIcon.length > 2 ? 11 : 16, fontWeight: 900, color: tAccent }}>{topicIcon}</span>}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 16, fontWeight: 900, color: isNova ? '#F8F7FF' : M.textPrimary, fontFamily: 'Nunito, sans-serif', lineHeight: 1.2 }}>{topic.title}</div>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: allDone ? M.correctColor : bodyColor, fontFamily: 'Nunito, sans-serif', marginTop: 3 }}>{allDone ? `All done · +${doneCount * 10} XP earned` : `${doneCount} of ${topic.subtopics?.length || 0} lessons done`}</div>
-                    </div>
+                  <div style={{ padding: '11px 16px', background: isNova ? 'rgba(255,255,255,0.07)' : '#fff', borderRadius: isBlaze ? 10 : 16, border: allDone ? `2px solid ${M.correctColor}55` : `2px solid ${tAccent}32`, boxShadow: allDone ? `0 3px 12px ${M.correctColor}14` : '0 3px 12px rgba(0,0,0,0.06)', textAlign: 'center' }}>
+                    <div style={{ fontSize: 13, fontWeight: 900, color: isNova ? '#F8F7FF' : M.textPrimary, fontFamily: 'Nunito, sans-serif', lineHeight: 1.2, marginBottom: 3 }}>{topic.title}</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: allDone ? M.correctColor : bodyColor, fontFamily: 'Nunito, sans-serif' }}>{allDone ? '✓ All lessons done' : `${doneCount} of ${topic.subtopics?.length || 0} lessons completed`}</div>
                   </div>
                 </div>
               )
@@ -780,23 +779,26 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
 
             // ── LESSON NODE — centred, label below ──
             if (item.kind === 'lesson') {
-              const { sub, tAccent, isDone, isCurrent, isLocked, subIdx, globalIdx } = item
+              const { sub, tAccent, isDone, isCurrent, isLocked, subIdx, globalIdx, topicTitle } = item
               const isSelected = selectedNode?.sub?.id === sub.id
               const nodeSize = isCurrent ? 64 : isDone ? 52 : isLocked ? 38 : 46
 
               return (
-                <div key={`lesson-${sub.id}`} ref={isCurrent ? currentNodeRef : null} style={{ position: 'relative', zIndex: 2, marginBottom: 8 }}>
-                  <div style={{ display: 'flex', flexDirection: globalIdx % 2 === 0 ? 'row' : 'row-reverse', alignItems: 'center', paddingLeft: globalIdx % 2 === 0 ? '5%' : 0, paddingRight: globalIdx % 2 === 0 ? 0 : '5%', gap: 10, paddingBottom: 2 }}>
+                <div key={`lesson-${sub.id}`} ref={isCurrent ? currentNodeRef : null} style={{ position: 'relative', zIndex: 2, padding: '16px 0',
+                    paddingLeft:  globalIdx % 4 === 1 ? '22%' : globalIdx % 4 === 3 ? '12%' : '17%',
+                    paddingRight: globalIdx % 4 === 1 ? '8%'  : globalIdx % 4 === 3 ? '18%' : '13%',
+                  }}>
+                  <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', paddingLeft: 0, paddingRight: 0, gap: 10, paddingBottom: 2 }}>
                     <button
                       onClick={() => !isLocked && setSelectedNode(isSelected ? null : { sub, isCurrent, isDone, tAccent })}
                       style={{
                         width: Math.round(nodeSize * 1.2), height: nodeSize, borderRadius: '40%', flexShrink: 0, position: 'relative',
                         background: isDone ? `linear-gradient(145deg,${M.correctColor},${M.correctColor}99)` : isCurrent ? `linear-gradient(145deg,${accent},${M.accent2 || accent}CC)` : isLocked ? (isNova ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)') : (isNova ? 'rgba(255,255,255,0.13)' : 'rgba(0,0,0,0.07)'),
-                        border: isDone ? `3px solid ${M.correctColor}` : isCurrent ? `3px solid ${accent}` : isLocked ? `2px solid ${isNova ? 'rgba(255,255,255,0.12)' : '#e0e0e0'}` : `2.5px solid ${tAccent}55`,
+                        border: isDone ? `3px solid ${M.correctColor}` : isCurrent ? `3px solid ${accent}` : isLocked ? `2px solid ${tAccent}40` : `2.5px solid ${tAccent}55`,
                         boxShadow: isCurrent ? `0 0 0 10px ${accent}16, 0 10px 32px ${accent}48` : isDone ? `0 0 0 6px ${M.correctColor}18, 0 5px 18px ${M.correctColor}32` : isSelected ? `0 0 0 6px ${tAccent}28` : '0 3px 12px rgba(0,0,0,0.11)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         cursor: isLocked ? 'default' : 'pointer',
-                        opacity: isLocked ? 0.36 : 1,
+                        opacity: isLocked ? 0.55 : 1,
                         transform: isSelected ? 'scale(1.1)' : 'scale(1)',
                         transition: 'all 0.22s cubic-bezier(0.34,1.2,0.64,1)',
                       }}>
@@ -805,12 +807,15 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
                       )}
                       {isDone ? <span style={{ fontSize: nodeSize * 0.32, color: '#fff' }}>✓</span>
                         : isCurrent ? <span style={{ fontSize: nodeSize * 0.36, color: '#fff', marginLeft: 3 }}>▶</span>
-                        : isLocked  ? <span style={{ fontSize: nodeSize * 0.38 }}>🔒</span>
-                        : <span style={{ fontSize: nodeSize * 0.40, opacity: 0.8 }}>{M.emoji}</span>
+                        : subIdx === 0
+                          ? <span style={{ fontSize: nodeSize * 0.38, fontFamily: 'monospace', fontWeight: 900, color: isLocked ? `${tAccent}80` : tAccent }}>{getTopicIcon(topicTitle || '')}</span>
+                          : isLocked
+                            ? <span style={{ fontSize: nodeSize * 0.36, opacity: 0.55 }}>✏️</span>
+                            : <span style={{ fontSize: nodeSize * 0.40, opacity: 0.8 }}>{M.emoji}</span>
                       }
                     </button>
 
-                    <div style={{ textAlign: 'left', maxWidth: isCurrent ? 200 : 170 }}>
+                    <div style={{ textAlign: 'left', maxWidth: isCurrent ? 180 : 155 }}>
                       <div style={{ fontSize: isCurrent ? 14 : 12, fontWeight: isCurrent ? 900 : isDone ? 500 : 600, color: isDone ? bodyColor : isNova ? '#F8F7FF' : M.textPrimary, fontFamily: 'Nunito, sans-serif', lineHeight: 1.35 }}>
                         {sub.title}
                       </div>
@@ -821,18 +826,36 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
               )
             }
 
-            // ── TOPIC REVIEW — diamond ──
+            // ── TOPIC REVIEW — slanted diamond, side-by-side layout ──
             if (item.kind === 'topic_review') {
               const { topic, tAccent, reviewUnlocked, reviewDone } = item
               return (
-                <div key={`review-${topic.id}`} style={{ display: 'flex', justifyContent: 'center', padding: '18px 0', position: 'relative', zIndex: 2 }}>
-                  <button onClick={() => reviewUnlocked && router.push(`/learn/practice?topicId=${topic.id}&mode=review`)} style={{ background: 'none', border: 'none', cursor: reviewUnlocked ? 'pointer' : 'default', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, opacity: reviewUnlocked ? 1 : 0.3 }}>
-                    <div style={{ width: 60, height: 60, borderRadius: 17, background: reviewDone ? 'linear-gradient(135deg,#FFD700,#FF9500)' : reviewUnlocked ? `linear-gradient(135deg,${tAccent}2C,${tAccent}10)` : (isNova ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)'), border: `3px solid ${reviewDone ? '#FFD700' : reviewUnlocked ? tAccent : (isNova ? 'rgba(255,255,255,0.1)' : '#ddd')}`, display: 'flex', alignItems: 'center', justifyContent: 'center', transform: 'rotate(45deg)', boxShadow: reviewDone ? '0 0 0 7px rgba(255,210,0,0.18), 0 6px 22px rgba(255,180,0,0.38)' : reviewUnlocked ? `0 0 0 6px ${tAccent}18, 0 5px 16px ${tAccent}28` : 'none', transition: 'all 0.2s' }}>
-                      <span style={{ transform: 'rotate(-45deg)', fontSize: 22 }}>{reviewDone ? '⭐' : reviewUnlocked ? '📝' : '🔒'}</span>
+                <div key={`review-${topic.id}`} style={{ display: 'flex', justifyContent: 'center', padding: '14px 0', position: 'relative', zIndex: 2 }}>
+                  <button
+                    onClick={() => reviewUnlocked && router.push(`/learn/practice?topicId=${topic.id}&mode=review`)}
+                    style={{
+                      background: 'none', border: 'none', cursor: reviewUnlocked ? 'pointer' : 'default',
+                      display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 12,
+                      opacity: reviewUnlocked ? 1 : 0.4,
+                    }}>
+                    {/* Slanted star diamond */}
+                    <div style={{
+                      width: 48, height: 48, borderRadius: 12, flexShrink: 0,
+                      background: reviewDone ? 'linear-gradient(135deg,#FFD700,#FF9500)' : reviewUnlocked ? `${tAccent}18` : (isNova ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'),
+                      border: `2.5px solid ${reviewDone ? '#FFD700' : reviewUnlocked ? tAccent : (isNova ? 'rgba(255,255,255,0.15)' : '#ddd')}`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      transform: 'rotate(12deg)',
+                      boxShadow: reviewDone ? '0 0 0 6px rgba(255,210,0,0.18), 0 4px 16px rgba(255,180,0,0.35)' : reviewUnlocked ? `0 0 0 5px ${tAccent}18` : 'none',
+                      transition: 'all 0.2s',
+                    }}>
+                      <span style={{ transform: 'rotate(-12deg)', fontSize: 20 }}>
+                        {reviewDone ? '⭐' : '⭐'}
+                      </span>
                     </div>
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: 11, fontWeight: 800, color: reviewDone ? '#A06000' : reviewUnlocked ? tAccent : bodyColor, fontFamily: 'Nunito, sans-serif' }}>Topic Review</div>
-                      <div style={{ fontSize: 9, color: bodyColor, fontFamily: 'Nunito, sans-serif', fontWeight: 600 }}>{reviewDone ? 'Completed ✓' : reviewUnlocked ? 'Tap to review' : 'Finish more lessons'}</div>
+                    {/* Label beside */}
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 900, color: reviewDone ? '#A06000' : reviewUnlocked ? tAccent : bodyColor, fontFamily: 'Nunito, sans-serif', lineHeight: 1.2 }}>Topic Review</div>
+                      <div style={{ fontSize: 10, color: bodyColor, fontFamily: 'Nunito, sans-serif', fontWeight: 600, marginTop: 2 }}>{reviewDone ? 'Completed ✓' : reviewUnlocked ? 'Tap to review →' : 'Finish more lessons'}</div>
                     </div>
                   </button>
                 </div>
@@ -1014,44 +1037,65 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
   // ══════════════════════════════════════════════════════════════════════════
   // PRACTICE TAB — single entry point, navigates to /learn/practice
   // ══════════════════════════════════════════════════════════════════════════
-  const PracticeTab = (
-    <div style={{ padding: '20px 18px 120px', maxWidth: 520, margin: '0 auto' }}>
-      <h2 style={{ fontFamily: M.headingFont, fontSize: 22, fontWeight: 800, color: M.textPrimary, marginBottom: 4 }}>✏️ Practice</h2>
-      <p style={{ fontSize: 13, color: bodyColor, fontFamily: 'Nunito, sans-serif', fontWeight: 500, lineHeight: 1.5, marginBottom: 24 }}>
-        {isRoots ? 'Practise your maths — e go sweet! 🇳🇬' : isBlaze ? 'DRILL YOUR SKILLS. NO EXCUSES.' : 'Pick a topic and practise at your own pace — or mix it up!'}
-      </p>
+  // Practice greeting rotates daily
+  const practiceGreeting = (() => {
+    const msgs = [
+      'Practice makes perfect! The more you do, the better you get. 💪',
+      'Time to sharpen your skills! Every question makes you stronger. ✏️',
+      'Every question you attempt makes you sharper. Keep going! 🎯',
+      'The secret to maths? Repetition. Let\'s practise! 📚',
+      'Champions practise even when they don\'t feel like it. You showed up! 🏆',
+      'Quick drill time! A few focused questions and you\'ll be unstoppable. ⚡',
+    ]
+    return msgs[new Date().getDate() % msgs.length]
+  })()
 
-      {/* Main entry card */}
+  const PracticeTab = (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '70vh', padding: '32px 20px 120px', maxWidth: 520, margin: '0 auto' }}>
+
+      {/* Mascot */}
+      <div style={{ animation: 'float 3s ease-in-out infinite', marginBottom: 18, filter: `drop-shadow(0 8px 24px ${accent}45)` }}>
+        <BicPencil pose="celebrate" size={110} />
+      </div>
+
+      {/* Title */}
+      <div style={{ fontFamily: M.headingFont, fontSize: 24, fontWeight: 900, color: M.textPrimary, textAlign: 'center', marginBottom: 8, lineHeight: 1.2 }}>
+        {isBlaze ? '✏️ DRILL TIME' : isRoots ? '✏️ Practice Time' : '✏️ Practice'}
+      </div>
+
+      {/* Speech bubble */}
+      <div style={{
+        background: isNova ? 'rgba(124,58,237,0.15)' : isBlaze ? '#FFD700' : `${accent}10`,
+        border: isBlaze ? '2.5px solid #0d0d0d' : `1.5px solid ${accent}30`,
+        borderRadius: isBlaze ? 14 : 22, padding: '14px 20px',
+        maxWidth: 300, textAlign: 'center', marginBottom: 4,
+        boxShadow: isBlaze ? '3px 3px 0 #0d0d0d' : `0 4px 18px ${accent}18`,
+      }}>
+        <div style={{ fontSize: 10, fontWeight: 900, color: accent, marginBottom: 5, textTransform: 'uppercase', letterSpacing: 0.8, fontFamily: 'Nunito, sans-serif' }}>{M.name} ✏️</div>
+        <div style={{ fontSize: 14, fontWeight: 800, color: isNova ? '#F8F7FF' : isBlaze ? '#0d0d0d' : M.textPrimary, fontFamily: 'Nunito, sans-serif', lineHeight: 1.5 }}>
+          {practiceGreeting}
+        </div>
+      </div>
+      {/* Bubble tail */}
+      <div style={{ width: 0, height: 0, borderLeft: '10px solid transparent', borderRight: '10px solid transparent', borderTop: `10px solid ${isBlaze ? '#0d0d0d' : `${accent}30`}`, marginBottom: 28 }} />
+
+      {/* Open Practice button */}
       <button
         onClick={() => router.push('/learn/practice')}
         style={{
-          width: '100%', marginBottom: 20, padding: '20px', cursor: 'pointer', textAlign: 'left',
+          ...M.primaryBtn,
+          fontSize: 17, padding: '16px 48px',
           borderRadius: isBlaze ? 10 : 20,
-          background: isBlaze ? '#FFD700' : isNova ? 'linear-gradient(135deg,rgba(124,58,237,0.22),rgba(76,29,149,0.14))' : `linear-gradient(135deg,${accent}18,${M.accent2 || accent}0A)`,
-          border: isBlaze ? '2px solid #0d0d0d' : `2px solid ${accent}35`,
-          boxShadow: isBlaze ? '3px 3px 0 #0d0d0d' : `0 6px 24px ${accent}20`,
-          display: 'flex', alignItems: 'center', gap: 16, fontFamily: 'Nunito, sans-serif',
+          boxShadow: isBlaze ? '3px 3px 0 #0d0d0d' : `0 8px 28px ${accent}50`,
+          width: '100%', maxWidth: 300, textAlign: 'center',
         }}>
-        <div style={{ width: 54, height: 54, borderRadius: isBlaze ? 12 : '50%', flexShrink: 0, background: isBlaze ? 'rgba(0,0,0,0.08)' : accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, boxShadow: isBlaze ? 'none' : `0 4px 14px ${accent}55` }}>✏️</div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 17, fontWeight: 900, color: isBlaze ? '#0d0d0d' : isNova ? '#F8F7FF' : M.textPrimary, marginBottom: 4 }}>
-            {isBlaze ? 'OPEN PRACTICE' : 'Open Practice'}
-          </div>
-          <div style={{ fontSize: 12, color: isBlaze ? '#555' : bodyColor, fontWeight: 500 }}>
-            Choose a topic · set question count · time yourself
-          </div>
-        </div>
-        <div style={{ fontSize: 13, fontWeight: 900, color: isBlaze ? '#0d0d0d' : '#fff', background: isBlaze ? '#0d0d0d' : accent, borderRadius: isBlaze ? 6 : 22, padding: '10px 18px', flexShrink: 0, fontFamily: 'Nunito, sans-serif', boxShadow: isBlaze ? '2px 2px 0 rgba(0,0,0,0.15)' : `0 3px 12px ${accent}55` }}>Go →</div>
+        {isBlaze ? '⚡ OPEN PRACTICE' : 'Open Practice →'}
       </button>
 
-      {/* Quick topic shortcuts — top 5 topics */}
-
       {allTopics.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '48px 0' }}>
-          <BicPencil pose="think" size={90} style={{ display: 'inline-block', marginBottom: 16 }} />
-          <p style={{ fontFamily: M.headingFont, fontSize: 16, fontWeight: 800, color: M.textPrimary, marginBottom: 6 }}>No content yet!</p>
-          <p style={{ fontSize: 13, color: bodyColor, fontFamily: 'Nunito, sans-serif', fontWeight: 500 }}>Content for {student?.class_level} is on the way.</p>
-        </div>
+        <p style={{ fontSize: 12, color: bodyColor, fontFamily: 'Nunito, sans-serif', marginTop: 16, textAlign: 'center' }}>
+          Content for {student?.class_level} is on the way!
+        </p>
       )}
     </div>
   )
@@ -1312,7 +1356,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
           </div>
 
           <button onClick={() => setShowSwitcher(true)}
-            style={{ width: '100%', padding: '11px', cursor: 'pointer', background: 'transparent', border: `2px dashed ${accent}35`, borderRadius: isBlaze ? 8 : 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'Nunito, sans-serif', color: accent, fontSize: 13, fontWeight: 800 }}>
+            style={{ width: '100%', padding: '11px', cursor: 'pointer', background: 'transparent', border: `1.5px solid ${accent}30`, borderRadius: isBlaze ? 8 : 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'Nunito, sans-serif', color: accent, fontSize: 13, fontWeight: 800 }}>
             <span style={{ fontSize: 18 }}>+</span> Add another profile
           </button>
         </div>

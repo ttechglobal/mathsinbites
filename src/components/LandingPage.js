@@ -183,7 +183,10 @@ export default function LandingPage() {
           .lp-nav-login   { display: none !important; }
           .lp-nav-cta     { font-size: 13px !important; padding: 8px 16px !important; }
           .lp-hero-grid   { grid-template-columns: 1fr !important; padding: 88px 5% 48px !important; gap: 0 !important; }
-          .lp-hero-mascot { margin-top: 32px !important; }
+          .lp-hero-mascot { margin-top: 28px !important; }
+          .lp-hero-mascot-stage { width: 200px !important; height: 220px !important; }
+          .lp-hero-chips-float { display: none !important; }
+          .lp-hero-rings { display: none !important; }
           .lp-hero-h1     { font-size: 34px !important; }
           .lp-hero-btns   { flex-direction: column !important; }
           .lp-hero-btns a { width: 100% !important; text-align: center !important; box-sizing: border-box !important; }
@@ -271,7 +274,7 @@ export default function LandingPage() {
             borderRadius: 99, padding: '5px 16px',
             fontSize: 11, fontWeight: 900, color: C.electric, letterSpacing: '.6px',
             textTransform: 'uppercase', marginBottom: 22,
-          }}>🇳🇬 &nbsp;Built for Nigerian students · JSS1 – SS3</div>
+          }}>🇳🇬 &nbsp;Indigenous · Relatable · Made for Nigerian students</div>
 
           <h1 className="lp-hero-h1" style={{
             fontFamily: "'Fredoka One', sans-serif",
@@ -324,7 +327,8 @@ export default function LandingPage() {
         {/* mascot stage — KolaNova as hero */}
         <div className="lp-hero-mascot" style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <div style={{ position: 'relative', width: 320, height: 360, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {/* pulsing rings */}
+            {/* pulsing rings — hidden on mobile */}
+            <div className="lp-hero-rings" style={{ position: 'contents' }}>
             {[220, 180].map((sz, i) => (
               <div key={i} style={{
                 position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)',
@@ -333,6 +337,7 @@ export default function LandingPage() {
                 animation: `pulse-ring 3s ease-in-out ${i * .8}s infinite`,
               }} />
             ))}
+            </div>
 
             {/* speech bubble */}
             <div style={{
@@ -349,7 +354,8 @@ export default function LandingPage() {
               </p>
             </div>
 
-            {/* floating stat chips */}
+            {/* floating stat chips — hidden on mobile */}
+            <div className="lp-hero-chips-float" style={{ position: 'contents' }}>
             {[
               { label: 'Day streak 🔥', val: '7 days', col: C.orange, style: { top: 28, left: -30 } },
               { label: 'Class rank 🏆', val: '#3',     col: C.electric, style: { bottom: 108, right: -40 } },
@@ -366,6 +372,7 @@ export default function LandingPage() {
                 <div style={{ fontFamily: 'Fredoka One One, sans-serif', fontSize: 16, color: chip.col }}>{chip.val}</div>
               </div>
             ))}
+            </div>
 
             {/* hero mascot */}
             <div className="mascot-float" style={{

@@ -12,7 +12,7 @@ const A = {
 
 const CLASS_ORDER = ['JSS1','JSS2','JSS3','SS1','SS2','SS3']
 
-export default function StudentsPage({ students, progressMap }) {
+export default function StudentsPage({ students, progressMap, sessionMinutes = {} }) {
   const [search,    setSearch]    = useState('')
   const [classFilter, setClass]   = useState('all')
   const [sortBy,    setSortBy]    = useState('xp')
@@ -28,6 +28,7 @@ export default function StudentsPage({ students, progressMap }) {
     .sort((a, b) => {
       if (sortBy === 'xp')    return (b.xp||0) - (a.xp||0)
       if (sortBy === 'name')  return (a.display_name||'').localeCompare(b.display_name||'')
+      if (sortBy === 'time')  return (sessionMinutes[b.id]?.total_minutes||0) - (sessionMinutes[a.id]?.total_minutes||0)
       if (sortBy === 'recent') return new Date(b.created_at||0) - new Date(a.created_at||0)
       return 0
     })
@@ -88,6 +89,7 @@ export default function StudentsPage({ students, progressMap }) {
           <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
             <option value="xp">Sort: XP</option>
             <option value="name">Sort: Name</option>
+            <option value="time">Sort: Time Spent</option>
             <option value="recent">Sort: Newest</option>
           </select>
           <span style={{ fontSize: 11, color: A.dim, marginLeft: 4 }}>{filtered.length} students</span>
@@ -98,8 +100,8 @@ export default function StudentsPage({ students, progressMap }) {
       <div style={{ background: A.surface, border: `1px solid ${A.border}`, borderRadius: 14, overflow: 'hidden' }}>
 
         {/* Table header */}
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 80px', gap: 0, padding: '10px 18px', borderBottom: `1px solid ${A.border}` }}>
-          {['Student', 'Class', 'School', 'XP', 'Progress', ''].map((h, i) => (
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr 80px', gap: 0, padding: '10px 18px', borderBottom: `1px solid ${A.border}` }}>
+          {['Student', 'Class', 'School', 'XP', 'Time', 'Progress', ''].map((h, i) => (
             <div key={i} style={{ fontSize: 9, fontWeight: 800, color: A.dim2, textTransform: 'uppercase', letterSpacing: 0.8 }}>{h}</div>
           ))}
         </div>
@@ -118,7 +120,7 @@ export default function StudentsPage({ students, progressMap }) {
               <div
                 onClick={() => setExpanded(isOpen ? null : s.id)}
                 style={{
-                  display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 80px',
+                  display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr 80px',
                   gap: 0, padding: '13px 18px', cursor: 'pointer',
                   background: isOpen ? A.cardHi : 'transparent',
                   transition: 'background 0.12s',
@@ -162,6 +164,24 @@ export default function StudentsPage({ students, progressMap }) {
                   </div>
                 </div>
 
+                {/* Time spent */}
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  {(() => {
+                    const mins = sessionMinutes[s.id]?.total_minutes || 0
+                    const hrs  = Math.floor(mins / 60)
+                    const rem  = mins % 60
+                    const todayMins = sessionMinutes[s.id]?.minutes_today || 0
+                    return (
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: A.teal }}>
+                          {hrs > 0 ? `${hrs}h ${rem}m` : mins > 0 ? `${mins}m` : '—'}
+                        </div>
+                        {todayMins > 0 && <div style={{ fontSize: 9, color: A.dim2 }}>{todayMins}m today</div>}
+                      </div>
+                    )
+                  })()}
+                </div>
+
                 {/* Progress bar */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ flex: 1, height: 5, background: 'rgba(255,255,255,0.07)', borderRadius: 3, overflow: 'hidden' }}>
@@ -186,7 +206,10 @@ export default function StudentsPage({ students, progressMap }) {
                       { label: 'Streak',        value: `${s.streak_days || 0} days` },
                       { label: 'Lessons Done',  value: prog.completed },
                       { label: 'Total Lessons', value: prog.total },
-                      { label: 'Last Active',   value: s.last_active ? new Date(s.last_active).toLocaleDateString('en-GB') : 'Never' },
+                      { label: 'Time Spent',    value: (() => { const m = sessionMinutes[s.id]?.total_minutes||0; const h=Math.floor(m/60); return m>0?(h>0?`${h}h ${m%60}m`:`${m}m`):'No data yet' })() },
+                      { label: 'Active Today',   value: (() => { const m = sessionMinutes[s.id]?.minutes_today||0; return m>0?`${m} min`:'—' })() },
+                      { label: 'This Week',      value: (() => { const m = sessionMinutes[s.id]?.minutes_this_week||0; return m>0?`${m} min`:'—' })() },
+                      { label: 'Last Seen',      value: sessionMinutes[s.id]?.last_seen ? new Date(sessionMinutes[s.id].last_seen).toLocaleDateString('en-GB') : (s.last_active ? new Date(s.last_active).toLocaleDateString('en-GB') : 'Never') },
                       { label: 'Joined',        value: s.created_at ? new Date(s.created_at).toLocaleDateString('en-GB') : '—' },
                     ].map(({ label, value }) => (
                       <div key={label}>
