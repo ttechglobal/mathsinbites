@@ -23,9 +23,11 @@ export default function ProfilePage({ student, progress }) {
   const supabase = createClient()
   const { M, mode } = useMode()
   const [showModePicker, setShowModePicker] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [displayName, setDisplayName] = useState(student?.display_name || '')
+  const [loading,       setLoading]       = useState(false)
+  const [saved,         setSaved]         = useState(false)
+  const [displayName,   setDisplayName]   = useState(student?.display_name || '')
+  const [activeSubject, setActiveSubject] = useState(student?.active_subject || 'maths')
+  const [switching,     setSwitching]     = useState(false)
 
   const isNova = mode === 'nova'
   const isBlaze = mode === 'blaze'
@@ -242,6 +244,51 @@ export default function ProfilePage({ student, progress }) {
             </div>
           </div>
         </div>
+
+        {/* Subject switcher */}
+        {(['SS1','SS2','SS3'].includes(student?.class_level)) && (
+          <div style={{
+            background: M.cardBg, border: M.cardBorder,
+            borderRadius: M.cardRadius, boxShadow: M.cardShadow, overflow: 'hidden',
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: M.textSecondary, letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: M.headingFont, padding: '16px 16px 8px' }}>
+              Subjects
+            </div>
+            {['maths', 'further_maths'].map(subj => {
+              const enrolled = (student?.subjects || ['maths']).includes(subj)
+              const isActive = activeSubject === subj
+              const label    = subj === 'maths' ? 'Mathematics' : 'Further Mathematics'
+              const subjXp   = subj === 'maths' ? (student?.xp || 0) : (student?.fm_xp || 0)
+              return (
+                <div key={subj} style={{ display: 'flex', alignItems: 'center', padding: '12px 16px', borderTop: `1px solid ${isNova ? 'rgba(255,255,255,0.06)' : '#f2f2f2'}` }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: M.textPrimary, fontFamily: M.font }}>{label}</div>
+                    <div style={{ fontSize: 11, color: M.textSecondary, fontFamily: M.font, marginTop: 2 }}>
+                      {enrolled ? `${subjXp.toLocaleString()} XP` : 'Not enrolled'}
+                    </div>
+                  </div>
+                  {isActive ? (
+                    <span style={{ fontSize: 10, fontWeight: 800, color: M.accentColor, background: `${M.accentColor}14`, borderRadius: 20, padding: '3px 10px', fontFamily: M.font }}>Active</span>
+                  ) : enrolled ? (
+                    <button
+                      disabled={switching}
+                      onClick={async () => {
+                        setSwitching(true)
+                        await supabase.from('students').update({ active_subject: subj }).eq('id', student.id)
+                        setActiveSubject(subj)
+                        setSwitching(false)
+                      }}
+                      style={{ fontSize: 11, fontWeight: 800, color: M.textSecondary, background: isNova ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)', border: `1px solid ${M.navBorder}`, borderRadius: 20, padding: '4px 12px', cursor: 'pointer', fontFamily: M.font }}>
+                      {switching ? '...' : 'Switch'}
+                    </button>
+                  ) : (
+                    <span style={{ fontSize: 11, fontWeight: 600, color: M.textSecondary, fontFamily: M.font }}>Not enrolled</span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
 
         {/* Sign out */}
         <button onClick={handleSignOut} style={{

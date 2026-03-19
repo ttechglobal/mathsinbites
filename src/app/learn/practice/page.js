@@ -357,18 +357,36 @@ export default function PracticePage() {
   const isNova     = mode === 'nova'
 
   // ── State ──────────────────────────────────────────────────────────────────
-  const [phase,        setPhase]        = useState('topics')  // 'topics' | 'active' | 'done'
-  const [allTopics,    setAllTopics]    = useState([])
-  const [questions,    setQuestions]    = useState([])
-  const [loading,      setLoading]      = useState(true)
-  const [starting,     setStarting]     = useState(false)
-  const [error,        setError]        = useState(null)
-  const [currentIdx,   setCurrentIdx]   = useState(0)
-  const [answers,      setAnswers]      = useState([])
-  const [timed,        setTimed]        = useState(false)
-  const [sessionTitle, setSessionTitle] = useState('')
-  const [lastConfig,   setLastConfig]   = useState(null)
-  const [sheet,        setSheet]        = useState(null)  // null | {topicId, title, icon}
+  const [phase,         setPhase]        = useState('topics')  // 'topics' | 'active' | 'done'
+  const [allTopics,     setAllTopics]    = useState([])
+  const [questions,     setQuestions]    = useState([])
+  const [loading,       setLoading]      = useState(true)
+  const [starting,      setStarting]     = useState(false)
+  const [error,         setError]        = useState(null)
+  const [currentIdx,    setCurrentIdx]   = useState(0)
+  const [answers,       setAnswers]      = useState([])
+  const [timed,         setTimed]        = useState(false)
+  const [sessionTitle,  setSessionTitle] = useState('')
+  const [lastConfig,    setLastConfig]   = useState(null)
+  const [sheet,         setSheet]        = useState(null)  // null | {topicId, title, icon}
+  const [student,       setStudent]      = useState(null)
+  const [activeSubject, setActiveSubject]= useState('maths')
+
+  // Load active student + subject on mount
+  useEffect(() => {
+    async function loadStudent() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+        const { data: profile } = await supabase.from('profiles').select('active_student_id').eq('id', user.id).single()
+        const sid = profile?.active_student_id
+        if (!sid) return
+        const { data: s } = await supabase.from('students').select('id, active_subject').eq('id', sid).single()
+        if (s) { setStudent(s); setActiveSubject(s.active_subject || 'maths') }
+      } catch (e) { console.error('[practice] load student:', e.message) }
+    }
+    loadStudent()
+  }, [])
 
   // Auto-open sheet when arriving with ?topicId=
   useEffect(() => {
@@ -387,8 +405,12 @@ export default function PracticePage() {
         if (!topicsData?.length) { setLoading(false); return }
 
         const subIds = topicsData.flatMap(t => (t.subtopics || []).map(s => s.id))
-        const { data: lessons } = await supabase
+        const lessonsQuery = supabase
           .from('lessons').select('id, subtopic_id').in('subtopic_id', subIds)
+        // Filter by subject so FM practice only shows FM lessons
+        if (activeSubject === 'further_maths') lessonsQuery.eq('subject', 'further_maths')
+        else lessonsQuery.eq('subject', 'maths')
+        const { data: lessons } = await lessonsQuery
         const lessonIds = (lessons || []).map(l => l.id)
         const { data: qs } = lessonIds.length
           ? await supabase.from('questions').select('id, lesson_id').in('lesson_id', lessonIds)
@@ -416,7 +438,7 @@ export default function PracticePage() {
       setLoading(false)
     }
     loadTopics()
-  }, [])
+  }, [activeSubject])
 
   // ── Start session ─────────────────────────────────────────────────────────
   async function handleSheetStart({ count, timed: isTimed }) {
@@ -430,8 +452,11 @@ export default function PracticePage() {
       if (!isMixed) {
         const { data: subs } = await supabase
           .from('subtopics').select('id').eq('topic_id', sheet.topicId)
-        const { data: lessons } = await supabase
+        const topicLessonsQ = supabase
           .from('lessons').select('id').in('subtopic_id', (subs || []).map(s => s.id))
+        if (activeSubject === 'further_maths') topicLessonsQ.eq('subject', 'further_maths')
+        else topicLessonsQ.eq('subject', 'maths')
+        const { data: lessons } = await topicLessonsQ
         if (lessons?.length) {
           const { data: raw } = await supabase
             .from('questions').select('*, options:question_options(*)')
@@ -440,10 +465,17 @@ export default function PracticePage() {
         }
         setSessionTitle(sheet.title)
       } else {
-        const { data: raw } = await supabase
-          .from('questions').select('*, options:question_options(*)').limit(200)
-        q = raw || []
-        setSessionTitle('Mixed Practice')
+        // Mixed — scope to active subject via lessons table
+        const { data: subjectLessons } = await supabase
+          .from('lessons').select('id')
+          .eq('subject', activeSubject === 'further_maths' ? 'further_maths' : 'maths')
+        if (subjectLessons?.length) {
+          const { data: raw } = await supabase
+            .from('questions').select('*, options:question_options(*)')
+            .in('lesson_id', subjectLessons.map(l => l.id)).limit(200)
+          q = raw || []
+        }
+        setSessionTitle(activeSubject === 'further_maths' ? 'Mixed Further Maths' : 'Mixed Practice')
       }
 
       if (!q.length) {
@@ -485,8 +517,21 @@ export default function PracticePage() {
           const finalCorrect = answers.filter(Boolean).length
           if (finalCorrect === 0) return
           // Atomic increment — avoids read-then-write race condition and RLS issues
-          const { error } = await supabase.rpc('increment_xp', { amount: finalCorrect })
-          if (error) console.error('[practice] XP save:', error.message)
+          if (activeSubject === 'further_maths') {
+            // FM XP — direct update (RPC is for Maths only)
+            const { data: { user } } = await supabase.auth.getUser()
+            if (user && student?.id) {
+              const { data: f } = await supabase.from('students').select('fm_xp, fm_monthly_xp').eq('id', student.id).single()
+              const { error } = await supabase.from('students').update({
+                fm_xp:         (f?.fm_xp         || 0) + finalCorrect,
+                fm_monthly_xp: (f?.fm_monthly_xp || 0) + finalCorrect,
+              }).eq('id', student.id)
+              if (error) console.error('[practice] FM XP save:', error.message)
+            }
+          } else {
+            const { error } = await supabase.rpc('increment_xp', { amount: finalCorrect })
+            if (error) console.error('[practice] XP save:', error.message)
+          }
         } catch (e) { console.error('[practice] XP save:', e.message) }
       }, 100)
     }
@@ -505,7 +550,7 @@ export default function PracticePage() {
   function handleBack() {
     if (phase === 'active')  { setSheet(null); setPhase('topics') }
     else if (phase === 'done') { setPhase('topics') }
-    else                     { router.push('/learn') }
+    else                     { router.back() }
   }
 
   // ── Derived ────────────────────────────────────────────────────────────────

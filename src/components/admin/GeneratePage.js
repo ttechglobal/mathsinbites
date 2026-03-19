@@ -25,6 +25,7 @@ export default function GeneratePage({ levels }) {
   const [generating,     setGenerating]     = useState({})
   const [generated,      setGenerated]      = useState({})
   const [errors,         setErrors]         = useState({})
+  const [subject,        setSubject]        = useState('maths')  // 'maths' | 'further_maths'
 
   const toggle = (setter, id) => setter(p => ({ ...p, [id]: !p[id] }))
 
@@ -34,7 +35,7 @@ export default function GeneratePage({ levels }) {
     try {
       const res  = await fetch('/api/generate/lesson', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subtopicId }),
+        body: JSON.stringify({ subtopicId, subject }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
@@ -81,6 +82,25 @@ export default function GeneratePage({ levels }) {
           <p style={{ fontSize:13, color:A.dim, fontWeight:700, maxWidth:560 }}>
             Use AI to generate bite-sized lessons for each subtopic. Generate individually or use &ldquo;Generate All&rdquo; to batch a whole topic.
           </p>
+        </div>
+
+        {/* Subject toggle */}
+        <div style={{ display:'flex', gap:8, marginBottom:20 }}>
+          {[['maths','Mathematics'],['further_maths','Further Maths']].map(([val, label]) => (
+            <button key={val} onClick={() => setSubject(val)} style={{
+              padding:'8px 18px', borderRadius:10, cursor:'pointer',
+              border: subject===val ? `1.5px solid ${A.accentHi}` : `1.5px solid ${A.border}`,
+              background: subject===val ? 'rgba(124,58,237,0.18)' : 'transparent',
+              color: subject===val ? A.accentHi : A.dim,
+              fontSize:12, fontWeight:800, fontFamily:'Nunito,sans-serif',
+              transition:'all 0.15s',
+            }}>{label}</button>
+          ))}
+          {subject === 'further_maths' && (
+            <span style={{ fontSize:11, fontWeight:700, color:A.dim2, alignSelf:'center', marginLeft:4 }}>
+              Lessons will be generated with FM step-by-step format
+            </span>
+          )}
         </div>
 
         {levels.length === 0 ? (

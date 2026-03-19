@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { buildFMBitesPrompt, buildFMQuestionsPrompt } from '@/lib/claude/generateFM'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -274,8 +275,10 @@ export async function POST(request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { subtopicId } = await request.json()
+  const body = await request.json()
+  const { subtopicId, subject = 'maths' } = body
   if (!subtopicId) return Response.json({ error: 'subtopicId required' }, { status: 400 })
+  const isFM = subject === 'further_maths'
 
   const { data: subtopic } = await supabase
     .from('subtopics')
@@ -703,12 +706,16 @@ Return ONLY valid JSON. No markdown.
 
 ${STUDENT_CONTEXTS}`
 
+  // ── Dispatch to FM or Maths prompts ──────────────────────────────────────
+  const activeBitesPrompt     = isFM ? buildFMBitesPrompt(ctx, title, level)     : bitesPrompt
+  const activeQuestionsPrompt = isFM ? buildFMQuestionsPrompt(ctx, level)        : questionsPrompt
+
   // ── Generate bites + questions in parallel ────────────────────────────────
   let bitesData, questionsData
   try {
     ;[bitesData, questionsData] = await Promise.all([
-      ask(bitesPrompt,     7000, 'bites'),
-      ask(questionsPrompt, 3000, 'questions'),
+      ask(activeBitesPrompt,     isFM ? 6000 : 7000, 'bites'),
+      ask(activeQuestionsPrompt, 3000, 'questions'),
     ])
   } catch (err) {
     console.error('[gen] generation failed:', err.message)
@@ -719,14 +726,19 @@ ${STUDENT_CONTEXTS}`
   const questions = questionsData.questions || []
   console.log(`[gen] bites=${bites.length}, questions=${questions.length}`)
 
-  // ── Generate SVGs for the 3 types that benefit from a visual ─────────────
-  // Only observation, concept, and rule get SVGs — max 3 per lesson.
-  // This keeps the lesson clean per spec: "2–3 visuals per lesson is enough."
+  // ── Generate SVGs ─────────────────────────────────────────────────────────
+  // Maths: observation, concept, rule get SVGs.
+  // Further Maths: hook only (and only if the type is eligible — genSvg checks internally).
+  // FM slides like method_picker, worked_example, you_try never get SVGs.
   const svgResults = await Promise.allSettled(
-    bites.map((b, i) => genSvg(b).then(svg => {
-      if (svg) console.log(`[gen] svg[${i}] ${b.type} ok, length=${svg.length}`)
-      return svg
-    }))
+    bites.map((b, i) => {
+      // FM: skip SVG for everything except hook
+      if (isFM && b.type !== 'hook') return Promise.resolve(null)
+      return genSvg(b).then(svg => {
+        if (svg) console.log(`[gen] svg[${i}] ${b.type} ok, length=${svg.length}`)
+        return svg
+      })
+    })
   )
   bites.forEach((b, i) => {
     const r = svgResults[i]
@@ -744,6 +756,7 @@ ${STUDENT_CONTEXTS}`
       subtopic_id: subtopicId,
       title:       bitesData.lesson_title || title,
       summary:     `Learn about ${title} step by step.`,
+      subject:     subject,
       ...(withHook && bitesData.hook ? { hook: bitesData.hook } : {}),
     }
     const { data: lesson, error } = await supabase

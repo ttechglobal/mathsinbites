@@ -10,6 +10,7 @@ import BottomSheet from '@/components/BottomSheet'
 import ModePicker from '@/components/ModePicker'
 import ProfileSwitcher from '@/components/ProfileSwitcher'
 import WelcomeScreen from '@/components/WelcomeScreen'
+import SubjectSwitcher from '@/components/learn/SubjectSwitcher'
 
 function MathFloats({ M }) {
   const syms = M?.floatSyms || ['x²', '∑', 'π', '√', '∫', 'θ', '∞', '±', 'Δ']
@@ -131,6 +132,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
   const [saving,          setSaving]          = useState(false)
   const [saveMsg,         setSaveMsg]         = useState('')
   const [editOpen,        setEditOpen]        = useState(false)
+  const [activeSubject,   setActiveSubject]   = useState(initialStudent?.active_subject || 'maths')
 
   const scrollRef   = useRef(null)
   const sectionRefs = useRef({})
@@ -166,14 +168,14 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
   }, [initialStudent?.id])
 
   // Pre-fetch all 3 leaderboards in one go as soon as we have student data.
-  // After that, tab switching is instant — no per-tab loading delay.
+  // Re-fetch when activeSubject changes so the leaderboard reflects the right XP column.
   useEffect(() => {
     if (!student?.id) return
     async function fetchAll() {
       try {
-        const classParams   = new URLSearchParams({ type: 'class' })
-        const schoolParams  = new URLSearchParams({ type: 'school' })
-        const overallParams = new URLSearchParams({ type: 'overall' })
+        const classParams   = new URLSearchParams({ type: 'class',   subject: activeSubject })
+        const schoolParams  = new URLSearchParams({ type: 'school',  subject: activeSubject })
+        const overallParams = new URLSearchParams({ type: 'overall', subject: activeSubject })
         if (student.class_level) classParams.set('class_level', student.class_level)
         if (student.school)      schoolParams.set('school', student.school)
 
@@ -192,7 +194,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
       } catch (e) { console.error('[leaderboard] fetch:', e.message) }
     }
     fetchAll()
-  }, [student?.id, student?.class_level, student?.school])
+  }, [student?.id, student?.class_level, student?.school, activeSubject])
 
   // Rotate rank display: class → school → overall, every 3 seconds
   useEffect(() => {
@@ -205,8 +207,9 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
 
   // ── Computed ──────────────────────────────────────────────────────────────
   const completedIds = new Set(progressData.filter(p => p.status === 'completed').map(p => p.subtopic_id))
-  const xp        = student?.xp        || 0
-  const monthlyXp = student?.monthly_xp || 0
+  const isFM      = activeSubject === 'further_maths'
+  const xp        = isFM ? (student?.fm_xp        || 0) : (student?.xp        || 0)
+  const monthlyXp = isFM ? (student?.fm_monthly_xp || 0) : (student?.monthly_xp || 0)
   const streak    = student?.streak_days || 0
 
   const allSubtopics = (level?.terms || [])
@@ -586,88 +589,38 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
           ))}
         </div>
 
-        {/* ── Subject card — Mathematics ── */}
-        <div style={{ background: isNova ? 'rgba(255,255,255,0.06)' : '#fff', border: isBlaze ? '2.5px solid #0d0d0d' : isNova ? '1px solid rgba(255,255,255,0.12)' : `1.5px solid ${accent}20`, borderRadius: isBlaze ? 14 : 24, overflow: 'hidden', boxShadow: isBlaze ? '4px 4px 0 #0d0d0d' : `0 8px 32px ${accent}14`, marginBottom: 16 }}>
+        {/* ── Subject switcher card (SS only) — contains next lesson + continue ── */}
+        <SubjectSwitcher
+          student={student}
+          nextLesson={nextLesson}
+          onSubjectChange={(subj) => {
+            setActiveSubject(subj)
+            setStudent(s => ({ ...s, active_subject: subj }))
+          }}
+          onContinue={() => {
+            setActiveTab('learn')
+            setTimeout(() => { currentNodeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }) }, 120)
+          }}
+        />
 
-          {/* Card header */}
-          <div style={{ background: heroGradient, padding: '18px 20px 16px', position: 'relative', overflow: 'hidden' }}>
-            {!isBlaze && <div style={{ position: 'absolute', right: -30, top: -30, width: 130, height: 130, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', pointerEvents: 'none' }} />}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, position: 'relative', zIndex: 1 }}>
-              <div style={{ width: 48, height: 48, borderRadius: isBlaze ? 12 : 16, flexShrink: 0, background: isBlaze ? 'rgba(0,0,0,0.14)' : 'rgba(255,255,255,0.22)', border: `2px solid ${isBlaze ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.35)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>
-                📐
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 10, fontWeight: 800, color: isBlaze ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.7)', textTransform: 'uppercase', letterSpacing: 1.2, fontFamily: 'Nunito, sans-serif', marginBottom: 3 }}>
-                  Subject
-                </div>
-                <div style={{ fontSize: 20, fontWeight: 900, color: isBlaze ? '#0d0d0d' : '#fff', fontFamily: 'Nunito, sans-serif', lineHeight: 1 }}>
-                  Mathematics
-                </div>
-                <div style={{ fontSize: 11, color: isBlaze ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.7)', fontFamily: 'Nunito, sans-serif', fontWeight: 600, marginTop: 2 }}>
-                  {student?.class_level} · {doneLessons}/{totalLessons} lessons
-                </div>
-              </div>
-              {/* Overall progress ring */}
-              <div style={{ textAlign: 'center', flexShrink: 0 }}>
-                <div style={{ fontSize: 22, fontWeight: 900, color: isBlaze ? '#0d0d0d' : '#fff', fontFamily: 'Nunito, sans-serif', lineHeight: 1 }}>{overallPct}%</div>
-                <div style={{ fontSize: 8, fontWeight: 700, color: isBlaze ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.6)', fontFamily: 'Nunito, sans-serif', textTransform: 'uppercase', letterSpacing: 0.5 }}>done</div>
-              </div>
-            </div>
-            {/* Progress bar */}
-            <div style={{ height: 5, background: 'rgba(255,255,255,0.2)', borderRadius: 99, marginTop: 14, position: 'relative', zIndex: 1, overflow: 'hidden' }}>
-              <div style={{ height: '100%', width: `${overallPct}%`, background: isBlaze ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.9)', borderRadius: 99, transition: 'width 0.9s ease', boxShadow: isBlaze ? 'none' : '0 0 8px rgba(255,255,255,0.6)' }} />
-            </div>
-          </div>
-
-          {/* Topic previews */}
-          <div style={{ padding: '14px 16px' }}>
-            {previewTopics.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
-                {previewTopics.map((topic, i) => {
-                  const subs = topic.subtopics || []
-                  const done = subs.filter(s => completedIds.has(s.id)).length
-                  const pct  = subs.length > 0 ? Math.round((done / subs.length) * 100) : 0
-                  const tAcc = termAccents[i % termAccents.length]
-                  return (
-                    <div key={topic.id} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div style={{ width: 34, height: 34, borderRadius: isBlaze ? 8 : 10, flexShrink: 0, background: `${tAcc}18`, border: `1.5px solid ${tAcc}35`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontFamily: 'monospace', fontWeight: 900, color: tAcc }}>
-                        {getTopicIcon(topic.title)}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: isNova ? '#F8F7FF' : M.textPrimary, fontFamily: 'Nunito, sans-serif', marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{topic.title}</div>
-                        <div style={{ height: 4, background: isNova ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)', borderRadius: 99, overflow: 'hidden' }}>
-                          <div style={{ height: '100%', width: `${pct}%`, background: pct === 100 ? M.correctColor : tAcc, borderRadius: 99, transition: 'width 0.6s ease' }} />
-                        </div>
-                      </div>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: bodyColor, fontFamily: 'Nunito, sans-serif', flexShrink: 0 }}>{done}/{subs.length}</div>
-                    </div>
-                  )
-                })}
-              </div>
-            ) : (
-              <div style={{ textAlign: 'center', padding: '16px 0 10px', color: bodyColor, fontFamily: 'Nunito, sans-serif', fontSize: 13 }}>
-                Content coming soon for {student?.class_level}!
-              </div>
-            )}
-
-            {/* Continue / Start button */}
-            <button
-              onClick={() => {
-                setActiveTab('learn')
-                // After tab switch, scroll to current lesson node
-                setTimeout(() => { currentNodeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }) }, 120)
-              }}
-              style={{
-                width: '100%', padding: '14px', cursor: 'pointer', textAlign: 'center',
-                background: isBlaze ? '#0d0d0d' : accent,
-                border: 'none', borderRadius: isBlaze ? 8 : 14,
-                fontFamily: 'Nunito, sans-serif', fontSize: 14, fontWeight: 900,
-                color: '#fff', boxShadow: isBlaze ? '3px 3px 0 rgba(0,0,0,0.25)' : `0 4px 16px ${accent}45`,
-              }}>
-              {doneLessons === 0 ? '▶ Start Learning' : doneLessons === totalLessons ? '✓ Review Topics' : '▶ Continue Learning'}
-            </button>
-          </div>
-        </div>
+        {/* ── Continue button — JSS only (SS students get it inside SubjectSwitcher) ── */}
+        {!['SS1','SS2','SS3'].includes(student?.class_level) && (
+          <button
+            onClick={() => {
+              setActiveTab('learn')
+              setTimeout(() => { currentNodeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }) }, 120)
+            }}
+            style={{
+              width: '100%', padding: '14px', cursor: 'pointer', textAlign: 'center',
+              background: isBlaze ? '#0d0d0d' : accent,
+              border: 'none', borderRadius: isBlaze ? 8 : 14,
+              fontFamily: 'Nunito, sans-serif', fontSize: 14, fontWeight: 900,
+              color: '#fff', boxShadow: isBlaze ? '3px 3px 0 rgba(0,0,0,0.25)' : `0 4px 16px ${accent}45`,
+              marginBottom: 16,
+            }}>
+            {doneLessons === 0 ? '▶ Start Learning' : doneLessons === totalLessons ? '✓ Review Topics' : '▶ Continue Learning'}
+          </button>
+        )}
 
         {/* ── Quick actions ── */}
         <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
@@ -786,10 +739,9 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
                     paddingLeft:  globalIdx % 4 === 1 ? '22%' : globalIdx % 4 === 3 ? '12%' : '17%',
                     paddingRight: globalIdx % 4 === 1 ? '8%'  : globalIdx % 4 === 3 ? '18%' : '13%',
                   }}>
-                  <div
-                    onClick={() => !isLocked && setSelectedNode(isSelected ? null : { sub, isCurrent, isDone, tAccent })}
-                    style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', paddingLeft: 0, paddingRight: 0, gap: 10, paddingBottom: 2, cursor: isLocked ? 'default' : 'pointer' }}>
+                  <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', paddingLeft: 0, paddingRight: 0, gap: 10, paddingBottom: 2 }}>
                     <button
+                      onClick={() => !isLocked && setSelectedNode(isSelected ? null : { sub, isCurrent, isDone, tAccent })}
                       style={{
                         width: Math.round(nodeSize * 1.2), height: nodeSize, borderRadius: '40%', flexShrink: 0, position: 'relative',
                         background: isDone ? `linear-gradient(145deg,${M.correctColor},${M.correctColor}99)` : isCurrent ? `linear-gradient(145deg,${accent},${M.accent2 || accent}CC)` : isLocked ? (isNova ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)') : (isNova ? 'rgba(255,255,255,0.13)' : 'rgba(0,0,0,0.07)'),
@@ -800,7 +752,6 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
                         opacity: isLocked ? 0.55 : 1,
                         transform: isSelected ? 'scale(1.1)' : 'scale(1)',
                         transition: 'all 0.22s cubic-bezier(0.34,1.2,0.64,1)',
-                        pointerEvents: 'none',
                       }}>
                       {isCurrent && !isBlaze && (
                         <div style={{ position: 'absolute', inset: -10, borderRadius: '50%', border: `2px solid ${accent}28`, animation: 'pulse-glow 2s ease-in-out infinite', pointerEvents: 'none' }} />
@@ -1138,7 +1089,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
       <button
         onClick={() => router.push('/learn/challenge?mode=blitz')}
         style={{ ...M.primaryBtn, fontSize: 19, padding: '18px 64px', borderRadius: isBlaze ? 10 : 24, boxShadow: isBlaze ? '4px 4px 0 #0d0d0d' : `0 10px 32px ${accent}55`, animation: 'pulse-glow 2.5s ease-in-out infinite' }}>
-        {isBlaze ? '⚡ START' : isRoots ? '🇳🇬 Start!' : '→ Enter'}
+        {isBlaze ? '⚡ GO!' : isRoots ? '🇳🇬 Go!' : 'Go →'}
       </button>
     </div>
   )
@@ -1418,4 +1369,4 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
       )}
     </div>
   )
-}
+} 
