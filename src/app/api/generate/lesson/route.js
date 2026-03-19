@@ -642,6 +642,12 @@ ${STUDENT_CONTEXTS}`
   // ════════════════════════════════════════════════════════════════════════════
   const questionsPrompt = `Write 3 practice questions for a MathsInBites lesson on: ${ctx}.
 
+CRITICAL SCOPE RULE — READ THIS FIRST:
+These questions are shown at the END of the lesson on "${title}" ONLY.
+Every question MUST test ONLY what was taught in this specific subtopic: "${title}".
+Do NOT include questions about other subtopics, related topics, or anything not covered in "${title}".
+A student who just finished this lesson and nothing else should be able to answer all 3 questions.
+
 These questions appear at the end of the lesson as the final practice section.
 Students are aged 12–17 in Nigerian secondary school.
 

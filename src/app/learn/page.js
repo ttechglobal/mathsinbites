@@ -35,23 +35,32 @@ export default async function LearnPage() {
   }
 
   // ── Load level curriculum for this student's class ────────────────────────
-  const { data: level } = await supabase
-    .from('levels')
-    .select(`
+  // FM students get a different level row (code: FM_SS1 etc) from the same levels table.
+  // Falls back to class_level (maths) if FM curriculum not uploaded yet.
+  const activeSubject  = student.active_subject || 'maths'
+  const isFM           = activeSubject === 'further_maths'
+  const levelCode      = isFM ? `FM_${student.class_level}` : student.class_level
+
+  const curriculumSelect = `
+    *,
+    terms(
       *,
-      terms(
+      units(
         *,
-        units(
+        topics(
           *,
-          topics(
-            *,
-            subtopics(*)
-          )
+          subtopics(*)
         )
       )
-    `)
-    .eq('code', student.class_level)
-    .single()
+    )
+  `
+
+  // Try FM level first; fall back to base class level for maths students
+  const { data: level } = await supabase
+    .from('levels')
+    .select(curriculumSelect)
+    .eq('code', levelCode)
+    .maybeSingle()
 
   // ── Load student progress ─────────────────────────────────────────────────
   const { data: progress } = await supabase

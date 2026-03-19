@@ -105,12 +105,14 @@ function getTopicIcon(title) {
   return '#'
 }
 
+const supabase = createClient()
+
 export default function LearnDashboard({ student: initialStudent, allStudents = [], profileId, level, progress }) {
   const router   = useRouter()
-  const supabase = createClient()
   const { M, mode } = useMode()
 
   const [student,         setStudent]         = useState(initialStudent)
+  const [currentLevel,    setCurrentLevel]    = useState(level)
   useSessionTracker(student?.id)   // passive ping every 60s — admin analytics only
   const [progressData,    setProgressData]    = useState(progress)
   // ── Leaderboard: all 3 boards pre-fetched in parallel for instant switching ──
@@ -133,6 +135,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
   const [saveMsg,         setSaveMsg]         = useState('')
   const [editOpen,        setEditOpen]        = useState(false)
   const [activeSubject,   setActiveSubject]   = useState(initialStudent?.active_subject || 'maths')
+  const [showSubjectPicker, setShowSubjectPicker] = useState(false)
 
   const scrollRef   = useRef(null)
   const sectionRefs = useRef({})
@@ -157,7 +160,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
       if (!initialStudent?.id) return
       const [prog, stud] = await Promise.all([
         supabase.from('student_progress').select('*').eq('student_id', initialStudent.id),
-        supabase.from('students').select('xp, monthly_xp, streak_days').eq('id', initialStudent.id).single(),
+        supabase.from('students').select('xp, monthly_xp, streak_days, fm_xp, fm_monthly_xp, subjects, active_subject').eq('id', initialStudent.id).single(),
       ])
       if (prog.data) setProgressData(prog.data)
       if (stud.data) setStudent(s => ({ ...s, ...stud.data }))
@@ -208,11 +211,26 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
   // ── Computed ──────────────────────────────────────────────────────────────
   const completedIds = new Set(progressData.filter(p => p.status === 'completed').map(p => p.subtopic_id))
   const isFM      = activeSubject === 'further_maths'
+
+  // Re-fetch level curriculum when subject or class changes
+  // useRef guard prevents re-fetching the same code twice
+  const lastLevelCode = useRef(null)
+  useEffect(() => {
+    const code = isFM ? `FM_${student?.class_level}` : student?.class_level
+    if (!code || code === lastLevelCode.current) return
+    lastLevelCode.current = code
+    supabase
+      .from('levels')
+      .select('*, terms(*, units(*, topics(*, subtopics(*))))')
+      .eq('code', code)
+      .maybeSingle()
+      .then(({ data }) => setCurrentLevel(data || null))
+  }, [isFM, student?.class_level])
   const xp        = isFM ? (student?.fm_xp        || 0) : (student?.xp        || 0)
   const monthlyXp = isFM ? (student?.fm_monthly_xp || 0) : (student?.monthly_xp || 0)
   const streak    = student?.streak_days || 0
 
-  const allSubtopics = (level?.terms || [])
+  const allSubtopics = (currentLevel?.terms || [])
     .sort((a, b) => a.term_number - b.term_number)
     .flatMap(t =>
       [...(t.units || [])].sort((a,b) => (a.order_index||0) - (b.order_index||0)).flatMap(u =>
@@ -359,6 +377,13 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
               </div>
             </button>
             {ModeBtn}
+            {['SS1','SS2','SS3'].includes(student?.class_level) && (student?.subjects || []).length > 1 && (
+              <button onClick={() => setShowSubjectPicker(true)}
+                style={{ background: isBlaze ? '#0d0d0d' : `${accent}14`, border: isBlaze ? '1.5px solid #0d0d0d' : `1.5px solid ${accent}30`, borderRadius: isBlaze ? 6 : 20, padding: '3px 10px', flexShrink: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ fontSize: 10, fontWeight: 900, color: isBlaze ? '#FFD700' : accent, fontFamily: 'Nunito, sans-serif', letterSpacing: 0.4 }}>{isFM ? 'Further Maths' : 'Maths'}</span>
+                <span style={{ fontSize: 8, color: isBlaze ? '#FFD700' : accent, opacity: 0.7 }}>▾</span>
+              </button>
+            )}
             <div style={{ background: isBlaze ? '#FFD700' : isNova ? 'rgba(124,58,237,0.2)' : `${accent}14`, border: isBlaze ? '1.5px solid #0d0d0d' : `1.5px solid ${accent}30`, borderRadius: isBlaze ? 8 : 20, padding: '4px 12px', display: 'flex', gap: 4, alignItems: 'center', boxShadow: isBlaze ? '2px 2px 0 #0d0d0d' : 'none' }}>
               <span style={{ fontSize: 11 }}>⚡</span>
               <span style={{ fontSize: 12, fontWeight: 900, color: isBlaze ? '#0d0d0d' : accent, fontFamily: 'Nunito, sans-serif' }}>{xp.toLocaleString()}</span>
@@ -463,7 +488,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
   const pathItems = []
   let topicsCompletedCount = 0
 
-  ;[...(level?.terms || [])].sort((a, b) => a.term_number - b.term_number).forEach((term, termIdx) => {
+  ;[...(currentLevel?.terms || [])].sort((a, b) => a.term_number - b.term_number).forEach((term, termIdx) => {
     const tAccent  = termAccents[termIdx % termAccents.length]
     const termSubs = (term.units || []).flatMap(u => (u.topics || []).flatMap(t => t.subtopics || []))
     const termProg = termSubs.filter(s => completedIds.has(s.id)).length
@@ -593,9 +618,15 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
         <SubjectSwitcher
           student={student}
           nextLesson={nextLesson}
-          onSubjectChange={(subj) => {
+          onSubjectChange={async (subj) => {
             setActiveSubject(subj)
-            setStudent(s => ({ ...s, active_subject: subj }))
+            // Re-fetch full student to pick up subjects[] and fm_xp after enroll
+            const { data: fresh } = await supabase
+              .from('students')
+              .select('xp, monthly_xp, streak_days, fm_xp, fm_monthly_xp, subjects, active_subject')
+              .eq('id', student.id).single()
+            if (fresh) setStudent(s => ({ ...s, ...fresh }))
+            else setStudent(s => ({ ...s, active_subject: subj }))
           }}
           onContinue={() => {
             setActiveTab('learn')
@@ -603,30 +634,12 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
           }}
         />
 
-        {/* ── Continue button — JSS only (SS students get it inside SubjectSwitcher) ── */}
-        {!['SS1','SS2','SS3'].includes(student?.class_level) && (
-          <button
-            onClick={() => {
-              setActiveTab('learn')
-              setTimeout(() => { currentNodeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }) }, 120)
-            }}
-            style={{
-              width: '100%', padding: '14px', cursor: 'pointer', textAlign: 'center',
-              background: isBlaze ? '#0d0d0d' : accent,
-              border: 'none', borderRadius: isBlaze ? 8 : 14,
-              fontFamily: 'Nunito, sans-serif', fontSize: 14, fontWeight: 900,
-              color: '#fff', boxShadow: isBlaze ? '3px 3px 0 rgba(0,0,0,0.25)' : `0 4px 16px ${accent}45`,
-              marginBottom: 16,
-            }}>
-            {doneLessons === 0 ? '▶ Start Learning' : doneLessons === totalLessons ? '✓ Review Topics' : '▶ Continue Learning'}
-          </button>
-        )}
+        {/* Continue Learning is now inside SubjectSwitcher for all student types */}
 
         {/* ── Quick actions ── */}
         <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
           <button onClick={() => setActiveTab('challenge')}
             style={{ flex: 1, padding: '14px 10px', cursor: 'pointer', textAlign: 'center', background: 'rgba(255,196,0,0.1)', border: '1.5px solid rgba(255,196,0,0.35)', borderRadius: isBlaze ? 10 : 16, fontFamily: 'Nunito, sans-serif', position: 'relative' }}>
-            <div style={{ position: 'absolute', top: -8, right: 8, background: 'linear-gradient(135deg,#FFD700,#FF9500)', color: '#fff', fontSize: 8, fontWeight: 900, borderRadius: 20, padding: '2px 8px', fontFamily: 'Nunito, sans-serif' }}>+50 XP</div>
             <div style={{ fontSize: 22, marginBottom: 4 }}>⚡</div>
             <div style={{ fontSize: 11, fontWeight: 800, color: '#A06000', fontFamily: 'Nunito, sans-serif' }}>120s of Fame</div>
           </button>
@@ -672,7 +685,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
 
         {/* Path starts immediately — all context lives on Home tab */}
 
-        {!level?.terms?.length && (
+        {!currentLevel?.terms?.length && (
           <div style={{ textAlign: 'center', padding: '60px 20px' }}>
             <BicPencil pose="think" size={100} style={{ display: 'inline-block', marginBottom: 18 }} />
             <p style={{ fontWeight: 800, fontSize: 18, color: M.textPrimary, fontFamily: M.headingFont }}>Content coming soon!</p>
@@ -681,7 +694,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
         )}
 
         {/* ── LEARNING PATH — centred spine, all nodes centred, labels below ── */}
-        <div style={{ maxWidth: 520, margin: '0 auto', padding: '24px 0 170px', position: 'relative' }}>
+        <div style={{ maxWidth: 520, margin: '0 auto', padding: '24px 0 max(170px, calc(140px + env(safe-area-inset-bottom)))', position: 'relative' }}>
 
           {pathItems.map((item, idx) => {
 
@@ -1354,6 +1367,43 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
         <ModePicker onClose={() => setShowModePicker(false)} />
       </BottomSheet>
 
+      {showSubjectPicker && (
+        <>
+          <div onClick={() => setShowSubjectPicker(false)} style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)' }} />
+          <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 520, zIndex: 61, background: isNova ? '#1a1040' : M.lessonCard || '#fff', borderRadius: isBlaze ? '14px 14px 0 0' : '24px 24px 0 0', padding: '0 20px 40px', fontFamily: 'Nunito, sans-serif' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 14, paddingBottom: 16 }}>
+              <div style={{ width: 40, height: 4, borderRadius: 2, background: `${accent}35` }} />
+            </div>
+            <div style={{ fontSize: 16, fontWeight: 900, color: M.textPrimary, fontFamily: M.headingFont, marginBottom: 6 }}>Switch Subject</div>
+            <div style={{ fontSize: 13, color: M.textSecondary, marginBottom: 20 }}>Progress and XP are tracked separately per subject.</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {(student?.subjects || ['maths']).map(subj => {
+                const isActive = activeSubject === subj
+                const label    = subj === 'further_maths' ? 'Further Mathematics' : 'Mathematics'
+                const subjXp   = subj === 'further_maths' ? (student?.fm_xp || 0) : (student?.xp || 0)
+                return (
+                  <button key={subj} onClick={async () => {
+                    if (!isActive) {
+                      await supabase.from('students').update({ active_subject: subj }).eq('id', student.id)
+                      setActiveSubject(subj)
+                      setStudent(s => ({ ...s, active_subject: subj }))
+                    }
+                    setShowSubjectPicker(false)
+                  }}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', background: isActive ? (isBlaze ? '#FFD700' : `${accent}14`) : (isNova ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)'), border: isActive ? (isBlaze ? '2px solid #0d0d0d' : `2px solid ${accent}`) : `1.5px solid ${isNova ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}`, borderRadius: isBlaze ? 10 : 16, cursor: 'pointer', fontFamily: 'Nunito, sans-serif' }}>
+                    <div>
+                      <div style={{ fontSize: 15, fontWeight: 900, color: isActive ? (isBlaze ? '#0d0d0d' : accent) : M.textPrimary }}>{label}</div>
+                      <div style={{ fontSize: 11, color: M.textSecondary, marginTop: 2 }}>{subjXp.toLocaleString()} XP</div>
+                    </div>
+                    {isActive && <span style={{ fontSize: 16, color: isBlaze ? '#0d0d0d' : accent }}>✓</span>}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </>
+      )}
+
       {showWelcome && (
         <WelcomeScreen student={student} onDismiss={() => setShowWelcome(false)} />
       )}
@@ -1369,4 +1419,4 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
       )}
     </div>
   )
-} 
+}

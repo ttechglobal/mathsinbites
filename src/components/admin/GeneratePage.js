@@ -25,17 +25,17 @@ export default function GeneratePage({ levels }) {
   const [generating,     setGenerating]     = useState({})
   const [generated,      setGenerated]      = useState({})
   const [errors,         setErrors]         = useState({})
-  const [subject,        setSubject]        = useState('maths')  // 'maths' | 'further_maths'
+  const [levelSubject,   setLevelSubject]   = useState({})  // levelId -> 'maths' | 'further_maths'
 
   const toggle = (setter, id) => setter(p => ({ ...p, [id]: !p[id] }))
 
-  async function generateLesson(subtopicId) {
+  async function generateLesson(subtopicId, subj = 'maths') {
     setGenerating(p => ({ ...p, [subtopicId]: true }))
     setErrors(p => ({ ...p, [subtopicId]: null }))
     try {
       const res  = await fetch('/api/generate/lesson', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subtopicId, subject }),
+        body: JSON.stringify({ subtopicId, subject: subj }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
@@ -47,10 +47,10 @@ export default function GeneratePage({ levels }) {
     }
   }
 
-  async function generateAllInTopic(subtopics) {
+  async function generateAllInTopic(subtopics, subj = 'maths') {
     for (const sub of subtopics) {
       if (!sub.is_published && !generated[sub.id]) {
-        await generateLesson(sub.id)
+        await generateLesson(sub.id, subj)
         await new Promise(r => setTimeout(r, 1000))
       }
     }
@@ -82,25 +82,6 @@ export default function GeneratePage({ levels }) {
           <p style={{ fontSize:13, color:A.dim, fontWeight:700, maxWidth:560 }}>
             Use AI to generate bite-sized lessons for each subtopic. Generate individually or use &ldquo;Generate All&rdquo; to batch a whole topic.
           </p>
-        </div>
-
-        {/* Subject toggle */}
-        <div style={{ display:'flex', gap:8, marginBottom:20 }}>
-          {[['maths','Mathematics'],['further_maths','Further Maths']].map(([val, label]) => (
-            <button key={val} onClick={() => setSubject(val)} style={{
-              padding:'8px 18px', borderRadius:10, cursor:'pointer',
-              border: subject===val ? `1.5px solid ${A.accentHi}` : `1.5px solid ${A.border}`,
-              background: subject===val ? 'rgba(124,58,237,0.18)' : 'transparent',
-              color: subject===val ? A.accentHi : A.dim,
-              fontSize:12, fontWeight:800, fontFamily:'Nunito,sans-serif',
-              transition:'all 0.15s',
-            }}>{label}</button>
-          ))}
-          {subject === 'further_maths' && (
-            <span style={{ fontSize:11, fontWeight:700, color:A.dim2, alignSelf:'center', marginLeft:4 }}>
-              Lessons will be generated with FM step-by-step format
-            </span>
-          )}
         </div>
 
         {levels.length === 0 ? (
@@ -137,6 +118,23 @@ export default function GeneratePage({ levels }) {
                         <div style={{ height:'100%', width:`${pct}%`, background: pct===100 ? A.electric : A.accent, borderRadius:3, transition:'width 0.4s' }} />
                       </div>
                       <span style={{ fontSize:11, fontWeight:900, color: pct===100 ? A.electric : A.dim2, minWidth:30, textAlign:'right' }}>{pct}%</span>
+                      {/* Per-level subject toggle — only for SS levels */}
+                      {['SS1','SS2','SS3'].includes(level.name) && (
+                        <div style={{ display:'flex', gap:4, flexShrink:0 }} onClick={e => e.stopPropagation()}>
+                          {[['maths','M'],['further_maths','FM']].map(([val, lbl]) => {
+                            const active = (levelSubject[level.id] || 'maths') === val
+                            return (
+                              <button key={val} onClick={() => setLevelSubject(p => ({ ...p, [level.id]: val }))}
+                                style={{ padding:'3px 9px', borderRadius:6, cursor:'pointer', fontSize:10, fontWeight:800,
+                                  border: active ? `1.5px solid ${A.accentHi}` : `1.5px solid ${A.border}`,
+                                  background: active ? 'rgba(124,58,237,0.18)' : 'transparent',
+                                  color: active ? A.accentHi : A.dim2, fontFamily:'Nunito,sans-serif',
+                                  transition:'all 0.12s',
+                                }}>{lbl}</button>
+                            )
+                          })}
+                        </div>
+                      )}
                     </div>
                   </button>
 
@@ -181,7 +179,7 @@ export default function GeneratePage({ levels }) {
                                         {topicDone}/{topicSubs.length}
                                       </span>
                                       {/* Generate All */}
-                                      <button onClick={() => generateAllInTopic(topicSubs)} style={{
+                                      <button onClick={() => generateAllInTopic(topicSubs, levelSubject[level.id] || 'maths')} style={{
                                         display:'flex', alignItems:'center', gap:5,
                                         padding:'5px 12px', borderRadius:8,
                                         background:'rgba(200,241,53,0.08)', border:'1.5px solid rgba(200,241,53,0.22)',
@@ -238,7 +236,7 @@ export default function GeneratePage({ levels }) {
 
                                               {/* Action button */}
                                               <button
-                                                onClick={() => generateLesson(sub.id)}
+                                                onClick={() => generateLesson(sub.id, levelSubject[level.id] || 'maths')}
                                                 disabled={status === 'generating'}
                                                 style={{
                                                   display:'flex', alignItems:'center', gap:5,

@@ -12,32 +12,35 @@ const A = {
 }
 
 const CLASS_LEVELS = [
-  { code:'JSS1',    name:'JSS 1',    category:'junior'  },
-  { code:'JSS2',    name:'JSS 2',    category:'junior'  },
-  { code:'JSS3',    name:'JSS 3',    category:'junior'  },
-  { code:'SS1',     name:'SS 1',     category:'senior'  },
-  { code:'SS2',     name:'SS 2',     category:'senior'  },
-  { code:'SS3',     name:'SS 3',     category:'senior'  },
-  { code:'Primary1',name:'Primary 1',category:'primary' },
-  { code:'Primary2',name:'Primary 2',category:'primary' },
-  { code:'Primary3',name:'Primary 3',category:'primary' },
-  { code:'Primary4',name:'Primary 4',category:'primary' },
-  { code:'Primary5',name:'Primary 5',category:'primary' },
-  { code:'Primary6',name:'Primary 6',category:'primary' },
+  { code:'JSS1', name:'JSS 1', category:'junior' },
+  { code:'JSS2', name:'JSS 2', category:'junior' },
+  { code:'JSS3', name:'JSS 3', category:'junior' },
+  { code:'SS1',  name:'SS 1',  category:'senior' },
+  { code:'SS2',  name:'SS 2',  category:'senior' },
+  { code:'SS3',  name:'SS 3',  category:'senior' },
 ]
 const TERM_NAMES = { 1:'First Term', 2:'Second Term', 3:'Third Term' }
 
 export default function CurriculumPage() {
   const supabase = createClient()
   const [selectedLevel,   setSelectedLevel]   = useState('')
+  const [selectedSubject, setSelectedSubject] = useState('maths')
   const [jsonInput,       setJsonInput]       = useState('')
   const [parsed,          setParsed]          = useState(null)
   const [parseError,      setParseError]      = useState('')
   const [saving,          setSaving]          = useState(false)
   const [saved,           setSaved]           = useState(false)
+  const [showConfirm,     setShowConfirm]     = useState(false)
   const [expandedTerms,   setExpandedTerms]   = useState({})
   const [expandedUnits,   setExpandedUnits]   = useState({})
   const [expandedTopics,  setExpandedTopics]  = useState({})
+
+  const isSS = ['SS1','SS2','SS3'].includes(selectedLevel)
+  // FM levels use FM_ prefix to avoid clashing with Maths levels in DB
+  const effectiveCode = selectedSubject === 'further_maths' && isSS
+    ? `FM_${selectedLevel}` : selectedLevel
+  const effectiveName = selectedSubject === 'further_maths' && isSS
+    ? `Further Maths ${selectedLevel}` : CLASS_LEVELS.find(l=>l.code===selectedLevel)?.name || selectedLevel
 
   const exampleJSON = JSON.stringify([{ term:1, term_name:"First Term", units:[{ unit:"Number and Numeration", topics:[{ title:"Whole Numbers", subtopics:[{ title:"Reading and writing whole numbers", objectives:["Read whole numbers up to 1,000,000"] }] }] }] }], null, 2)
 
@@ -54,11 +57,17 @@ export default function CurriculumPage() {
   async function saveCurriculum() {
     if (!selectedLevel) return alert('Please select a class level')
     if (!parsed) return alert('Please parse the JSON first')
+    setShowConfirm(false)
     setSaving(true)
     try {
       const levelData = CLASS_LEVELS.find(l => l.code === selectedLevel)
       const { data: level, error: levelError } = await supabase
-        .from('levels').upsert({ name:levelData.name, code:levelData.code, category:levelData.category }, { onConflict:'code' })
+        .from('levels').upsert({
+          name:     effectiveName,
+          code:     effectiveCode,
+          category: levelData?.category || 'senior',
+          subject:  selectedSubject,
+        }, { onConflict:'code' })
         .select().single()
       if (levelError) throw levelError
       for (const termData of parsed) {
@@ -171,7 +180,7 @@ export default function CurriculumPage() {
           <div style={{ fontWeight:900, fontSize:15, color:A.chalk, marginBottom:4 }}>Select Class Level</div>
           <p style={{ fontSize:12, color:A.dim, fontWeight:700, marginBottom:16 }}>Which class is this curriculum for?</p>
 
-          {[{g:'Primary',codes:CLASS_LEVELS.filter(l=>l.category==='primary')},{g:'Junior Secondary',codes:CLASS_LEVELS.filter(l=>l.category==='junior')},{g:'Senior Secondary',codes:CLASS_LEVELS.filter(l=>l.category==='senior')}].map(grp=>(
+          {[{g:'Junior Secondary',codes:CLASS_LEVELS.filter(l=>l.category==='junior')},{g:'Senior Secondary',codes:CLASS_LEVELS.filter(l=>l.category==='senior')}].map(grp=>(
             <div key={grp.g} style={{ marginBottom:12 }}>
               <div style={{ fontSize:9, fontWeight:900, color:A.dim2, letterSpacing:'2px', textTransform:'uppercase', marginBottom:6 }}>{grp.g}</div>
               <div style={{ display:'grid', gridTemplateColumns:`repeat(${grp.codes.length},1fr)`, gap:6 }}>
@@ -183,6 +192,35 @@ export default function CurriculumPage() {
               </div>
             </div>
           ))}
+
+          {/* Subject selector — only for SS levels */}
+          {isSS && (
+            <div style={{ marginTop:18, paddingTop:16, borderTop:`1px solid ${A.border}` }}>
+              <div style={{ fontSize:9, fontWeight:900, color:A.dim2, letterSpacing:'2px', textTransform:'uppercase', marginBottom:10 }}>Subject</div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                {[['maths','Mathematics'],['further_maths','Further Mathematics']].map(([val,label]) => (
+                  <button key={val}
+                    onClick={() => setSelectedSubject(val)}
+                    style={{
+                      padding:'10px 14px', borderRadius:10, cursor:'pointer', textAlign:'left',
+                      border: selectedSubject===val ? '1.5px solid rgba(200,241,53,0.5)' : `1.5px solid ${A.border}`,
+                      background: selectedSubject===val ? 'rgba(200,241,53,0.10)' : 'rgba(165,155,255,0.04)',
+                      fontFamily:'Nunito,sans-serif', fontSize:12, fontWeight:800,
+                      color: selectedSubject===val ? A.electric : A.dim,
+                      transition:'all 0.15s',
+                    }}>
+                    {label}
+                    {selectedSubject===val && <span style={{ marginLeft:6, fontSize:10 }}>✓</span>}
+                  </button>
+                ))}
+              </div>
+              {selectedSubject === 'further_maths' && (
+                <div style={{ marginTop:10, fontSize:11, fontWeight:700, color:A.gold, background:'rgba(255,201,51,0.06)', border:'1px solid rgba(255,201,51,0.2)', borderRadius:8, padding:'8px 12px' }}>
+                  ⚠ Further Maths lessons will use step-by-step FM format. Will be saved as code: {effectiveCode}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Step 2 — Paste JSON */}
@@ -218,7 +256,11 @@ export default function CurriculumPage() {
             <div style={{ fontSize:10, fontWeight:900, color:A.dim2, letterSpacing:'2px', textTransform:'uppercase', marginBottom:3 }}>Step 3</div>
             <div style={{ fontWeight:900, fontSize:15, color:A.chalk, marginBottom:4 }}>Preview &amp; Confirm</div>
             <p style={{ fontSize:12, color:A.dim, fontWeight:700, marginBottom:16 }}>
-              Class: <span style={{ color:A.electric, fontWeight:900 }}>{selectedLevel||'Not selected'}</span>
+              Class: <span style={{ color:A.electric, fontWeight:900 }}>{effectiveName||'Not selected'}</span>
+              {' · '}
+              Subject: <span style={{ color:A.gold, fontWeight:900 }}>
+                {selectedSubject === 'further_maths' ? 'Further Mathematics' : 'Mathematics'}
+              </span>
             </p>
 
             {/* Counts */}
@@ -303,11 +345,48 @@ export default function CurriculumPage() {
             </div>
 
             <div style={{ marginTop:20 }}>
-              <button className="cur-btn-primary" disabled={saving||!selectedLevel} onClick={saveCurriculum}>
-                {saving ? 'Saving to database…' : `Save ${selectedLevel} Curriculum →`}
+              <button className="cur-btn-primary" disabled={saving||!selectedLevel} onClick={() => setShowConfirm(true)}>
+                {saving ? 'Saving to database…' : `Save ${effectiveName} Curriculum →`}
               </button>
             </div>
           </div>
+        )}
+
+        {/* Confirmation modal */}
+        {showConfirm && (
+          <>
+            <div onClick={() => setShowConfirm(false)}
+              style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', zIndex:50 }} />
+            <div style={{
+              position:'fixed', top:'50%', left:'50%', transform:'translate(-50%,-50%)',
+              zIndex:51, background:A.card, border:`1.5px solid ${A.borderHi}`,
+              borderRadius:20, padding:'28px 28px 24px', width:'min(480px,90vw)',
+              fontFamily:'Nunito,sans-serif',
+            }}>
+              <div style={{ fontSize:22, marginBottom:12 }}>⚠️</div>
+              <div style={{ fontSize:16, fontWeight:900, color:A.chalk, marginBottom:8 }}>Confirm Upload</div>
+              <div style={{ fontSize:13, fontWeight:700, color:A.dim, lineHeight:1.7, marginBottom:20 }}>
+                You are about to upload a curriculum as:<br/>
+                <span style={{ color:A.electric, fontWeight:900 }}>{effectiveName}</span>
+                {' — '}
+                <span style={{ color:A.gold, fontWeight:900 }}>
+                  {selectedSubject === 'further_maths' ? 'Further Mathematics' : 'Mathematics'}
+                </span><br/>
+                <span style={{ fontSize:11, color:A.dim2 }}>DB code: {effectiveCode} · {totalSubtopics} subtopics</span><br/><br/>
+                This cannot be undone. Existing data for this level+subject will be updated.
+              </div>
+              <div style={{ display:'flex', gap:10 }}>
+                <button onClick={() => setShowConfirm(false)}
+                  style={{ flex:1, padding:'11px', borderRadius:10, border:`1.5px solid ${A.border}`, background:'transparent', color:A.dim, fontFamily:'Nunito,sans-serif', fontSize:13, fontWeight:800, cursor:'pointer' }}>
+                  Cancel
+                </button>
+                <button onClick={saveCurriculum}
+                  style={{ flex:2, padding:'11px', borderRadius:10, border:'none', background:A.electric, color:'#0C0820', fontFamily:"'Fredoka',sans-serif", fontSize:15, fontWeight:600, cursor:'pointer' }}>
+                  Yes, Save Curriculum
+                </button>
+              </div>
+            </div>
+          </>
         )}
 
         {/* Empty state */}

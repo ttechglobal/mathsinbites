@@ -1,39 +1,63 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useMode } from '@/lib/ModeContext'
 
 export default function SubjectSwitcher({ student, nextLesson, onSubjectChange, onContinue }) {
   const { M, mode } = useMode()
-  const router  = useRouter()
   const supabase = createClient()
 
   const isBlaze = mode === 'blaze'
   const isNova  = mode === 'nova'
   const accent  = M.accentColor
 
-  // Only show for SS students
+  // Derive values needed for hook initialisations
   const classLevel = student?.class_level || ''
-  const isSS = ['SS1', 'SS2', 'SS3'].includes(classLevel)
-  if (!isSS) return null
+  const isSS       = ['SS1', 'SS2', 'SS3'].includes(classLevel)
+  const subjects   = student?.subjects || ['maths']
+  const active     = student?.active_subject || 'maths'
+  const hasFM      = subjects.includes('further_maths')
 
-  const subjects  = student?.subjects || ['maths']
-  const active    = student?.active_subject || 'maths'
-  const hasFM     = subjects.includes('further_maths')
-
+  // All hooks must be called before any early return (Rules of Hooks)
   const [cur,        setCur]        = useState(active === 'further_maths' ? 1 : 0)
   const [switching,  setSwitching]  = useState(false)
   const [showEnroll, setShowEnroll] = useState(false)
   const [enrolling,  setEnrolling]  = useState(false)
   const [enrolled,   setEnrolled]   = useState(false)
-
   const startX = useRef(null)
 
   const heroGradient = isBlaze ? '#FFD700'
     : isNova  ? 'linear-gradient(135deg,#7C3AED,#4C1D95)'
     : `linear-gradient(135deg,${accent},${M.accent2 || accent}DD)`
+
+  // JSS students: simple single Maths card, no FM switcher
+  if (!isSS) {
+    return (
+      <div style={{ background: isNova ? 'rgba(255,255,255,0.06)' : '#fff', border: isBlaze ? '2.5px solid #0d0d0d' : isNova ? '1px solid rgba(255,255,255,0.12)' : `1.5px solid ${accent}20`, borderRadius: isBlaze ? 14 : 24, overflow: 'hidden', boxShadow: isBlaze ? '4px 4px 0 #0d0d0d' : `0 8px 32px ${accent}14`, marginBottom: 16 }}>
+        <div style={{ background: heroGradient, padding: '16px 20px 14px' }}>
+          <div style={{ fontSize: 9, fontWeight: 800, color: isBlaze ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.7)', textTransform: 'uppercase', letterSpacing: 1.2, fontFamily: 'Nunito, sans-serif', marginBottom: 4 }}>Subject</div>
+          <div style={{ fontSize: 20, fontWeight: 900, color: isBlaze ? '#0d0d0d' : '#fff', fontFamily: 'Nunito, sans-serif', lineHeight: 1, marginBottom: 2 }}>Mathematics</div>
+          <div style={{ fontSize: 11, color: isBlaze ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.7)', fontFamily: 'Nunito, sans-serif', fontWeight: 600 }}>{classLevel} · {(student?.xp || 0).toLocaleString()} XP</div>
+        </div>
+        <div style={{ padding: '14px 16px' }}>
+          {nextLesson && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+              <div style={{ width: 36, height: 36, borderRadius: isBlaze ? 8 : 10, flexShrink: 0, background: `${accent}14`, border: `1.5px solid ${accent}28`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>▶</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 9, fontWeight: 800, color: M.textSecondary, textTransform: 'uppercase', letterSpacing: 1, fontFamily: 'Nunito, sans-serif', marginBottom: 2 }}>Next lesson</div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: isNova ? '#F8F7FF' : M.textPrimary, fontFamily: 'Nunito, sans-serif', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{nextLesson.title}</div>
+              </div>
+            </div>
+          )}
+          <button onClick={() => onContinue?.()} style={{ width: '100%', padding: '13px', background: isBlaze ? '#0d0d0d' : accent, border: 'none', borderRadius: isBlaze ? 8 : 14, fontFamily: 'Nunito, sans-serif', fontSize: 14, fontWeight: 900, color: isBlaze ? '#FFD700' : '#fff', cursor: 'pointer', boxShadow: isBlaze ? '3px 3px 0 rgba(0,0,0,0.25)' : `0 4px 16px ${accent}45` }}>
+            {nextLesson ? '▶ Continue Learning' : '✓ Review Topics'}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
 
   async function switchTo(subject) {
     if (subject === active || switching) return
@@ -46,10 +70,11 @@ export default function SubjectSwitcher({ student, nextLesson, onSubjectChange, 
   }
 
   function slideTo(n) {
-    // Card 1 = FM, check if enrolled
-    if (n === 1 && !hasFM) { setShowEnroll(true); return }
     setCur(n)
-    switchTo(n === 0 ? 'maths' : 'further_maths')
+    // Only switch active subject if student is enrolled in that subject
+    if (n === 0) switchTo('maths')
+    else if (n === 1 && hasFM) switchTo('further_maths')
+    // If not enrolled, just show the card — user can choose to enroll via button
   }
 
   function onTouchStart(e) { startX.current = e.touches[0].clientX }
@@ -240,7 +265,7 @@ export default function SubjectSwitcher({ student, nextLesson, onSubjectChange, 
           ))}
         </div>
         <div style={{ textAlign: 'center', marginTop: 5, fontSize: 10, color: M.textSecondary, fontFamily: 'Nunito, sans-serif', fontWeight: 600, opacity: 0.65 }}>
-          {cur === 0 ? 'Swipe for Further Maths →' : '← Swipe for Mathematics'}
+          {cur === 0 ? 'Swipe to see Further Maths →' : '← Swipe back to Mathematics'}
         </div>
       </div>
 

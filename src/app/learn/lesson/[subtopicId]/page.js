@@ -58,9 +58,7 @@ export default async function LessonPage({ params }) {
     questions = questionsData || []
   }
 
-  // ── Load the ACTIVE student — mirrors learn/page.js logic ──────────────────
-  // A user can have multiple student profiles (family plan).
-  // Always use the active_student_id from profiles, not just the first match.
+  // ── Load the active student (mirrors learn/page.js logic) ───────────────
   const { data: profile } = await supabase
     .from('profiles')
     .select('active_student_id')

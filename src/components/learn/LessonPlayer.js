@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMode } from '@/lib/ModeContext'
 import { BicPencil } from '@/components/BiteMarkIcon'
+import ExitConfirmModal from '@/components/learn/ExitConfirmModal'
 import { createClient } from '@/lib/supabase/client'
 
 // ─── Math renderer: 2^8 → 2⁸, x_n → xₙ ──────────────────────────────────────
@@ -628,6 +629,21 @@ function BiteExample({ bite, accent, M, onNext, onBack, isFirst }) {
         </div>
       )}
 
+      {/* Mistake callout — FM lessons only, shows common exam error */}
+      {bite.mistake_callout && (
+        <div style={{
+          borderLeft: '3px solid #EF5350',
+          borderRadius: '0 12px 12px 0',
+          background: 'rgba(239,83,80,0.06)',
+          padding: '12px 16px',
+          marginBottom: 16,
+          flexShrink: 0,
+        }}>
+          <div style={{ fontSize: 10, fontWeight: 800, color: '#EF5350', textTransform: 'uppercase', letterSpacing: 1, fontFamily: 'Nunito, sans-serif', marginBottom: 5 }}>⚠ Where marks are lost</div>
+          <div style={{ fontSize: 13, color: M.textPrimary, fontFamily: 'Nunito, sans-serif', lineHeight: 1.65, fontWeight: 500 }}>{bite.mistake_callout}</div>
+        </div>
+      )}
+
       {/* Nav always visible */}
       <div style={{ marginTop: 'auto', paddingTop: 8 }}>
         <NavButtons onNext={onNext} onBack={onBack} isFirst={isFirst} M={M} nextLabel="Got it! Next →" />
@@ -872,7 +888,8 @@ function renderBite(bite, props, idx) {
   const p = { ...props, bite }
   switch (bite.type) {
     case 'hook':           return <BiteHook        key={key} {...p} />
-    case 'prediction':     return <BitePrediction  key={key} {...p} />
+    case 'prediction':
+    case 'method_picker':  return <BitePrediction  key={key} {...p} />
     case 'observation':    return <BiteObservation key={key} {...p} />
     case 'pattern':        return <BitePattern      key={key} {...p} />
     case 'concept':
@@ -893,6 +910,7 @@ function renderBite(bite, props, idx) {
 export default function LessonPlayer({ lesson, subtopic, student, nextSubtopicId }) {
   const router   = useRouter()
   const { M, mode } = useMode()
+  const [showExit, setShowExit] = useState(false)
   const supabase = createClient()
 
   const slides    = lesson?.slides    || []
@@ -950,7 +968,8 @@ export default function LessonPlayer({ lesson, subtopic, student, nextSubtopicId
   const isComplete = step >= bites.length
   const currentBite = !isEntry && !isComplete ? bites[step] : null
 
-  const accent  = M.accentColor
+  const accent     = M.accentColor
+  const isFMLesson = student?.active_subject === 'further_maths'
   const isNova  = mode === 'nova'
   const isBlaze = mode === 'blaze'
   const isRoots = mode === 'roots'
@@ -1004,12 +1023,15 @@ export default function LessonPlayer({ lesson, subtopic, student, nextSubtopicId
     }
 
     // ── Award XP ────────────────────────────────────────────────────────────
-    // Use student.id (the active student's PK) — not profile_id — because a family
-    // account has multiple student rows sharing the same profile_id, and .single()
-    // would fail with "result contains N rows".
+    // Route XP to the correct columns based on active subject
+    const isFMLesson   = student?.active_subject === 'further_maths'
+    const xpCol        = isFMLesson ? 'fm_xp'         : 'xp'
+    const monthlyXpCol = isFMLesson ? 'fm_monthly_xp' : 'monthly_xp'
+    const selectCols   = `${xpCol}, ${monthlyXpCol}`
+
     const { data: fresh, error: freshErr } = await supabase
       .from('students')
-      .select('xp, monthly_xp')
+      .select(selectCols)
       .eq('id', student.id)
       .single()
     if (freshErr) {
@@ -1020,8 +1042,8 @@ export default function LessonPlayer({ lesson, subtopic, student, nextSubtopicId
     const { error: xpErr } = await supabase
       .from('students')
       .update({
-        xp:         (fresh?.xp         || 0) + earnedXP,
-        monthly_xp: (fresh?.monthly_xp || 0) + earnedXP,
+        [xpCol]:        (fresh?.[xpCol]        || 0) + earnedXP,
+        [monthlyXpCol]: (fresh?.[monthlyXpCol] || 0) + earnedXP,
       })
       .eq('id', student.id)
     if (xpErr) console.error('[lesson] XP update error:', xpErr.message, xpErr)
@@ -1132,7 +1154,7 @@ export default function LessonPlayer({ lesson, subtopic, student, nextSubtopicId
   // ── TOP BAR ────────────────────────────────────────────────────────────────
   const TopBar = (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', flexShrink: 0, borderBottom: `1px solid ${accent}18`, background: M.hudBg }}>
-      <button onClick={goBack} style={{ width: 34, height: 34, borderRadius: '50%', cursor: 'pointer', background: M.lessonCard, border: M.lessonBorder, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: M.textSecondary, flexShrink: 0 }}>←</button>
+      <button onClick={() => setShowExit(true)} style={{ width: 34, height: 34, borderRadius: '50%', cursor: 'pointer', background: M.lessonCard, border: M.lessonBorder, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: M.textSecondary, flexShrink: 0 }}>✕</button>
       <div style={{ flex: 1, height: 6, background: M.progressTrack, borderRadius: 99, overflow: 'hidden' }}>
         <div style={{ width: `${progressPct}%`, height: '100%', borderRadius: 99, background: `linear-gradient(90deg,${accent},${M.accent2 || accent})`, transition: 'width 0.4s ease' }} />
       </div>
@@ -1140,6 +1162,12 @@ export default function LessonPlayer({ lesson, subtopic, student, nextSubtopicId
       {!isEntry && !isComplete && (
         <div style={{ background: M.lessonCard, border: M.lessonBorder, borderRadius: 20, padding: '4px 11px', fontSize: 11, fontWeight: 800, color: M.textSecondary, fontFamily: 'Nunito, sans-serif', flexShrink: 0, whiteSpace: 'nowrap' }}>
           {step + 1} / {bites.length}
+        </div>
+      )}
+      {/* Subject pill — shows Further Maths label so student always knows which subject */}
+      {isFMLesson && (
+        <div style={{ background: `${accent}14`, border: `1.5px solid ${accent}30`, borderRadius: 20, padding: '3px 9px', flexShrink: 0 }}>
+          <span style={{ fontSize: 10, fontWeight: 900, color: accent, fontFamily: 'Nunito, sans-serif', letterSpacing: 0.4 }}>FM</span>
         </div>
       )}
     </div>
@@ -1156,6 +1184,7 @@ export default function LessonPlayer({ lesson, subtopic, student, nextSubtopicId
   }
 
   return (
+    <>
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', fontFamily: M.font, background: M.lessonBg, position: 'relative', overflow: 'hidden' }}>
       {/* Thin progress strip at very top */}
       <div style={{ height: 4, background: M.progressTrack, flexShrink: 0 }}>
@@ -1171,5 +1200,13 @@ export default function LessonPlayer({ lesson, subtopic, student, nextSubtopicId
         {!isEntry && !isComplete && currentBite && renderBite(currentBite, biteProps, step)}
       </div>
     </div>
+      <ExitConfirmModal
+        open={showExit}
+        onStay={() => setShowExit(false)}
+        onExit={() => { setShowExit(false); router.push('/learn') }}
+        M={M}
+        mode={mode}
+      />
+    </>
   )
 }

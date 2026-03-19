@@ -1,10 +1,12 @@
 import { createClient } from '@/lib/supabase/server'
-import Anthropic from '@anthropic-ai/sdk'
+import OpenAI from 'openai'
 
-const anthropic = new Anthropic({
-  
-  apiKey: process.env.ANTHROPIC_API_KEY,
-})
+function getDeepSeek() {
+  return new OpenAI({
+    apiKey: process.env.DEEPSEEK_API_KEY,
+    baseURL: 'https://api.deepseek.com',
+  })
+}
 
 export const maxDuration = 300
 
@@ -53,16 +55,17 @@ EXPLANATION — write like explaining to a 10-year-old, newline between each ste
 Return ONLY a valid JSON array. No markdown, no extra text:
 [{"question_text":"...","difficulty":"easy","hint":"Which formula or first step to use?","explanation":"Step 1: ...\nStep 2: ...\nStep 3: ...","options":[{"option_text":"...","is_correct":false},{"option_text":"...","is_correct":true},{"option_text":"...","is_correct":false},{"option_text":"...","is_correct":false}]}]`
 
-  console.log(`[pq:${label}] calling claude, count=${batchCount}`)
-  const msg = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
+  console.log(`[pq:${label}] calling deepseek, count=${batchCount}`)
+  const deepseek  = getDeepSeek()
+  const response  = await deepseek.chat.completions.create({
+    model:      'deepseek-chat',
     max_tokens: 3000,
-    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.7,
+    messages:   [{ role: 'user', content: prompt }],
   })
 
-  const raw    = msg.content[0]?.text || ''
-  const reason = msg.stop_reason
-  console.log(`[pq:${label}] done stop_reason=${reason} len=${raw.length}`)
+  const raw = response.choices[0]?.message?.content || ''
+  console.log(`[pq:${label}] done len=${raw.length}`)
 
   const clean = raw
     .replace(/^```json\s*/i, '')
@@ -97,7 +100,7 @@ export async function POST(request) {
       .from('profiles').select('role').eq('id', user.id).single()
     if (profile?.role !== 'admin') return Response.json({ error: 'Admin only' }, { status: 403 })
 
-    const { topicId, subtopicId, count = 20, includeExam = true } = await request.json()
+    const { topicId, subtopicId, count = 20, includeExam = true, subject = 'maths' } = await request.json()
     if (!topicId) return Response.json({ error: 'topicId required' }, { status: 400 })
 
     const { data: topic, error: topicErr } = await supabase
@@ -114,7 +117,7 @@ export async function POST(request) {
       subtopic = data
     }
 
-    const classLevel = topic.unit?.term?.level?.name || 'JSS1'
+    const classLevel = topic.unit?.term?.level?.code || topic.unit?.term?.level?.name || 'JSS1'
     const topicTitle = subtopic ? `${topic.title} — ${subtopic.title}` : topic.title
     const examName   = getExamName(classLevel)
 
@@ -177,6 +180,7 @@ export async function POST(request) {
           topic_id:      topicId,
           subtopic_id:   subtopicId || null,
           class_level:   classLevel,
+          subject:       subject,
           question_text: q.question_text,
           difficulty:    q.difficulty || 'medium',
           hint:          q.hint || null,

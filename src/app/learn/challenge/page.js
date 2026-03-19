@@ -11,6 +11,8 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useMode } from '@/lib/ModeContext'
 
+const supabase = createClient()
+
 const BLITZ_SECONDS = 120   // 2 minutes
 
 function MathText({ text }) {
@@ -46,7 +48,6 @@ function MathText({ text }) {
 
 export default function ChallengePage() {
   const router   = useRouter()
-  const supabase = createClient()
   const { M, mode } = useMode()
 
   const accent   = M.accentColor || '#7C3AED'
@@ -106,20 +107,48 @@ export default function ChallengePage() {
           .from('student_progress').select('subtopic_id')
           .eq('student_id', student.id).eq('status', 'completed')
 
-        const isFM = student?.active_subject === 'further_maths'
-        const { data: subjectLessons } = await supabase
-          .from('lessons').select('id').eq('subject', isFM ? 'further_maths' : 'maths')
+        // For challenge: always use Maths questions (FM challenge removed for now)
+        // Filter by student's class level to avoid JSS3 questions showing for SS1 students
+        const classCode = student.class_level
+        const className = classCode.replace(/([A-Z]+)(\d)/, '$1 $2')
+
+        // Get the level row for this student's class
+        const { data: levelRow } = await supabase
+          .from('levels').select('id').eq('code', classCode).maybeSingle()
 
         let query = supabase.from('questions').select('*, options:question_options(*)')
-        if (subjectLessons?.length) {
-          if (progress?.length) {
-            const { data: pLessons } = await supabase
-              .from('lessons').select('id')
-              .in('subtopic_id', progress.map(p => p.subtopic_id))
-              .eq('subject', isFM ? 'further_maths' : 'maths')
-            query = query.in('lesson_id', (pLessons?.length ? pLessons : subjectLessons).map(l => l.id))
-          } else {
-            query = query.in('lesson_id', subjectLessons.map(l => l.id))
+
+        if (levelRow) {
+          // Get all lessons for this student's level
+          const { data: terms } = await supabase.from('terms').select('id').eq('level_id', levelRow.id)
+          const termIds = (terms || []).map(t => t.id)
+          if (termIds.length) {
+            const { data: units } = await supabase.from('units').select('id').in('term_id', termIds)
+            const unitIds = (units || []).map(u => u.id)
+            if (unitIds.length) {
+              const { data: topics } = await supabase.from('topics').select('id').in('unit_id', unitIds)
+              const topicIds = (topics || []).map(t => t.id)
+              if (topicIds.length) {
+                const { data: subs } = await supabase.from('subtopics').select('id').in('topic_id', topicIds)
+                const subIds = (subs || []).map(s => s.id)
+                if (subIds.length) {
+                  const { data: levelLessons } = await supabase
+                    .from('lessons').select('id').in('subtopic_id', subIds)
+                  if (levelLessons?.length) {
+                    // Further narrow to completed lessons if available
+                    const completedLessonIds = progress?.length
+                      ? levelLessons.filter(l =>
+                          subs.filter(s => progress.some(p => p.subtopic_id === s.id)).some(s =>
+                            levelLessons.map(l => l.id).includes(l.id)
+                          )
+                        ).map(l => l.id)
+                      : levelLessons.map(l => l.id)
+                    const useLessons = completedLessonIds.length ? completedLessonIds : levelLessons.map(l => l.id)
+                    query = query.in('lesson_id', useLessons)
+                  }
+                }
+              }
+            }
           }
         }
         const { data: raw } = await query.limit(200)
@@ -151,25 +180,25 @@ export default function ChallengePage() {
   // ── Board loader ─────────────────────────────────────────────────────────────
   function loadBoard(scope, stu, freshScore = null) {
     const thisMonth = new Date().toISOString().slice(0, 7)
-    const isFMb  = stu?.active_subject === 'further_maths'
-    const mthCol = isFMb ? 'fm_blitz_monthly_best' : 'blitz_monthly_best'
-    const mthKey = isFMb ? 'fm_blitz_month'        : 'blitz_month'
+    // Select both blitz_best and blitz_monthly_best — use whichever is available
+    // Also select blitz_month to filter to current month
     let q = supabase.from('students')
-      .select(`id, display_name, class_level, school, ${mthCol}, ${mthKey}`)
-      .gt(mthCol, 0)
-      .order(mthCol, { ascending: false })
-      .limit(20)
+      .select('id, display_name, class_level, school, blitz_best, blitz_monthly_best, blitz_month')
+      .order('blitz_monthly_best', { ascending: false })
+      .limit(50)
     if (scope === 'class' && stu?.class_level)
       q = q.eq('class_level', stu.class_level)
     else if (scope === 'school' && stu?.school)
       q = q.ilike('school', `%${stu.school.split(' ')[0]}%`)
-    q.then(({ data }) => {
+    q.then(({ data, error }) => {
+      if (error) { console.error('[blitz] loadBoard:', error.message); return }
       if (!data) return
-      const rows      = data.filter(r => r[mthKey] === thisMonth)
-      const normed    = rows.map(r => ({ ...r, blitz_monthly_best: r[mthCol] || 0 }))
+      // Filter to current month and non-zero scores
+      const rows = data.filter(r => r.blitz_month === thisMonth && (r.blitz_monthly_best || 0) > 0)
+      const normed    = rows.map(r => ({ ...r, blitz_monthly_best: r.blitz_monthly_best || 0 }))
       const alreadyIn = normed.some(r => r.id === stu?.id)
-      const stuKey    = isFMb ? stu?.fm_blitz_month : stu?.blitz_month
-      const stuBest   = isFMb ? (stu?.fm_blitz_monthly_best || 0) : (stu?.blitz_monthly_best || 0)
+      const stuKey    = stu?.blitz_month
+      const stuBest   = stu?.blitz_monthly_best || 0
       const myBest    = freshScore ?? (stuKey === thisMonth ? stuBest : 0)
       let final = normed
       if (!alreadyIn && myBest > 0) {
@@ -206,13 +235,13 @@ export default function ChallengePage() {
           const sid    = stu.id
           if (!sid) return 0
 
-          const isFM2  = stu.active_subject === 'further_maths'
-          const bestCol = isFM2 ? 'fm_blitz_best'         : 'blitz_best'
-          const mthCol  = isFM2 ? 'fm_blitz_monthly_best' : 'blitz_monthly_best'
-          const mthKey  = isFM2 ? 'fm_blitz_month'        : 'blitz_month'
-          const curBest = isFM2 ? (stu.fm_blitz_best || 0)         : (stu.blitz_best || 0)
-          const curMth  = isFM2 ? (stu.fm_blitz_monthly_best || 0) : (stu.blitz_monthly_best || 0)
-          const curKey  = isFM2 ? stu.fm_blitz_month               : stu.blitz_month
+          // 120s Fame always uses Maths blitz columns
+          const bestCol = 'blitz_best'
+          const mthCol  = 'blitz_monthly_best'
+          const mthKey  = 'blitz_month'
+          const curBest = stu.blitz_best || 0
+          const curMth  = stu.blitz_monthly_best || 0
+          const curKey  = stu.blitz_month
 
           const thisMonth = new Date().toISOString().slice(0, 7)
           if (fc > curBest) {
@@ -278,9 +307,9 @@ export default function ChallengePage() {
 
         {/* ── Top bar ── */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', flexShrink: 0, borderBottom: `1px solid ${accent}18`, background: M.hudBg }}>
-          <button onClick={() => { clearInterval(timerRef.current); router.back() }}
+          <button onClick={() => { clearInterval(timerRef.current); router.push('/learn') }}
             style={{ width: 34, height: 34, borderRadius: '50%', cursor: 'pointer', background: M.lessonCard, border: M.lessonBorder, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: M.textSecondary }}>
-            ←
+            ✕
           </button>
           {phase === 'active' && (
             <>
@@ -295,7 +324,12 @@ export default function ChallengePage() {
             </>
           )}
           {phase !== 'active' && (
-            <div style={{ flex: 1, textAlign: 'center', fontSize: 14, fontWeight: 900, color: accent }}>⚡ 120 Seconds of Fame</div>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              <span style={{ fontSize: 14, fontWeight: 900, color: accent }}>⚡ 120 Seconds of Fame</span>
+              {student?.active_subject === 'further_maths' && (
+                <span style={{ fontSize: 10, fontWeight: 900, color: accent, background: `${accent}14`, border: `1.5px solid ${accent}30`, borderRadius: 20, padding: '2px 9px', fontFamily: 'Nunito, sans-serif', letterSpacing: 0.4 }}>Further Maths</span>
+              )}
+            </div>
           )}
         </div>
 
@@ -370,8 +404,13 @@ export default function ChallengePage() {
                   {board.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '24px 0', color: bodyColor, fontFamily: 'Nunito, sans-serif' }}>
                       <div style={{ fontSize: 28, marginBottom: 8 }}>🏆</div>
-                      <div style={{ fontSize: 13, fontWeight: 700 }}>No scores yet this month</div>
-                      <div style={{ fontSize: 11, marginTop: 4 }}>Be the first — tap Go!</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: M.textPrimary }}>No scores yet this month</div>
+                      {blitzBest > 0 && (
+                        <div style={{ fontSize: 12, marginTop: 8, color: bodyColor }}>
+                          Your all-time best: <strong style={{ color: accent }}>{blitzBest} correct</strong>
+                        </div>
+                      )}
+                      <div style={{ fontSize: 11, marginTop: 6 }}>Be the first this month — tap Go!</div>
                     </div>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

@@ -4,6 +4,10 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useMode } from '@/lib/ModeContext'
+import { BicPencil } from '@/components/BiteMarkIcon'
+
+// Module-level client — avoids recreating on every render (prevents fast-refresh loops)
+const supabase = createClient()
 
 // ─── Math renderer ────────────────────────────────────────────────────────────
 function parseMath(text) {
@@ -346,7 +350,6 @@ function ConfigSheet({ title, icon, onStart, onClose, accent, M, mode }) {
 export default function PracticePage() {
   const router       = useRouter()
   const searchParams = useSearchParams()
-  const supabase     = createClient()
   const { M, mode }  = useMode()
 
   const preTopicId = searchParams.get('topicId') || null
@@ -381,7 +384,7 @@ export default function PracticePage() {
         const { data: profile } = await supabase.from('profiles').select('active_student_id').eq('id', user.id).single()
         const sid = profile?.active_student_id
         if (!sid) return
-        const { data: s } = await supabase.from('students').select('id, active_subject').eq('id', sid).single()
+        const { data: s } = await supabase.from('students').select('id, active_subject, class_level').eq('id', sid).single()
         if (s) { setStudent(s); setActiveSubject(s.active_subject || 'maths') }
       } catch (e) { console.error('[practice] load student:', e.message) }
     }
@@ -400,35 +403,69 @@ export default function PracticePage() {
   useEffect(() => {
     async function loadTopics() {
       try {
-        const { data: topicsData } = await supabase
-          .from('topics').select('id, title, subtopics(id)').order('title')
-        if (!topicsData?.length) { setLoading(false); return }
+        if (!student?.class_level) { setLoading(false); return }
 
-        const subIds = topicsData.flatMap(t => (t.subtopics || []).map(s => s.id))
-        const lessonsQuery = supabase
-          .from('lessons').select('id, subtopic_id').in('subtopic_id', subIds)
-        // Filter by subject so FM practice only shows FM lessons
-        if (activeSubject === 'further_maths') lessonsQuery.eq('subject', 'further_maths')
-        else lessonsQuery.eq('subject', 'maths')
-        const { data: lessons } = await lessonsQuery
-        const lessonIds = (lessons || []).map(l => l.id)
-        const { data: qs } = lessonIds.length
-          ? await supabase.from('questions').select('id, lesson_id').in('lesson_id', lessonIds)
-          : { data: [] }
+        const isFM      = activeSubject === 'further_maths'
+        const classCode = student.class_level
+        const className = classCode.replace(/([A-Z]+)(\d)/, '$1 $2')
 
-        const lessonToSub = {}
-        ;(lessons || []).forEach(l => { lessonToSub[l.id] = l.subtopic_id })
-        const subToTopic = {}
-        topicsData.forEach(t => { (t.subtopics || []).forEach(s => { subToTopic[s.id] = t.id }) })
+        // Step 1: Find the level row to get the right topic IDs
+        // For FM: level code is 'FM_SS1'. For Maths: 'SS1'.
+        const levelCode = isFM ? `FM_${classCode}` : classCode
+        const { data: levelRow } = await supabase
+          .from('levels').select('id').eq('code', levelCode).maybeSingle()
+
+        // Step 2: Get topic IDs that belong to this level
+        let levelTopicIds = []
+        if (levelRow) {
+          const { data: terms } = await supabase.from('terms').select('id').eq('level_id', levelRow.id)
+          const termIds = (terms || []).map(t => t.id)
+          if (termIds.length) {
+            const { data: units } = await supabase.from('units').select('id').in('term_id', termIds)
+            const unitIds = (units || []).map(u => u.id)
+            if (unitIds.length) {
+              const { data: topics } = await supabase.from('topics').select('id').in('unit_id', unitIds)
+              levelTopicIds = (topics || []).map(t => t.id)
+            }
+          }
+        }
+
+        // Step 3: If we have level topic IDs, use them to find practice questions
+        // Otherwise fall back to class_level text match (handles missing level row)
+        let pqs = []
+        if (levelTopicIds.length) {
+          // Most reliable: filter by topic_id — directly links to the right level
+          const { data, error } = await supabase
+            .from('practice_questions')
+            .select('id, topic_id')
+            .in('topic_id', levelTopicIds)
+            .eq('is_active', true)
+          if (error) console.error('[practice] topic filter failed:', error.message)
+          pqs = data || []
+        } else {
+          // Fallback: match by class_level text (try both code and name forms)
+          const { data, error } = await supabase
+            .from('practice_questions')
+            .select('id, topic_id')
+            .in('class_level', [classCode, className, `FM_${classCode}`, `Further Maths ${classCode}`])
+            .eq('is_active', true)
+          if (error) console.error('[practice] class_level filter failed:', error.message)
+          pqs = data || []
+        }
+
+        // Step 4: Count questions per topic and fetch titles
         const topicQCount = {}
-        ;(qs || []).forEach(q => {
-          const tid = subToTopic[lessonToSub[q.lesson_id]]
-          if (tid) topicQCount[tid] = (topicQCount[tid] || 0) + 1
+        pqs.forEach(q => {
+          if (q.topic_id) topicQCount[q.topic_id] = (topicQCount[q.topic_id] || 0) + 1
         })
+        const topicIds = Object.keys(topicQCount)
+        if (!topicIds.length) { setAllTopics([]); setLoading(false); return }
 
-        const enriched = topicsData
+        const { data: topicsData } = await supabase
+          .from('topics').select('id, title').in('id', topicIds)
+
+        const enriched = (topicsData || [])
           .map(t => ({ id: t.id, title: t.title, questionCount: topicQCount[t.id] || 0 }))
-          .filter(t => t.questionCount > 0)
           .sort((a, b) => a.title.localeCompare(b.title))
 
         setAllTopics(enriched)
@@ -438,7 +475,7 @@ export default function PracticePage() {
       setLoading(false)
     }
     loadTopics()
-  }, [activeSubject])
+  }, [activeSubject, student?.class_level])
 
   // ── Start session ─────────────────────────────────────────────────────────
   async function handleSheetStart({ count, timed: isTimed }) {
@@ -450,30 +487,45 @@ export default function PracticePage() {
       const isMixed = !sheet?.topicId
 
       if (!isMixed) {
-        const { data: subs } = await supabase
-          .from('subtopics').select('id').eq('topic_id', sheet.topicId)
-        const topicLessonsQ = supabase
-          .from('lessons').select('id').in('subtopic_id', (subs || []).map(s => s.id))
-        if (activeSubject === 'further_maths') topicLessonsQ.eq('subject', 'further_maths')
-        else topicLessonsQ.eq('subject', 'maths')
-        const { data: lessons } = await topicLessonsQ
-        if (lessons?.length) {
-          const { data: raw } = await supabase
-            .from('questions').select('*, options:question_options(*)')
-            .in('lesson_id', lessons.map(l => l.id))
-          q = raw || []
-        }
+        // topic_id is the most reliable filter — it directly links to the right level/subject
+        const { data: raw } = await supabase
+          .from('practice_questions')
+          .select('*, options:practice_question_options(*)')
+          .eq('topic_id', sheet.topicId)
+          .eq('is_active', true)
+        q = (raw || []).map(pq => ({
+          ...pq,
+          options: (pq.options || []).map(o => ({ option_text: o.option_text, is_correct: o.is_correct })),
+        }))
         setSessionTitle(sheet.title)
       } else {
-        // Mixed — scope to active subject via lessons table
-        const { data: subjectLessons } = await supabase
-          .from('lessons').select('id')
-          .eq('subject', activeSubject === 'further_maths' ? 'further_maths' : 'maths')
-        if (subjectLessons?.length) {
-          const { data: raw } = await supabase
-            .from('questions').select('*, options:question_options(*)')
-            .in('lesson_id', subjectLessons.map(l => l.id)).limit(200)
-          q = raw || []
+        // Mixed — get all topics for this level, then fetch questions by topic_id
+        const isFMMix   = activeSubject === 'further_maths'
+        const levelCode = isFMMix ? `FM_${student?.class_level}` : student?.class_level
+        const { data: mixLvl } = await supabase.from('levels').select('id').eq('code', levelCode).maybeSingle()
+        if (mixLvl) {
+          const { data: mTerms } = await supabase.from('terms').select('id').eq('level_id', mixLvl.id)
+          const mTermIds = (mTerms || []).map(t => t.id)
+          if (mTermIds.length) {
+            const { data: mUnits } = await supabase.from('units').select('id').in('term_id', mTermIds)
+            const mUnitIds = (mUnits || []).map(u => u.id)
+            if (mUnitIds.length) {
+              const { data: mTopics } = await supabase.from('topics').select('id').in('unit_id', mUnitIds)
+              const mTopicIds = (mTopics || []).map(t => t.id)
+              if (mTopicIds.length) {
+                const { data: raw } = await supabase
+                  .from('practice_questions')
+                  .select('*, options:practice_question_options(*)')
+                  .in('topic_id', mTopicIds)
+                  .eq('is_active', true)
+                  .limit(200)
+                q = (raw || []).map(pq => ({
+                  ...pq,
+                  options: (pq.options || []).map(o => ({ option_text: o.option_text, is_correct: o.is_correct })),
+                }))
+              }
+            }
+          }
         }
         setSessionTitle(activeSubject === 'further_maths' ? 'Mixed Further Maths' : 'Mixed Practice')
       }
@@ -567,7 +619,7 @@ export default function PracticePage() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', flexShrink: 0, borderBottom: `1px solid ${accent}18`, background: M.hudBg }}>
         <button onClick={handleBack}
           style={{ width: 34, height: 34, borderRadius: '50%', cursor: 'pointer', background: M.lessonCard, border: M.lessonBorder, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: M.textSecondary, flexShrink: 0 }}>
-          ←
+          ✕
         </button>
         {phase === 'active' && (
           <>
@@ -580,8 +632,13 @@ export default function PracticePage() {
           </>
         )}
         {phase !== 'active' && (
-          <div style={{ flex: 1, textAlign: 'center', fontSize: 13, fontWeight: 800, color: accent, fontFamily: 'Nunito, sans-serif' }}>
-            {phase === 'done' ? '✏️ Results' : '✏️ Practice'}
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 800, color: accent, fontFamily: 'Nunito, sans-serif' }}>
+              {phase === 'done' ? '✏️ Results' : '✏️ Practice'}
+            </span>
+            {activeSubject === 'further_maths' && (
+              <span style={{ fontSize: 10, fontWeight: 900, color: accent, background: `${accent}14`, border: `1.5px solid ${accent}30`, borderRadius: 20, padding: '2px 9px', fontFamily: 'Nunito, sans-serif', letterSpacing: 0.4 }}>Further Maths</span>
+            )}
           </div>
         )}
       </div>
@@ -628,10 +685,14 @@ export default function PracticePage() {
               <div style={{ fontSize: 10, fontWeight: 800, color: bodyColor, textTransform: 'uppercase', letterSpacing: 1.2, fontFamily: 'Nunito, sans-serif', marginTop: 4 }}>By Topic</div>
 
               {allTopics.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '32px 0', color: bodyColor, fontFamily: 'Nunito, sans-serif' }}>
-                  <div style={{ fontSize: 36, marginBottom: 12 }}>📚</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: M.textPrimary, marginBottom: 4 }}>No topics with questions yet</div>
-                  <div style={{ fontSize: 12 }}>Generate some lessons first to unlock practice.</div>
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: bodyColor, fontFamily: 'Nunito, sans-serif' }}>
+                  <BicPencil pose="think" size={90} style={{ display: 'inline-block', marginBottom: 14 }} />
+                  <div style={{ fontSize: 15, fontWeight: 900, color: M.textPrimary, marginBottom: 6, fontFamily: M.headingFont }}>Practice questions coming soon!</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: bodyColor, lineHeight: 1.6, maxWidth: 240, margin: '0 auto' }}>
+                    {activeSubject === 'further_maths'
+                      ? 'Further Maths practice questions will appear here once generated.'
+                      : 'Practice questions for your class will appear here. Check back soon!'}
+                  </div>
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
