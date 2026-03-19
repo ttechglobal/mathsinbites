@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useMode } from '@/lib/ModeContext'
 import { useSessionTracker } from '@/hooks/useSessionTracker'
@@ -122,7 +122,12 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
   // Rotating rank display: cycles class → school → overall every 3s
   const [rankFaceIdx,     setRankFaceIdx]     = useState(0)
   const [rankVisible,     setRankVisible]     = useState(true)
-  const [activeTab,       setActiveTab]       = useState('home')
+  const searchParams = useSearchParams()
+  const [activeTab,       setActiveTab]       = useState(() => {
+    // Allow external navigation to open a specific tab: /learn?tab=learn
+    const t = searchParams?.get('tab')
+    return ['home','learn','practice','challenge','leaderboard','profile'].includes(t) ? t : 'home'
+  })
   const [showModePicker,  setShowModePicker]  = useState(false)
   const [showSwitcher,    setShowSwitcher]    = useState(false)
 

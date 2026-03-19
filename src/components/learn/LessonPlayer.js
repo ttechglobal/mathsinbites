@@ -1060,7 +1060,7 @@ export default function LessonPlayer({ lesson, subtopic, student, nextSubtopicId
   }
 
   function goBack() {
-    if (step <= -1) { router.push('/learn'); return }
+    if (step <= -1) { router.push('/learn?tab=learn'); return }
     if (step === 0) { setStep(-1); return }
     setStep(s => s - 1)
   }
@@ -1142,11 +1142,11 @@ export default function LessonPlayer({ lesson, subtopic, student, nextSubtopicId
           ? <button onClick={() => router.push(`/learn/lesson/${nextSubtopicId}`)} style={{ ...M.primaryBtn, fontSize: 16, padding: '16px' }}>
               {isBlaze ? '⚡ NEXT MISSION!' : isSpark ? '✨ Continue!' : isRoots ? '🇳🇬 Next Lesson' : 'Continue →'}
             </button>
-          : <button onClick={() => router.push('/learn')} style={{ ...M.primaryBtn, fontSize: 16, padding: '16px' }}>
+          : <button onClick={() => router.push('/learn?tab=learn')} style={{ ...M.primaryBtn, fontSize: 16, padding: '16px' }}>
               {isBlaze ? '⚡ BACK TO MAP' : '🗺️ Back to Learn Map'}
             </button>
         }
-        <button onClick={() => router.push('/learn')} style={{ ...M.ghostBtn, fontSize: 14 }}>Back to Learn Map</button>
+        <button onClick={() => router.push('/learn?tab=learn')} style={{ ...M.ghostBtn, fontSize: 14 }}>Back to Learn Map</button>
       </div>
     </div>
   )
@@ -1203,7 +1203,7 @@ export default function LessonPlayer({ lesson, subtopic, student, nextSubtopicId
       <ExitConfirmModal
         open={showExit}
         onStay={() => setShowExit(false)}
-        onExit={() => { setShowExit(false); router.push('/learn') }}
+        onExit={() => { setShowExit(false); router.push('/learn?tab=learn') }}
         M={M}
         mode={mode}
       />

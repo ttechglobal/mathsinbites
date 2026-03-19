@@ -70,8 +70,6 @@ export default function ChallengePage() {
   const [chosen,    setChosen]    = useState(null)   // selected option id
   const [revealed,  setRevealed]  = useState(false)  // show answer briefly
   const [blitzBest,    setBlitzBest]    = useState(0)
-  const [board,        setBoard]        = useState([])
-  const [boardScope,   setBoardScope]   = useState('class')
 
 
   const timerRef   = useRef(null)
@@ -161,8 +159,7 @@ export default function ChallengePage() {
         }))
         setQuestions(pool)
         setPhase('ready')
-        // Load monthly leaderboard immediately when questions are ready
-        loadBoard('class', student)
+
 
       } catch (e) { setError('Failed to load questions.'); setPhase('error') }
     }
@@ -178,36 +175,7 @@ export default function ChallengePage() {
   }, [])
 
   // ── Board loader ─────────────────────────────────────────────────────────────
-  function loadBoard(scope, stu, freshScore = null) {
-    const thisMonth = new Date().toISOString().slice(0, 7)
-    // Select both blitz_best and blitz_monthly_best — use whichever is available
-    // Also select blitz_month to filter to current month
-    let q = supabase.from('students')
-      .select('id, display_name, class_level, school, blitz_best, blitz_monthly_best, blitz_month')
-      .order('blitz_monthly_best', { ascending: false })
-      .limit(50)
-    if (scope === 'class' && stu?.class_level)
-      q = q.eq('class_level', stu.class_level)
-    else if (scope === 'school' && stu?.school)
-      q = q.ilike('school', `%${stu.school.split(' ')[0]}%`)
-    q.then(({ data, error }) => {
-      if (error) { console.error('[blitz] loadBoard:', error.message); return }
-      if (!data) return
-      // Filter to current month and non-zero scores
-      const rows = data.filter(r => r.blitz_month === thisMonth && (r.blitz_monthly_best || 0) > 0)
-      const normed    = rows.map(r => ({ ...r, blitz_monthly_best: r.blitz_monthly_best || 0 }))
-      const alreadyIn = normed.some(r => r.id === stu?.id)
-      const stuKey    = stu?.blitz_month
-      const stuBest   = stu?.blitz_monthly_best || 0
-      const myBest    = freshScore ?? (stuKey === thisMonth ? stuBest : 0)
-      let final = normed
-      if (!alreadyIn && myBest > 0) {
-        final = [...normed, { id: stu.id, display_name: stu.display_name, blitz_monthly_best: myBest, class_level: stu.class_level, school: stu.school }]
-          .sort((a, b) => (b.blitz_monthly_best || 0) - (a.blitz_monthly_best || 0))
-      }
-      setBoard(final)
-    })
-  }
+
 
   // ── Timer ──────────────────────────────────────────────────────────────────
   // Use refs for values captured inside setInterval callbacks
@@ -244,11 +212,12 @@ export default function ChallengePage() {
           const curKey  = stu.blitz_month
 
           const thisMonth = new Date().toISOString().slice(0, 7)
+          // Always update displayed best — use max of current score and stored best
+          setBlitzBest(Math.max(fc, curBest))
           if (fc > curBest) {
             supabase.from('students')
               .update({ [bestCol]: fc })
               .eq('id', sid)
-              .then(({ error }) => { if (!error) setBlitzBest(fc) })
           }
           const prevMonthly = curKey === thisMonth ? curMth : 0
           if (fc > prevMonthly) {
@@ -256,7 +225,6 @@ export default function ChallengePage() {
               .update({ [mthCol]: fc, [mthKey]: thisMonth })
               .eq('id', sid)
           }
-          setTimeout(() => loadBoard(boardScope || 'class', stu, fc), 1500)
 
           return 0
         }
@@ -307,7 +275,7 @@ export default function ChallengePage() {
 
         {/* ── Top bar ── */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', flexShrink: 0, borderBottom: `1px solid ${accent}18`, background: M.hudBg }}>
-          <button onClick={() => { clearInterval(timerRef.current); router.push('/learn') }}
+          <button onClick={() => { clearInterval(timerRef.current); router.push('/learn?tab=learn') }}
             style={{ width: 34, height: 34, borderRadius: '50%', cursor: 'pointer', background: M.lessonCard, border: M.lessonBorder, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: M.textSecondary }}>
             ✕
           </button>
@@ -350,11 +318,11 @@ export default function ChallengePage() {
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 80, gap: 20, textAlign: 'center' }}>
                 <div style={{ fontSize: 52 }}>📭</div>
                 <div style={{ fontSize: 18, fontWeight: 900, color: M.textPrimary }}>{error}</div>
-                <button onClick={() => router.back()} style={{ ...M.primaryBtn, padding: '14px 32px' }}>← Go Back</button>
+                <button onClick={() => router.push('/learn?tab=learn')} style={{ ...M.primaryBtn, padding: '14px 32px' }}>← Go Back</button>
               </div>
             )}
 
-            {/* READY — full leaderboard + start */}
+            {/* READY — personal best + start */}
             {phase === 'ready' && (
               <div style={{ animation: 'slideUp 0.4s ease' }}>
 
@@ -380,63 +348,23 @@ export default function ChallengePage() {
                   </button>
                 </div>
 
-                {/* ── Monthly leaderboard ── */}
-                <div>
-                  {/* Title + scope switcher */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                    <div>
-                      <div style={{ fontSize: 14, fontWeight: 900, color: M.textPrimary, fontFamily: 'Nunito, sans-serif' }}>🏅 This Month&apos;s Best</div>
-                      <div style={{ fontSize: 9, color: bodyColor, fontWeight: 600, fontFamily: 'Nunito, sans-serif', marginTop: 1 }}>
-                        Resets {new Date(new Date().getFullYear(), new Date().getMonth()+1, 1).toLocaleDateString('en-GB', { day:'numeric', month:'short' })}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', background: isNova ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)', borderRadius: 20, padding: 2, gap: 2 }}>
-                      {[['class', student?.class_level || 'Class'], ['school','School'], ['overall','All']].map(([scope, label]) => (
-                        <button key={scope} onClick={() => { setBoardScope(scope); loadBoard(scope, student) }}
-                          style={{ fontSize: 9, fontWeight: 800, padding: '4px 10px', borderRadius: 16, border: 'none', cursor: 'pointer', fontFamily: 'Nunito, sans-serif', background: boardScope === scope ? (isBlaze ? '#0d0d0d' : accent) : 'transparent', color: boardScope === scope ? '#fff' : bodyColor, transition: 'all 0.15s' }}>
-                          {label}
-                        </button>
-                      ))}
-                    </div>
+                {/* ── Personal best only ── */}
+                <div style={{ textAlign: 'center', padding: '20px 16px', background: isNova ? 'rgba(255,255,255,0.04)' : `${accent}06`, borderRadius: isBlaze ? 10 : 16, border: `1px solid ${accent}18` }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: bodyColor, textTransform: 'uppercase', letterSpacing: 1, fontFamily: 'Nunito, sans-serif', marginBottom: 6 }}>Your All-Time Best</div>
+                  <div style={{ fontSize: 36, fontWeight: 900, color: accent, fontFamily: 'Nunito, sans-serif', lineHeight: 1 }}>
+                    {blitzBest > 0 ? blitzBest : '—'}
                   </div>
-
-                  {/* Board rows */}
-                  {board.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '24px 0', color: bodyColor, fontFamily: 'Nunito, sans-serif' }}>
-                      <div style={{ fontSize: 28, marginBottom: 8 }}>🏆</div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: M.textPrimary }}>No scores yet this month</div>
-                      {blitzBest > 0 && (
-                        <div style={{ fontSize: 12, marginTop: 8, color: bodyColor }}>
-                          Your all-time best: <strong style={{ color: accent }}>{blitzBest} correct</strong>
-                        </div>
-                      )}
-                      <div style={{ fontSize: 11, marginTop: 6 }}>Be the first this month — tap Go!</div>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      {board.map((entry, i) => {
-                        const isMe = entry.id === student?.id
-                        const medals = ['🥇','🥈','🥉']
-                        return (
-                          <div key={entry.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', background: isMe ? `${accent}14` : isNova ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', border: isMe ? `1.5px solid ${accent}45` : `1px solid ${isNova ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)'}`, borderRadius: 14, fontFamily: 'Nunito, sans-serif' }}>
-                            <div style={{ width: 24, textAlign: 'center', flexShrink: 0 }}>
-                              {i < 3 ? <span style={{ fontSize: 18 }}>{medals[i]}</span> : <span style={{ fontSize: 11, fontWeight: 700, color: bodyColor }}>#{i+1}</span>}
-                            </div>
-                            <div style={{ flex: 1, fontSize: 13, fontWeight: isMe ? 900 : 700, color: isMe ? (isNova ? '#F8F7FF' : M.textPrimary) : bodyColor, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {isMe ? `${entry.display_name} (you)` : entry.display_name}
-                            </div>
-                            <div style={{ fontSize: 16, fontWeight: 900, color: isMe ? accent : (i < 3 ? M.textPrimary : bodyColor), flexShrink: 0 }}>
-                              {entry.blitz_monthly_best}
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
+                  {blitzBest > 0 && (
+                    <div style={{ fontSize: 11, color: bodyColor, marginTop: 4, fontFamily: 'Nunito, sans-serif' }}>correct answers</div>
+                  )}
+                  {blitzBest === 0 && (
+                    <div style={{ fontSize: 12, color: bodyColor, marginTop: 4, fontFamily: 'Nunito, sans-serif' }}>Play to set your first score!</div>
                   )}
                 </div>
               </div>
             )}
 
+            {/* ACTIVE — Question */}
             {/* ACTIVE — Question */}
             {phase === 'active' && q && (
               <div style={{ animation: 'slideUp 0.2s ease' }}>
@@ -509,7 +437,7 @@ export default function ChallengePage() {
                   <button onClick={startBlitzReal} style={{ ...M.primaryBtn, fontSize: 16, padding: '16px' }}>
                     {isBlaze ? '⚡ GO AGAIN' : correct < (blitzBest || correct + 1) ? `🔄 Beat your best (${blitzBest})` : '🔄 Play Again'}
                   </button>
-                  <button onClick={() => router.back()}
+                  <button onClick={() => router.push('/learn?tab=learn')}
                     style={{ padding: '14px', background: 'transparent', border: `1.5px solid ${accent}30`, borderRadius: isBlaze ? 10 : 16, fontFamily: 'Nunito, sans-serif', fontSize: 14, fontWeight: 700, color: bodyColor, cursor: 'pointer' }}>
                     Back
                   </button>

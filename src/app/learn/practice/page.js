@@ -341,9 +341,9 @@ function ConfigSheet({ title, icon, onStart, onClose, accent, M, mode }) {
 // opens the sheet, picking count + timed closes it and starts 'active'.
 //
 // Back button behaviour (app-like):
-//   active  → back to topics (via state — no router.back())
+//   active  → back to topics (via state — no router.push('/learn?tab=learn'))
 //   done    → back to topics (retry reopens sheet for same topic)
-//   topics  → router.back() to wherever came from
+//   topics  → router.push('/learn?tab=learn') to wherever came from
 //
 // If ?topicId= param is present, auto-opens that topic's config sheet on load.
 
@@ -403,7 +403,7 @@ export default function PracticePage() {
   useEffect(() => {
     async function loadTopics() {
       try {
-        if (!student?.class_level) { setLoading(false); return }
+        if (!student?.class_level) { return }  // keep loading until student is loaded
 
         const isFM      = activeSubject === 'further_maths'
         const classCode = student.class_level
@@ -598,11 +598,11 @@ export default function PracticePage() {
     }
   }
 
-  // Back button — app-like: goes one phase back, not router.back()
+  // Back button — app-like: goes one phase back, not router.push('/learn?tab=learn')
   function handleBack() {
     if (phase === 'active')  { setSheet(null); setPhase('topics') }
     else if (phase === 'done') { setPhase('topics') }
-    else                     { router.back() }
+    else                     { router.push('/learn?tab=learn') }
   }
 
   // ── Derived ────────────────────────────────────────────────────────────────
