@@ -107,6 +107,18 @@ function getTopicIcon(title) {
 
 const supabase = createClient()
 
+// ── Responsive breakpoint hook ───────────────────────────────────────────────
+function useWindowWidth() {
+  const [width, setWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 375)
+  useEffect(() => {
+    const handler = () => setWidth(window.innerWidth)
+    window.addEventListener('resize', handler)
+    return () => window.removeEventListener('resize', handler)
+  }, [])
+  return width
+}
+
+
 export default function LearnDashboard({ student: initialStudent, allStudents = [], profileId, level, progress }) {
   const router   = useRouter()
   const { M, mode } = useMode()
@@ -212,6 +224,12 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
     }, 8000)
     return () => clearInterval(timer)
   }, [])
+
+  // ── Responsive breakpoints ───────────────────────────────────────────────
+  const windowWidth  = useWindowWidth()
+  const isDesktop    = windowWidth >= 1024
+  const isTablet     = windowWidth >= 768 && windowWidth < 1024
+  const isMobile     = windowWidth < 768
 
   // ── Computed ──────────────────────────────────────────────────────────────
   const completedIds = new Set(progressData.filter(p => p.status === 'completed').map(p => p.subtopic_id))
@@ -409,6 +427,79 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
     { id: 'profile',     icon: '👤', label: 'Profile'   },
   ]
 
+
+  // ── Side Navigation (tablet/desktop) ────────────────────────────────────
+  const SideNav = (
+    <div style={{
+      width: isDesktop ? 220 : 68,
+      flexShrink: 0,
+      height: '100vh',
+      background: isNova ? 'rgba(15,12,41,0.95)' : M.navBg,
+      borderRight: isBlaze ? '2px solid #0d0d0d' : `1px solid ${M.navBorder}`,
+      display: 'flex',
+      flexDirection: 'column',
+      padding: isDesktop ? '24px 12px' : '24px 8px',
+      gap: 4,
+      overflowY: 'auto',
+      position: 'relative',
+      zIndex: 40,
+    }}>
+      {/* Logo */}
+      <div style={{ padding: isDesktop ? '0 8px 20px' : '0 0 20px', display: 'flex', alignItems: 'center', justifyContent: isDesktop ? 'flex-start' : 'center' }}>
+        <MIBLogo size={32} theme={isNova ? 'dark' : 'light'} M={M} />
+        {isDesktop && (
+          <span style={{ marginLeft: 10, fontSize: 15, fontWeight: 900, color: M.textPrimary, fontFamily: M.headingFont, letterSpacing: -0.3 }}>
+            MathsInBites
+          </span>
+        )}
+      </div>
+
+      {/* Nav items */}
+      {TABS.map(t => {
+        const isActive = activeTab === t.id
+        return (
+          <button
+            key={t.id}
+            onClick={() => setActiveTab(t.id)}
+            style={{
+              display: 'flex', alignItems: 'center',
+              gap: isDesktop ? 12 : 0,
+              justifyContent: isDesktop ? 'flex-start' : 'center',
+              padding: isDesktop ? '10px 14px' : '10px 0',
+              borderRadius: isBlaze ? 8 : 12,
+              background: isActive
+                ? (isBlaze ? '#FFD700' : isNova ? 'rgba(124,58,237,0.25)' : `${accent}15`)
+                : 'transparent',
+              border: isActive && isBlaze ? '1.5px solid #0d0d0d' : 'none',
+              cursor: 'pointer',
+              width: '100%',
+              fontFamily: 'Nunito, sans-serif',
+              transition: 'background 0.15s',
+            }}>
+            <span style={{ fontSize: 18, lineHeight: 1, flexShrink: 0 }}>{t.icon}</span>
+            {isDesktop && (
+              <span style={{
+                fontSize: 13, fontWeight: isActive ? 800 : 600,
+                color: isActive
+                  ? (isBlaze ? '#0d0d0d' : accent)
+                  : M.textSecondary,
+              }}>{t.label}</span>
+            )}
+          </button>
+        )
+      })}
+
+      {/* Spacer */}
+      <div style={{ flex: 1 }} />
+
+      {/* Bottom: mode + profile */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {ModeBtn}
+        {ProfileBtn}
+      </div>
+    </div>
+  )
+
   const BottomNav = (
     <div style={{
       position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
@@ -573,7 +664,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
   const HomeTab = (
     <div style={{ height: '100%', overflowY: 'auto', background: isNova ? '#0F0C29' : M.mapBg || '#F4F5FA', position: 'relative' }}>
       {isNova ? <NovaStars /> : <MathFloats M={M} />}
-      <div style={{ maxWidth: 520, margin: '0 auto', padding: '24px 18px 140px', position: 'relative', zIndex: 1 }}>
+      <div style={{ maxWidth: isDesktop ? 600 : 520, margin: '0 auto', padding: `24px 18px ${isMobile ? '140px' : '60px'}`, position: 'relative', zIndex: 1 }}>
 
         {/* ── Mascot greeting ── */}
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14, marginBottom: 22 }}>
@@ -699,7 +790,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
         )}
 
         {/* ── LEARNING PATH — centred spine, all nodes centred, labels below ── */}
-        <div style={{ maxWidth: 520, margin: '0 auto', padding: '24px 0 max(170px, calc(140px + env(safe-area-inset-bottom)))', position: 'relative' }}>
+        <div style={{ maxWidth: 520, margin: '0 auto', padding: `24px 0 ${isMobile ? 'max(170px, calc(140px + env(safe-area-inset-bottom)))' : '80px'}`, position: 'relative' }}>
 
           {pathItems.map((item, idx) => {
 
@@ -912,7 +1003,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
       {/* JUMP-TO-CURRENT — smooth fade in/out */}
       {nextLesson && (
         <div style={{
-          position: 'absolute', bottom: 90, right: 16, zIndex: 11,
+          position: 'absolute', bottom: isMobile ? 90 : 24, right: 16, zIndex: 11,
           opacity: currentNodeDir ? 1 : 0,
           transform: currentNodeDir ? 'scale(1) translateY(0)' : 'scale(0.75) translateY(8px)',
           pointerEvents: currentNodeDir ? 'auto' : 'none',
@@ -937,7 +1028,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
       {/* CONTINUE BANNER — smooth fade, visible when current node is on screen */}
       {nextLesson && (
         <div style={{
-          position: 'absolute', bottom: 90, left: '50%', transform: 'translateX(-50%)',
+          position: 'absolute', bottom: isMobile ? 90 : 24, left: '50%', transform: 'translateX(-50%)',
           zIndex: 11, width: 'calc(100% - 32px)', maxWidth: 420,
           opacity: currentNodeDir === null ? 1 : 0,
           pointerEvents: currentNodeDir === null ? 'auto' : 'none',
@@ -1355,19 +1446,173 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
   )
 
   // ── Root ──────────────────────────────────────────────────────────────────
-  return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', fontFamily: 'Nunito, sans-serif', background: M.mapBg, position: 'relative', overflow: 'hidden' }}>
-      <style>{`@keyframes shimmer { 0%,100%{opacity:0.55} 50%{opacity:1} } @keyframes slideDown { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }`}</style>
-      {HUD}
-      <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
-        {activeTab === 'home'        && HomeTab}
-        {activeTab === 'learn'       && LearnTab}
-        {activeTab === 'practice'    && <div style={{ height: '100%', overflowY: 'auto' }}>{PracticeTab}</div>}
-        {activeTab === 'challenge'   && <div style={{ height: '100%', overflowY: 'auto' }}>{ChallengeTab}</div>}
-        {activeTab === 'leaderboard' && <div style={{ height: '100%', overflowY: 'auto' }}>{LeaderboardTab}</div>}
-        {activeTab === 'profile'     && <div style={{ height: '100%', overflowY: 'auto' }}>{ProfileTab}</div>}
+const RightPanel = isDesktop ? (
+    <div style={{
+      width: 300,
+      flexShrink: 0,
+      height: '100vh',
+      overflowY: 'auto',
+      borderLeft: isBlaze ? '2px solid #0d0d0d' : `1px solid ${M.navBorder}`,
+      background: isNova ? 'rgba(15,12,41,0.6)' : (isBlaze ? '#F5F0D0' : M.mapBg),
+      padding: '28px 20px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 20,
+    }}>
+      {/* Student card */}
+      <div style={{
+        background: isNova ? 'rgba(124,58,237,0.15)' : isBlaze ? '#FFD700' : `${accent}10`,
+        border: isBlaze ? '2px solid #0d0d0d' : `1.5px solid ${accent}25`,
+        borderRadius: isBlaze ? 10 : 18,
+        padding: '16px 18px',
+        boxShadow: isBlaze ? '3px 3px 0 #0d0d0d' : 'none',
+      }}>
+        <div style={{ fontSize: 10, fontWeight: 800, color: isBlaze ? 'rgba(0,0,0,0.5)' : accent, textTransform: 'uppercase', letterSpacing: 1, fontFamily: 'Nunito, sans-serif', marginBottom: 6 }}>
+          {student?.class_level} · {activeSubject === 'further_maths' ? 'Further Maths' : 'Mathematics'}
+        </div>
+        <div style={{ fontSize: 18, fontWeight: 900, color: isBlaze ? '#0d0d0d' : M.textPrimary, fontFamily: M.headingFont, lineHeight: 1.2, marginBottom: 12 }}>
+          {student?.display_name}
+        </div>
+        {/* Stats */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          {[
+            { label: 'XP', value: xp.toLocaleString(), icon: '⚡' },
+            { label: 'Streak', value: `${streak}d`, icon: '🔥' },
+            { label: 'Lessons', value: doneLessons, icon: '📚' },
+            { label: 'Progress', value: `${overallPct}%`, icon: '🎯' },
+          ].map(s => (
+            <div key={s.label} style={{ textAlign: 'center', padding: '10px 6px', background: isNova ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.6)', borderRadius: isBlaze ? 6 : 12, border: isBlaze ? '1.5px solid rgba(0,0,0,0.15)' : 'none' }}>
+              <div style={{ fontSize: 16, marginBottom: 2 }}>{s.icon}</div>
+              <div style={{ fontSize: 15, fontWeight: 900, color: isBlaze ? '#0d0d0d' : accent, fontFamily: 'Nunito, sans-serif' }}>{s.value}</div>
+              <div style={{ fontSize: 9, fontWeight: 700, color: bodyColor, textTransform: 'uppercase', letterSpacing: 0.5, fontFamily: 'Nunito, sans-serif' }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
       </div>
-      {BottomNav}
+
+      {/* Progress bar */}
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+          <span style={{ fontSize: 11, fontWeight: 800, color: M.textSecondary, fontFamily: 'Nunito, sans-serif', textTransform: 'uppercase', letterSpacing: 0.5 }}>Overall Progress</span>
+          <span style={{ fontSize: 11, fontWeight: 900, color: accent, fontFamily: 'Nunito, sans-serif' }}>{doneLessons}/{totalLessons}</span>
+        </div>
+        <div style={{ height: 8, background: isNova ? 'rgba(255,255,255,0.1)' : `${accent}15`, borderRadius: 99, overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${overallPct}%`, background: overallPct === 100 ? '#22c55e' : `linear-gradient(90deg,${accent},${M.accent2 || accent})`, borderRadius: 99, transition: 'width 0.6s ease' }} />
+        </div>
+      </div>
+
+      {/* Next lesson */}
+      {nextLesson && (
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 800, color: M.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, fontFamily: 'Nunito, sans-serif', marginBottom: 10 }}>Up Next</div>
+          <button
+            onClick={() => window.location.href = `/learn/lesson/${nextLesson.id}`}
+            style={{
+              width: '100%', padding: '14px 16px', cursor: 'pointer', textAlign: 'left',
+              background: isBlaze ? '#FFD700' : isNova ? 'rgba(124,58,237,0.2)' : `linear-gradient(135deg,${accent},${M.accent2 || accent}DD)`,
+              border: isBlaze ? '2px solid #0d0d0d' : 'none',
+              borderRadius: isBlaze ? 10 : 16,
+              boxShadow: isBlaze ? '3px 3px 0 #0d0d0d' : `0 6px 20px ${accent}40`,
+              fontFamily: 'Nunito, sans-serif',
+              display: 'flex', alignItems: 'center', gap: 12,
+            }}>
+            <div style={{ width: 36, height: 36, borderRadius: '50%', background: isBlaze ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>▶</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 9, fontWeight: 800, color: isBlaze ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.7)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>Continue Learning</div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: isBlaze ? '#0d0d0d' : '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nextLesson.title}</div>
+            </div>
+          </button>
+        </div>
+      )}
+
+      {/* Quick actions */}
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 800, color: M.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, fontFamily: 'Nunito, sans-serif', marginBottom: 10 }}>Quick Actions</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {[
+            { icon: '✏️', label: 'Practice Questions', tab: 'practice', color: accent },
+            { icon: '⚡', label: '120 Seconds of Fame', tab: 'challenge', color: '#FF9500' },
+            { icon: '🏆', label: 'Leaderboard', tab: 'leaderboard', color: '#FFD700' },
+          ].map(a => (
+            <button key={a.tab} onClick={() => setActiveTab(a.tab)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '11px 14px', cursor: 'pointer', width: '100%', textAlign: 'left',
+                background: isNova ? 'rgba(255,255,255,0.05)' : isBlaze ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.8)',
+                border: isBlaze ? '1.5px solid rgba(0,0,0,0.1)' : `1px solid ${isNova ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)'}`,
+                borderRadius: isBlaze ? 8 : 12,
+                fontFamily: 'Nunito, sans-serif',
+              }}>
+              <span style={{ fontSize: 16 }}>{a.icon}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: M.textPrimary }}>{a.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Profile switcher if multiple */}
+      {allStudents.length > 1 && (
+        <button onClick={() => setShowSwitcher(true)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '11px 14px', cursor: 'pointer', width: '100%',
+            background: 'transparent', border: `1.5px solid ${accent}30`,
+            borderRadius: isBlaze ? 8 : 12, fontFamily: 'Nunito, sans-serif',
+            color: accent, fontSize: 12, fontWeight: 800,
+          }}>
+          <span style={{ fontSize: 16 }}>👥</span> Switch Profile
+        </button>
+      )}
+    </div>
+  ) : null
+
+  return (
+    <div style={{ height: '100vh', display: 'flex', flexDirection: isMobile ? 'column' : 'row', fontFamily: 'Nunito, sans-serif', background: M.mapBg, position: 'relative', overflow: 'hidden' }}>
+      <style>{`
+        @keyframes shimmer { 0%,100%{opacity:0.55} 50%{opacity:1} }
+        @keyframes slideDown { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes sheetUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+      `}</style>
+
+      {/* Mobile: HUD on top. Tablet/Desktop: SideNav on left */}
+      {isMobile ? HUD : SideNav}
+
+      {/* Main content area */}
+      <div style={{ flex: 1, overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column' }}>
+        {/* Tablet/Desktop: compact top bar with just subject pill + mode */}
+        {!isMobile && (
+          <div style={{
+            flexShrink: 0, padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            borderBottom: isBlaze ? '2px solid #0d0d0d' : `1px solid ${M.navBorder}`,
+            background: isNova ? 'rgba(15,12,41,0.8)' : M.hudBg,
+          }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: M.textSecondary, fontFamily: 'Nunito, sans-serif' }}>
+              {TABS.find(t => t.id === activeTab)?.label || 'Home'}
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {['SS1','SS2','SS3'].includes(student?.class_level) && (student?.subjects || []).length > 1 && (
+                <button onClick={() => setShowSubjectPicker(true)}
+                  style={{ background: `${accent}14`, border: `1.5px solid ${accent}30`, borderRadius: 20, padding: '4px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ fontSize: 11, fontWeight: 900, color: accent, fontFamily: 'Nunito, sans-serif' }}>{isFM ? 'Further Maths' : 'Maths'}</span>
+                  <span style={{ fontSize: 9, color: accent, opacity: 0.7 }}>▾</span>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+          {activeTab === 'home'        && HomeTab}
+          {activeTab === 'learn'       && LearnTab}
+          {activeTab === 'practice'    && <div style={{ height: '100%', overflowY: 'auto' }}>{PracticeTab}</div>}
+          {activeTab === 'challenge'   && <div style={{ height: '100%', overflowY: 'auto' }}>{ChallengeTab}</div>}
+          {activeTab === 'leaderboard' && <div style={{ height: '100%', overflowY: 'auto' }}>{LeaderboardTab}</div>}
+          {activeTab === 'profile'     && <div style={{ height: '100%', overflowY: 'auto' }}>{ProfileTab}</div>}
+        </div>
+      </div>
+
+      {/* Desktop: right panel. Mobile: bottom nav */}
+      {isMobile ? BottomNav : RightPanel}
       <BottomSheet open={showModePicker} onClose={() => setShowModePicker(false)} M={M}>
         <ModePicker onClose={() => setShowModePicker(false)} />
       </BottomSheet>
@@ -1386,7 +1631,10 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
                 const isActive = activeSubject === subj
                 const label    = subj === 'further_maths' ? 'Further Mathematics' : 'Mathematics'
                 const subjXp   = subj === 'further_maths' ? (student?.fm_xp || 0) : (student?.xp || 0)
-                return (
+              
+  // ── Right Stats Panel (desktop only) ────────────────────────────────────
+  
+  return (
                   <button key={subj} onClick={async () => {
                     if (!isActive) {
                       await supabase.from('students').update({ active_subject: subj }).eq('id', student.id)

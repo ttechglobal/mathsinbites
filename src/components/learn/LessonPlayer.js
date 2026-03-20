@@ -1185,7 +1185,8 @@ export default function LessonPlayer({ lesson, subtopic, student, nextSubtopicId
 
   return (
     <>
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', fontFamily: M.font, background: M.lessonBg, position: 'relative', overflow: 'hidden' }}>
+    <div style={{ minHeight: '100vh', background: M.lessonBg, display: 'flex', justifyContent: 'center' }}>
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', fontFamily: M.font, background: M.lessonBg, position: 'relative', overflow: 'hidden', width: '100%', maxWidth: 680 }}>
       {/* Thin progress strip at very top */}
       <div style={{ height: 4, background: M.progressTrack, flexShrink: 0 }}>
         <div style={{ width: `${progressPct}%`, height: '100%', background: accent, transition: 'width 0.4s ease', borderRadius: '0 2px 2px 0' }} />
@@ -1207,6 +1208,7 @@ export default function LessonPlayer({ lesson, subtopic, student, nextSubtopicId
         M={M}
         mode={mode}
       />
+    </div>
     </>
   )
 }

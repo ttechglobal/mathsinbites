@@ -341,9 +341,9 @@ function ConfigSheet({ title, icon, onStart, onClose, accent, M, mode }) {
 // opens the sheet, picking count + timed closes it and starts 'active'.
 //
 // Back button behaviour (app-like):
-//   active  → back to topics (via state — no router.push('/learn?tab=learn'))
+//   active  → back to topics (via state — no router.push('/learn'))
 //   done    → back to topics (retry reopens sheet for same topic)
-//   topics  → router.push('/learn?tab=learn') to wherever came from
+//   topics  → router.push('/learn') to wherever came from
 //
 // If ?topicId= param is present, auto-opens that topic's config sheet on load.
 
@@ -598,11 +598,11 @@ export default function PracticePage() {
     }
   }
 
-  // Back button — app-like: goes one phase back, not router.push('/learn?tab=learn')
+  // Back button — app-like: goes one phase back, not router.push('/learn')
   function handleBack() {
     if (phase === 'active')  { setSheet(null); setPhase('topics') }
     else if (phase === 'done') { setPhase('topics') }
-    else                     { router.push('/learn?tab=learn') }
+    else                     { router.push('/learn') }
   }
 
   // ── Derived ────────────────────────────────────────────────────────────────
