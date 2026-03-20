@@ -240,7 +240,7 @@ export default function LandingPage() {
             padding: '8px 16px', borderRadius: 11,
             border: '1.5px solid rgba(165,155,255,.2)',
           }}>Log in</Link>
-          <Link href="/auth/signup" className="lp-nav-cta" style={{
+          <Link href="/guest" className="lp-nav-cta" style={{
             background: C.electric, color: C.ink,
             fontFamily: "'Fredoka One', sans-serif", fontSize: 14,
             padding: '9px 22px', borderRadius: 11, textDecoration: 'none',
@@ -295,7 +295,7 @@ export default function LandingPage() {
           </p>
 
           <div className="lp-hero-btns" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 28 }}>
-            <Link href="/auth/signup" style={{
+            <Link href="/guest" style={{
               background: C.electric, color: C.ink,
               fontFamily: "'Fredoka One', sans-serif", fontSize: 17,
               padding: '15px 36px', borderRadius: 14, textDecoration: 'none',
@@ -550,7 +550,7 @@ export default function LandingPage() {
         </div>
 
         <div style={{ textAlign: 'center', marginTop: 28, position: 'relative', zIndex: 2 }}>
-          <Link href="/auth/signup" style={{
+          <Link href="/guest" style={{
             background: C.electric, color: C.ink,
             fontFamily: "'Fredoka One', sans-serif", fontSize: 16,
             padding: '14px 36px', borderRadius: 14, textDecoration: 'none',
@@ -593,7 +593,7 @@ export default function LandingPage() {
           and a mascot that refuses to let your child give up.
         </p>
         <div className="lp-cta-btns" style={{ display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap', position: 'relative', zIndex: 2 }}>
-          <Link href="/auth/signup" style={{
+          <Link href="/guest" style={{
             background: C.electric, color: C.ink,
             fontFamily: "'Fredoka One', sans-serif", fontSize: 19,
             padding: '17px 46px', borderRadius: 16, textDecoration: 'none',

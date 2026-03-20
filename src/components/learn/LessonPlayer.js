@@ -907,7 +907,7 @@ function renderBite(bite, props, idx) {
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN LESSON PLAYER
 // ─────────────────────────────────────────────────────────────────────────────
-export default function LessonPlayer({ lesson, subtopic, student, nextSubtopicId }) {
+export default function LessonPlayer({ lesson, subtopic, student, nextSubtopicId, isGuest = false, onGuestComplete }) {
   const router   = useRouter()
   const { M, mode } = useMode()
   const [showExit, setShowExit] = useState(false)
@@ -979,6 +979,9 @@ export default function LessonPlayer({ lesson, subtopic, student, nextSubtopicId
   const progressPct = isEntry ? 0 : isComplete ? 100 : bites.length > 0 ? Math.round(((step) / bites.length) * 100) : 0
 
   async function handleComplete(finalCorrectCount, totalPractice) {
+    // Guest mode — no DB calls, delegate to parent
+    if (isGuest) { onGuestComplete?.(finalCorrectCount); return }
+
     if (completed) return
     setCompleted(true)
     if (!student?.id || !subtopic?.id) {
@@ -1184,7 +1187,6 @@ export default function LessonPlayer({ lesson, subtopic, student, nextSubtopicId
   }
 
   return (
-    <>
     <div style={{ minHeight: '100vh', background: M.lessonBg, display: 'flex', justifyContent: 'center' }}>
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', fontFamily: M.font, background: M.lessonBg, position: 'relative', overflow: 'hidden', width: '100%', maxWidth: 680 }}>
       {/* Thin progress strip at very top */}
@@ -1209,6 +1211,6 @@ export default function LessonPlayer({ lesson, subtopic, student, nextSubtopicId
         mode={mode}
       />
     </div>
-    </>
+    
   )
 }

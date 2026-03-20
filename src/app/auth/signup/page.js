@@ -91,6 +91,22 @@ export default function SignupPage() {
 
       // Mark as new user so the welcome screen shows
       localStorage.setItem('mib_new_user', '1')
+      // Migrate guest localStorage progress if coming from guest flow
+      try {
+        const { hasGuestData, getGuest, clearGuest } = await import('@/lib/guestStorage')
+        if (hasGuestData()) {
+          const guest = getGuest()
+          await fetch('/api/guest/migrate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              completedSubtopicIds: guest.completed,
+              xp: guest.xp,
+            }),
+          })
+          clearGuest()
+        }
+      } catch (e) { console.warn('Guest migration failed:', e.message) }
       router.push('/learn')
     } catch (err) {
       setError(err.message)
