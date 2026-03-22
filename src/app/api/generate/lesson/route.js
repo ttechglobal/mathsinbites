@@ -1,13 +1,13 @@
 import { createClient } from '@/lib/supabase/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { buildFMBitesPrompt, buildFMQuestionsPrompt } from '@/lib/claude/generateFM'
+// generateFM removed — deploy generateFM.js to src/lib/claude/ to re-enable FM prompts
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 async function ask(prompt, maxTokens, label) {
   console.log(`[gen:${label}] starting`)
   const msg = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-4-6',
     max_tokens: maxTokens,
     messages: [{ role: 'user', content: prompt }],
   })
@@ -94,7 +94,7 @@ Rules:
   }
 
   const msg = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-4-6',
     max_tokens: 1400,
     messages: [{
       role: 'user',
@@ -713,8 +713,9 @@ Return ONLY valid JSON. No markdown.
 ${STUDENT_CONTEXTS}`
 
   // ── Dispatch to FM or Maths prompts ──────────────────────────────────────
-  const activeBitesPrompt     = isFM ? buildFMBitesPrompt(ctx, title, level)     : bitesPrompt
-  const activeQuestionsPrompt = isFM ? buildFMQuestionsPrompt(ctx, level)        : questionsPrompt
+  // FM prompts removed — deploy generateFM.js to src/lib/claude/ to restore FM-specific prompts
+  const activeBitesPrompt     = bitesPrompt
+  const activeQuestionsPrompt = questionsPrompt
 
   // ── Generate bites + questions in parallel ────────────────────────────────
   let bitesData, questionsData

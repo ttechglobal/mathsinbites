@@ -28,18 +28,56 @@ export async function GET(request) {
     }
   }
 
-  // Fallback: any lesson matching subject preference
+  // Fallback: find subtopics in curriculum order that have lessons
   if (!firstSubtopicId) {
-    const { data: lessons } = await supabase
-      .from('lessons')
-      .select('subtopic_id, subject')
-      .limit(50)
+    // Walk curriculum in order: terms → units → topics → subtopics
+    // Filter by subject on the lesson itself
+    const { data: allSubtopics } = await supabase
+      .from('subtopics')
+      .select('id, order_index, topic:topics(order_index, unit:units(order_index, term:terms(order_index)))')
+      .order('order_index')
 
-    if (lessons?.length) {
-      const match = lessons.find(l =>
-        isFM ? l.subject === 'further_maths' : l.subject !== 'further_maths'
-      ) || lessons[0]
-      firstSubtopicId = match?.subtopic_id || null
+    if (allSubtopics?.length) {
+      // Sort by full curriculum path: term → unit → topic → subtopic
+      const sorted = [...allSubtopics].sort((a, b) => {
+        const ta = a.topic?.unit?.term?.order_index ?? 0
+        const tb = b.topic?.unit?.term?.order_index ?? 0
+        if (ta !== tb) return ta - tb
+        const ua = a.topic?.unit?.order_index ?? 0
+        const ub = b.topic?.unit?.order_index ?? 0
+        if (ua !== ub) return ua - ub
+        const pa = a.topic?.order_index ?? 0
+        const pb = b.topic?.order_index ?? 0
+        if (pa !== pb) return pa - pb
+        return (a.order_index ?? 0) - (b.order_index ?? 0)
+      })
+
+      const subIds = sorted.map(s => s.id)
+
+      // Find which ones have lessons with the right subject
+      const { data: lessons } = await supabase
+        .from('lessons')
+        .select('subtopic_id, subject')
+        .in('subtopic_id', subIds)
+
+      if (lessons?.length) {
+        const lessonMap = new Map(lessons.map(l => [l.subtopic_id, l]))
+        // Walk in curriculum order, find first lesson matching subject
+        for (const sub of sorted) {
+          const lesson = lessonMap.get(sub.id)
+          if (!lesson) continue
+          const isMatch = isFM
+            ? lesson.subject === 'further_maths'
+            : lesson.subject !== 'further_maths'
+          if (isMatch) { firstSubtopicId = sub.id; break }
+        }
+        // If no subject match, take first available
+        if (!firstSubtopicId) {
+          for (const sub of sorted) {
+            if (lessonMap.has(sub.id)) { firstSubtopicId = sub.id; break }
+          }
+        }
+      }
     }
   }
 

@@ -1,452 +1,334 @@
+// src/app/learn/challenge/page.js
 'use client'
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 120 Seconds of Fame — Blitz Challenge
-// Answer as many questions as you can in 120 seconds (2 minutes).
-// Score = number of correct answers. Beat your personal best.
-// ─────────────────────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import { useMode } from '@/lib/ModeContext'
+import { BicPencil } from '@/components/BiteMarkIcon'
+import { createClient } from '@/lib/supabase/client'
 
-const supabase = createClient()
+const supabaseClient = createClient()
 
-const BLITZ_SECONDS = 120   // 2 minutes
-
-function MathText({ text }) {
-  if (!text) return null
-  const parts = []; let i = 0, buf = ''
-  while (i < text.length) {
-    const ch = text[i]
-    if ((ch === '^' || ch === '_') && i + 1 < text.length) {
-      if (buf) { parts.push({ t: 'text', v: buf }); buf = '' }
-      const type = ch === '^' ? 'sup' : 'sub'; i++
-      if (text[i] === '{') {
-        const end = text.indexOf('}', i)
-        parts.push({ t: type, v: end === -1 ? text.slice(i+1) : text.slice(i+1, end) })
-        i = end === -1 ? text.length : end + 1
-      } else {
-        let val = ''
-        while (i < text.length && /[a-zA-Z0-9.]/.test(text[i])) { val += text[i]; i++ }
-        if (val) parts.push({ t: type, v: val }); else buf += ch
-      }
-    } else { buf += ch; i++ }
-  }
-  if (buf) parts.push({ t: 'text', v: buf })
-  return (
-    <span>
-      {parts.map((p, i) =>
-        p.t === 'sup' ? <sup key={i} style={{ fontSize: '0.72em', verticalAlign: 'super' }}>{p.v}</sup>
-        : p.t === 'sub' ? <sub key={i} style={{ fontSize: '0.72em', verticalAlign: 'sub' }}>{p.v}</sub>
-        : <span key={i}>{p.v}</span>
-      )}
-    </span>
-  )
-}
-
-export default function ChallengePage() {
+export default function DailyChallengePage() {
   const router   = useRouter()
   const { M, mode } = useMode()
 
   const accent   = M.accentColor || '#7C3AED'
-  const bodyColor= M.textSecondary || '#888'
+  const bodyColor = M.textSecondary || '#888'
   const isBlaze  = mode === 'blaze'
   const isNova   = mode === 'nova'
-  const isRoots  = mode === 'roots'
 
-  // ── State ──────────────────────────────────────────────────────────────────
-  const [student,   setStudent]   = useState(null)
-  const [questions, setQuestions] = useState([])   // large pool, shuffled
-  const [phase,     setPhase]     = useState('loading') // loading | ready | active | done | error
-  const [error,     setError]     = useState(null)
+  const [question,    setQuestion]    = useState(null)
+  const [attempt,     setAttempt]     = useState(null)
+  const [solversCount,setSolversCount]= useState(0)
+  const [loading,     setLoading]     = useState(true)
+  const [phase, setPhase] = useState('question') // question | correct | revealed | no_question
+  const [answer,      setAnswer]      = useState('')
+  const [submitting,  setSubmitting]  = useState(false)
+  const [wrongShake,  setWrongShake]  = useState(false)
+  const [hintsShown,  setHintsShown]  = useState(0)
+  const [solvers,     setSolvers]     = useState([])
+  const [studentId,   setStudentId]   = useState(null)
+  const inputRef = useRef(null)
 
-  // Blitz state
-  const [timeLeft,  setTimeLeft]  = useState(BLITZ_SECONDS)
-  const [qIdx,      setQIdx]      = useState(0)
-  const [correct,   setCorrect]   = useState(0)
-  const [total,     setTotal]     = useState(0)
-  const [chosen,    setChosen]    = useState(null)   // selected option id
-  const [revealed,  setRevealed]  = useState(false)  // show answer briefly
-  const [blitzBest,    setBlitzBest]    = useState(0)
-
-
-  const timerRef   = useRef(null)
-  const revealRef  = useRef(null)
-
-  // ── Load student ────────────────────────────────────────────────────────────
+  // ── Load today's question ──────────────────────────────────────────────────
   useEffect(() => {
-    async function loadStudent() {
-      try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
-        const { data: profile } = await supabase.from('profiles').select('active_student_id').eq('id', user.id).single()
-        const sid = profile?.active_student_id
-        if (!sid) { const { data: s } = await supabase.from('students').select('*').eq('profile_id', user.id).limit(1).single(); if (s) setStudent(s); return }
-        const { data: s } = await supabase.from('students').select('*').eq('id', sid).single()
-        if (s) {
-          setStudent(s)
-          const isFM = s.active_subject === 'further_maths'
-          setBlitzBest(isFM ? (s.fm_blitz_best || 0) : (s.blitz_best || 0))
-        }
-      } catch (e) { console.error('[blitz] load student:', e.message) }
+    async function load() {
+      const { data: { user } } = await supabaseClient.auth.getUser()
+      if (!user) { router.push('/auth/login'); return }
+
+      const res = await fetch('/api/daily-challenge')
+      const data = await res.json()
+
+      if (!data.question) { setPhase('no_question'); setLoading(false); return }
+
+      setQuestion(data.question)
+      setAttempt(data.attempt)
+      setSolversCount(data.solversCount || 0)
+
+      // Get student id for leaderboard highlighting
+      const { data: profile } = await supabaseClient
+        .from('profiles').select('active_student_id').eq('id', user.id).single()
+      setStudentId(profile?.active_student_id)
+
+      if (data.attempt?.solved) {
+        setPhase('correct')
+        loadLeaderboard(data.question.id)
+      } else if (data.attempt?.revealed_answer) {
+        setPhase('revealed')
+      }
+
+      setLoading(false)
     }
-    loadStudent()
+    load()
   }, [])
 
-  // ── Load question pool ──────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!student) return
-    async function loadQuestions() {
-      try {
-        // Get all completed subtopics for this student
-        const { data: progress } = await supabase
-          .from('student_progress').select('subtopic_id')
-          .eq('student_id', student.id).eq('status', 'completed')
+  async function loadLeaderboard(qId) {
+    const res = await fetch(`/api/daily-challenge/leaderboard?questionId=${qId}`)
+    const data = await res.json()
+    setSolvers(data.solvers || [])
+  }
 
-        // For challenge: always use Maths questions (FM challenge removed for now)
-        // Filter by student's class level to avoid JSS3 questions showing for SS1 students
-        const classCode = student.class_level
-        const className = classCode.replace(/([A-Z]+)(\d)/, '$1 $2')
+  // ── Submit answer ──────────────────────────────────────────────────────────
+  async function handleSubmit() {
+    if (!answer.trim() || submitting || !question) return
+    setSubmitting(true)
 
-        // Get the level row for this student's class
-        const { data: levelRow } = await supabase
-          .from('levels').select('id').eq('code', classCode).maybeSingle()
+    const res = await fetch('/api/daily-challenge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'submit', answer: answer.trim(), questionId: question.id }),
+    })
+    const data = await res.json()
+    setSubmitting(false)
 
-        let query = supabase.from('questions').select('*, options:question_options(*)')
-
-        if (levelRow) {
-          // Get all lessons for this student's level
-          const { data: terms } = await supabase.from('terms').select('id').eq('level_id', levelRow.id)
-          const termIds = (terms || []).map(t => t.id)
-          if (termIds.length) {
-            const { data: units } = await supabase.from('units').select('id').in('term_id', termIds)
-            const unitIds = (units || []).map(u => u.id)
-            if (unitIds.length) {
-              const { data: topics } = await supabase.from('topics').select('id').in('unit_id', unitIds)
-              const topicIds = (topics || []).map(t => t.id)
-              if (topicIds.length) {
-                const { data: subs } = await supabase.from('subtopics').select('id').in('topic_id', topicIds)
-                const subIds = (subs || []).map(s => s.id)
-                if (subIds.length) {
-                  const { data: levelLessons } = await supabase
-                    .from('lessons').select('id').in('subtopic_id', subIds)
-                  if (levelLessons?.length) {
-                    // Further narrow to completed lessons if available
-                    const completedLessonIds = progress?.length
-                      ? levelLessons.filter(l =>
-                          subs.filter(s => progress.some(p => p.subtopic_id === s.id)).some(s =>
-                            levelLessons.map(l => l.id).includes(l.id)
-                          )
-                        ).map(l => l.id)
-                      : levelLessons.map(l => l.id)
-                    const useLessons = completedLessonIds.length ? completedLessonIds : levelLessons.map(l => l.id)
-                    query = query.in('lesson_id', useLessons)
-                  }
-                }
-              }
-            }
-          }
-        }
-        const { data: raw } = await query.limit(200)
-
-        if (!raw?.length) { setError('No questions yet — complete some lessons first!'); setPhase('error'); return }
-
-        // Shuffle a large pool — we'll cycle through them
-        const pool = [...raw].sort(() => Math.random() - 0.5).map(q => ({
-          ...q, options: [...(q.options || [])].sort(() => Math.random() - 0.5),
-        }))
-        setQuestions(pool)
-        setPhase('ready')
-
-
-      } catch (e) { setError('Failed to load questions.'); setPhase('error') }
+    if (data.correct) {
+      setQuestion(q => ({ ...q, worked_solution: data.worked_solution, correct_answer: data.correct_answer }))
+      setPhase('correct')
+      loadLeaderboard(question.id)
+    } else {
+      setWrongShake(true)
+      setTimeout(() => setWrongShake(false), 600)
     }
-    loadQuestions()
-  }, [student])
-
-  // ── Lazy-load: also trigger load as soon as component mounts ────────────────
-  // This way questions are ready by the time the user presses Start
-  useEffect(() => {
-    // If student loaded quickly, the above effect already fired.
-    // If not, this fires on mount and retries when student arrives — no extra work needed.
-    // The key insight: we set phase='ready' only after both student and questions are loaded.
-  }, [])
-
-  // ── Board loader ─────────────────────────────────────────────────────────────
-
-
-  // ── Timer ──────────────────────────────────────────────────────────────────
-  // Use refs for values captured inside setInterval callbacks
-  // (closures in setInterval are stale — refs always have the latest value)
-  const correctRef = useRef(0)
-  const studentRef = useRef(null)
-  useEffect(() => { correctRef.current = correct }, [correct])
-  useEffect(() => { studentRef.current = student }, [student])
-
-  // Restart timer with latest correct ref
-  function startBlitzReal() {
-    correctRef.current = 0
-    setTimeLeft(BLITZ_SECONDS)
-    setQIdx(0); setCorrect(0); setTotal(0)
-    setChosen(null); setRevealed(false)
-    setPhase('active')
-    timerRef.current = setInterval(() => {
-      setTimeLeft(t => {
-        if (t <= 1) {
-          clearInterval(timerRef.current)
-          setPhase('done')
-          const fc  = correctRef.current
-          const stu = studentRef.current   // always fresh — no stale closure
-          if (!stu) return 0
-          const sid    = stu.id
-          if (!sid) return 0
-
-          // 120s Fame always uses Maths blitz columns
-          const bestCol = 'blitz_best'
-          const mthCol  = 'blitz_monthly_best'
-          const mthKey  = 'blitz_month'
-          const curBest = stu.blitz_best || 0
-          const curMth  = stu.blitz_monthly_best || 0
-          const curKey  = stu.blitz_month
-
-          const thisMonth = new Date().toISOString().slice(0, 7)
-          // Always update displayed best — use max of current score and stored best
-          setBlitzBest(Math.max(fc, curBest))
-          if (fc > curBest) {
-            supabase.from('students')
-              .update({ [bestCol]: fc })
-              .eq('id', sid)
-          }
-          const prevMonthly = curKey === thisMonth ? curMth : 0
-          if (fc > prevMonthly) {
-            supabase.from('students')
-              .update({ [mthCol]: fc, [mthKey]: thisMonth })
-              .eq('id', sid)
-          }
-
-          return 0
-        }
-        return t - 1
-      })
-    }, 1000)
   }
 
-  useEffect(() => () => { clearInterval(timerRef.current); clearTimeout(revealRef.current) }, [])
-
-  // ── Answer ─────────────────────────────────────────────────────────────────
-  function handleAnswer(optionId) {
-    if (revealed || phase !== 'active') return
-    const q = questions[qIdx % questions.length]
-    const isCorrect = q.options.find(o => o.id === optionId)?.is_correct
-    setChosen(optionId)
-    setRevealed(true)
-    setTotal(t => t + 1)
-    if (isCorrect) { setCorrect(c => { correctRef.current = c + 1; return c + 1 }) }
-    // Brief flash (600ms) then next question
-    revealRef.current = setTimeout(() => {
-      setChosen(null); setRevealed(false)
-      setQIdx(i => i + 1)
-    }, 600)
+  // ── Reveal answer ──────────────────────────────────────────────────────────
+  async function handleReveal() {
+    if (!question) return
+    const res = await fetch('/api/daily-challenge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'reveal', questionId: question.id }),
+    })
+    const data = await res.json()
+    setQuestion(q => ({ ...q, correct_answer: data.correct_answer, worked_solution: data.worked_solution }))
+    setPhase('revealed')
   }
 
-  // ── Current question ───────────────────────────────────────────────────────
-  const q = questions.length > 0 ? questions[qIdx % questions.length] : null
-  const mins = String(Math.floor(timeLeft / 60)).padStart(2, '0')
-  const secs = String(timeLeft % 60).padStart(2, '0')
-  const pct  = Math.round((timeLeft / BLITZ_SECONDS) * 100)
-  const isNewBest = phase === 'done' && correct > blitzBest
+  const hints = question ? [question.hint_1, question.hint_2, question.hint_3].filter(Boolean) : []
 
-  // Timer colour — green → amber → red
-  const timerColor = timeLeft > 60 ? M.correctColor : timeLeft > 30 ? '#FFC933' : '#FF4444'
+  if (loading) return (
+    <div style={{ minHeight: '100vh', background: M.mapBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ fontSize: 36, animation: 'spin 1s linear infinite' }}>⚡</div>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  )
 
-  // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <>
-      <style>{`
-        @keyframes slideUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes pop     { 0%{transform:scale(1)} 40%{transform:scale(1.12)} 100%{transform:scale(1)} }
-        @keyframes flash   { 0%,100%{opacity:1} 50%{opacity:0.4} }
-        @keyframes float   { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
-      `}</style>
+    <div style={{ minHeight: '100vh', background: M.mapBg, fontFamily: 'Nunito, sans-serif', display: 'flex', justifyContent: 'center' }}>
+      <div style={{ width: '100%', maxWidth: 600, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+        <style>{`
+          @keyframes slideUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+          @keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+          @keyframes confetti-fall { 0%{transform:translateY(-20px) rotate(0deg);opacity:1} 100%{transform:translateY(100vh) rotate(720deg);opacity:0} }
+          @keyframes pop{0%{transform:scale(0.85)}60%{transform:scale(1.08)}100%{transform:scale(1)}}
+          @keyframes pulse{0%,100%{box-shadow:0 0 0 0 ${accent}40}50%{box-shadow:0 0 0 8px ${accent}00}}
+          .hint-btn:hover{opacity:1!important}
+        `}</style>
 
-      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: M.lessonBg, fontFamily: 'Nunito, sans-serif' }}>
+        {/* Top bar */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: `1px solid ${isNova ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)'}`, background: M.hudBg, flexShrink: 0 }}>
+          <button onClick={() => router.push('/learn?tab=learn')}
+            style={{ width: 34, height: 34, borderRadius: '50%', border: `1px solid ${isNova ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)'}`, background: 'none', cursor: 'pointer', fontSize: 15, color: bodyColor, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+          <div style={{ fontSize: 13, fontWeight: 900, color: M.textPrimary, fontFamily: M.headingFont }}>⚡ Daily Challenge</div>
+          <div style={{ fontSize: 11, fontWeight: 800, color: accent, background: `${accent}14`, border: `1px solid ${accent}30`, borderRadius: 20, padding: '3px 10px' }}>+15 XP</div>
+        </div>
 
-        {/* ── Top bar ── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', flexShrink: 0, borderBottom: `1px solid ${accent}18`, background: M.hudBg }}>
-          <button onClick={() => { clearInterval(timerRef.current); router.push('/learn?tab=learn') }}
-            style={{ width: 34, height: 34, borderRadius: '50%', cursor: 'pointer', background: M.lessonCard, border: M.lessonBorder, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: M.textSecondary }}>
-            ✕
-          </button>
-          {phase === 'active' && (
-            <>
-              {/* Progress bar */}
-              <div style={{ flex: 1, height: 6, background: M.progressTrack, borderRadius: 99, overflow: 'hidden' }}>
-                <div style={{ width: `${pct}%`, height: '100%', background: timerColor, borderRadius: 99, transition: 'width 1s linear' }} />
-              </div>
-              {/* Timer */}
-              <div style={{ fontSize: 20, fontWeight: 900, color: timerColor, fontFamily: 'Nunito, sans-serif', minWidth: 52, textAlign: 'right', animation: timeLeft <= 10 ? 'flash 0.5s ease-in-out infinite' : 'none' }}>
-                {mins}:{secs}
-              </div>
-            </>
+        {/* Content */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px 100px' }}>
+
+          {/* ── No question state ── */}
+          {phase === 'no_question' && (
+            <div style={{ textAlign: 'center', paddingTop: 60, animation: 'slideUp 0.4s ease' }}>
+              <BicPencil pose="think" size={90} style={{ display: 'inline-block', marginBottom: 20 }} />
+              <div style={{ fontSize: 20, fontWeight: 900, color: M.textPrimary, marginBottom: 8 }}>No challenge today</div>
+              <div style={{ fontSize: 13, color: bodyColor, lineHeight: 1.7 }}>Your teacher is preparing today's challenge.<br/>Check back soon!</div>
+            </div>
           )}
-          {phase !== 'active' && (
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-              <span style={{ fontSize: 14, fontWeight: 900, color: accent }}>⚡ 120 Seconds of Fame</span>
-              {student?.active_subject === 'further_maths' && (
-                <span style={{ fontSize: 10, fontWeight: 900, color: accent, background: `${accent}14`, border: `1.5px solid ${accent}30`, borderRadius: 20, padding: '2px 9px', fontFamily: 'Nunito, sans-serif', letterSpacing: 0.4 }}>Further Maths</span>
+
+          {/* ── Active question ── */}
+          {(phase === 'question' || phase === 'revealed') && question && (
+            <div style={{ animation: 'slideUp 0.4s ease' }}>
+              {/* Date pill */}
+              <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                <span style={{ fontSize: 10, fontWeight: 800, color: bodyColor, background: isNova ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)', borderRadius: 20, padding: '4px 12px', textTransform: 'uppercase', letterSpacing: 1 }}>
+                  {new Date().toLocaleDateString('en-NG', { weekday: 'long', day: 'numeric', month: 'long' })}
+                </span>
+              </div>
+
+              {/* Topic pill */}
+              <div style={{ textAlign: 'center', marginBottom: 12 }}>
+                <span style={{ fontSize: 11, fontWeight: 800, color: accent, background: `${accent}12`, border: `1px solid ${accent}25`, borderRadius: 20, padding: '4px 14px' }}>{question.topic}</span>
+              </div>
+
+              {/* Question card */}
+              <div style={{ background: isNova ? 'rgba(255,255,255,0.06)' : '#fff', border: isBlaze ? '2.5px solid #0d0d0d' : `1.5px solid ${isNova ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)'}`, borderRadius: isBlaze ? 12 : 20, padding: '20px 18px', marginBottom: 16, boxShadow: isBlaze ? '3px 3px 0 #0d0d0d' : '0 2px 16px rgba(0,0,0,0.06)' }}>
+                <div style={{ fontSize: 9, fontWeight: 800, color: bodyColor, textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: 10 }}>{question.difficulty === 'hard' ? '🔥 Hard' : '💪 Medium'}</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: M.textPrimary, lineHeight: 1.65 }}>{question.question_text}</div>
+              </div>
+
+              {/* Hints */}
+              {phase === 'question' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+                  {hints.map((hint, i) => (
+                    <div key={i}>
+                      {hintsShown > i ? (
+                        <div style={{ background: isNova ? 'rgba(255,255,255,0.05)' : `${accent}08`, border: `1px solid ${accent}20`, borderRadius: 12, padding: '10px 14px', fontSize: 13, color: bodyColor, fontWeight: 600, animation: 'slideUp 0.3s ease' }}>
+                          <span style={{ fontSize: 10, fontWeight: 800, color: accent, marginRight: 8 }}>HINT {i+1}</span>{hint}
+                        </div>
+                      ) : hintsShown === i ? (
+                        <button className="hint-btn" onClick={() => setHintsShown(i + 1)}
+                          style={{ width: '100%', padding: '10px 14px', borderRadius: 12, border: `1.5px dashed ${accent}40`, background: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 800, color: accent, opacity: 0.7, fontFamily: 'Nunito, sans-serif', textAlign: 'left' }}>
+                          💡 Show Hint {i + 1} {i > 0 ? '(more specific)' : ''}
+                        </button>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Answer input */}
+              {phase === 'question' && (
+                <>
+                  <div style={{ marginBottom: 10 }}>
+                    <label style={{ fontSize: 11, fontWeight: 800, color: bodyColor, textTransform: 'uppercase', letterSpacing: 0.8, display: 'block', marginBottom: 6 }}>Your Answer</label>
+                    <div style={{ animation: wrongShake ? 'shake 0.5s ease' : 'none' }}>
+                      <input
+                        ref={inputRef}
+                        value={answer}
+                        onChange={e => setAnswer(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+                        placeholder="Type your answer here…"
+                        style={{ width: '100%', padding: '14px 16px', borderRadius: isBlaze ? 10 : 14, border: wrongShake ? '2px solid #FF6B6B' : `1.5px solid ${isNova ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)'}`, background: isNova ? 'rgba(255,255,255,0.07)' : '#fff', color: M.textPrimary, fontSize: 16, fontWeight: 700, fontFamily: 'Nunito, sans-serif', outline: 'none', boxSizing: 'border-box', transition: 'border 0.15s' }}
+                      />
+                    </div>
+                    {wrongShake && <div style={{ fontSize: 11, color: '#FF6B6B', fontWeight: 700, marginTop: 5 }}>Not quite — try again or use a hint!</div>}
+                  </div>
+
+                  <button onClick={handleSubmit} disabled={!answer.trim() || submitting}
+                    style={{ width: '100%', padding: '15px', borderRadius: isBlaze ? 10 : 16, border: isBlaze ? '2px solid #0d0d0d' : 'none', background: answer.trim() ? (isBlaze ? '#FFD700' : `linear-gradient(135deg,${accent},${M.accent2||accent}DD)`) : (isNova ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'), color: answer.trim() ? (isBlaze ? '#0d0d0d' : '#fff') : bodyColor, fontSize: 15, fontWeight: 900, cursor: answer.trim() ? 'pointer' : 'not-allowed', fontFamily: 'Nunito, sans-serif', boxShadow: answer.trim() ? (isBlaze ? '3px 3px 0 #0d0d0d' : `0 6px 20px ${accent}40`) : 'none', transition: 'all 0.15s', marginBottom: 10 }}>
+                    {submitting ? 'Checking…' : 'Submit Answer'}
+                  </button>
+
+                  {/* Show answer — subtle */}
+                  <div style={{ textAlign: 'center' }}>
+                    <button onClick={handleReveal}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: bodyColor, opacity: 0.45, fontFamily: 'Nunito, sans-serif', fontWeight: 700, padding: '4px 8px' }}>
+                      Show answer (you won't earn XP)
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* Revealed state */}
+              {phase === 'revealed' && question.correct_answer && (
+                <div style={{ animation: 'slideUp 0.4s ease' }}>
+                  <div style={{ background: 'rgba(255,107,107,0.08)', border: '1.5px solid rgba(255,107,107,0.25)', borderRadius: 14, padding: '16px', marginBottom: 12 }}>
+                    <div style={{ fontSize: 10, fontWeight: 800, color: '#FF6B6B', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Correct Answer</div>
+                    <div style={{ fontSize: 22, fontWeight: 900, color: M.textPrimary }}>{question.correct_answer}</div>
+                  </div>
+                  {question.worked_solution && <WorkedSolution solution={question.worked_solution} M={M} isNova={isNova} isBlaze={isBlaze} accent={accent} bodyColor={bodyColor} />}
+                  <div style={{ textAlign: 'center', marginTop: 12 }}>
+                    <div style={{ fontSize: 12, color: bodyColor, fontWeight: 700 }}>Come back tomorrow for a new challenge 💪</div>
+                  </div>
+                </div>
               )}
             </div>
           )}
-        </div>
 
-        {/* ── Content ── */}
-        <div style={{ flex: 1, overflowY: 'auto' }}>
-          <div style={{ maxWidth: 520, margin: '0 auto', padding: '24px 18px 60px' }}>
+          {/* ── Correct! ── */}
+          {phase === 'correct' && question && (
+            <div style={{ animation: 'slideUp 0.4s ease' }}>
+              {/* Confetti particles */}
+              <Confetti accent={accent} />
 
-            {/* LOADING */}
-            {(phase === 'loading') && (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 80, gap: 12 }}>
-                <div style={{ fontSize: 36, animation: 'float 1.5s ease-in-out infinite' }}>⚡</div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: bodyColor }}>Loading your question bank…</div>
-              </div>
-            )}
-
-            {/* ERROR */}
-            {phase === 'error' && (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 80, gap: 20, textAlign: 'center' }}>
-                <div style={{ fontSize: 52 }}>📭</div>
-                <div style={{ fontSize: 18, fontWeight: 900, color: M.textPrimary }}>{error}</div>
-                <button onClick={() => router.push('/learn?tab=learn')} style={{ ...M.primaryBtn, padding: '14px 32px' }}>← Go Back</button>
-              </div>
-            )}
-
-            {/* READY — personal best + start */}
-            {phase === 'ready' && (
-              <div style={{ animation: 'slideUp 0.4s ease' }}>
-
-                {/* ── Header ── */}
-                <div style={{ textAlign: 'center', paddingTop: 8, marginBottom: 22 }}>
-                  <div style={{ fontSize: 22, fontWeight: 900, color: M.textPrimary, fontFamily: 'Nunito, sans-serif', marginBottom: 4 }}>⚡ 120 Seconds of Fame</div>
-                  <div style={{ fontSize: 13, color: bodyColor, fontWeight: 600 }}>
-                    How many can you answer in 2 minutes?
-                  </div>
+              {/* Success banner */}
+              <div style={{ textAlign: 'center', marginBottom: 20 }}>
+                <div style={{ animation: 'pop 0.5s ease', display: 'inline-block', marginBottom: 12 }}>
+                  <BicPencil pose="celebrate" size={90} />
                 </div>
-
-                {/* ── Personal best + Start ── */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: isNova ? 'rgba(255,255,255,0.07)' : `${accent}08`, border: `1.5px solid ${accent}28`, borderRadius: isBlaze ? 12 : 18, marginBottom: 24 }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 9, fontWeight: 800, color: bodyColor, textTransform: 'uppercase', letterSpacing: 0.8, fontFamily: 'Nunito, sans-serif', marginBottom: 2 }}>Your best ever</div>
-                    <div style={{ fontSize: 22, fontWeight: 900, color: accent, fontFamily: 'Nunito, sans-serif', lineHeight: 1 }}>
-                      {blitzBest > 0 ? `${blitzBest} correct` : '—'}
-                    </div>
-                  </div>
-                  <button onClick={startBlitzReal}
-                    style={{ ...M.primaryBtn, fontSize: 17, padding: '14px 28px', borderRadius: isBlaze ? 10 : 20, boxShadow: `0 6px 22px ${accent}55`, flexShrink: 0 }}>
-                    {isBlaze ? '⚡ GO!' : isRoots ? '🇳🇬 Go!' : 'Go →'}
-                  </button>
+                <div style={{ fontSize: 26, fontWeight: 900, color: M.textPrimary, fontFamily: M.headingFont, marginBottom: 4 }}>Correct! 🎉</div>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: isBlaze ? '#FFD700' : `linear-gradient(135deg,${accent},${M.accent2||accent}DD)`, borderRadius: 20, padding: '8px 20px', boxShadow: `0 4px 16px ${accent}40` }}>
+                  <span style={{ fontSize: 18 }}>⚡</span>
+                  <span style={{ fontSize: 16, fontWeight: 900, color: isBlaze ? '#0d0d0d' : '#fff' }}>+15 XP earned!</span>
                 </div>
+              </div>
 
-                {/* ── Personal best only ── */}
-                <div style={{ textAlign: 'center', padding: '20px 16px', background: isNova ? 'rgba(255,255,255,0.04)' : `${accent}06`, borderRadius: isBlaze ? 10 : 16, border: `1px solid ${accent}18` }}>
-                  <div style={{ fontSize: 10, fontWeight: 800, color: bodyColor, textTransform: 'uppercase', letterSpacing: 1, fontFamily: 'Nunito, sans-serif', marginBottom: 6 }}>Your All-Time Best</div>
-                  <div style={{ fontSize: 36, fontWeight: 900, color: accent, fontFamily: 'Nunito, sans-serif', lineHeight: 1 }}>
-                    {blitzBest > 0 ? blitzBest : '—'}
+              {/* Worked solution */}
+              {question.worked_solution && <WorkedSolution solution={question.worked_solution} M={M} isNova={isNova} isBlaze={isBlaze} accent={accent} bodyColor={bodyColor} />}
+
+              {/* Leaderboard — always show after solving */}
+              <div style={{ marginTop: 20 }}>
+                  <div style={{ fontSize: 13, fontWeight: 900, color: M.textPrimary, marginBottom: 10, fontFamily: M.headingFont }}>🏆 Today's Solvers</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {solvers.map((s, i) => {
+                      const isMe = s.student_id === studentId
+                      const medals = ['🥇','🥈','🥉']
+                      return (
+                        <div key={s.student_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: isMe ? `${accent}14` : (isNova ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'), border: isMe ? `1.5px solid ${accent}40` : `1px solid ${isNova ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'}`, borderRadius: 12, fontFamily: 'Nunito, sans-serif' }}>
+                          <div style={{ width: 24, textAlign: 'center', flexShrink: 0 }}>
+                            {i < 3 ? <span style={{ fontSize: 16 }}>{medals[i]}</span> : <span style={{ fontSize: 11, fontWeight: 700, color: bodyColor }}>#{i+1}</span>}
+                          </div>
+                          <div style={{ flex: 1, fontSize: 13, fontWeight: isMe ? 900 : 700, color: isMe ? M.textPrimary : bodyColor, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {isMe ? `${s.display_name} (you)` : s.display_name}
+                          </div>
+                          <div style={{ fontSize: 10, color: bodyColor, flexShrink: 0 }}>{s.class_level}</div>
+                        </div>
+                      )
+                    })}
                   </div>
-                  {blitzBest > 0 && (
-                    <div style={{ fontSize: 11, color: bodyColor, marginTop: 4, fontFamily: 'Nunito, sans-serif' }}>correct answers</div>
+                  {solvers.length === 0 && (
+                    <div style={{ textAlign: 'center', padding: '16px 0', color: bodyColor, fontSize: 13, fontWeight: 700 }}>🌟 You're the first to solve today!</div>
                   )}
-                  {blitzBest === 0 && (
-                    <div style={{ fontSize: 12, color: bodyColor, marginTop: 4, fontFamily: 'Nunito, sans-serif' }}>Play to set your first score!</div>
+                  {solversCount > solvers.length && (
+                    <div style={{ textAlign: 'center', marginTop: 8, fontSize: 11, color: bodyColor, fontWeight: 700 }}>+ {solversCount - solvers.length} more solver{solversCount - solvers.length !== 1 ? 's' : ''}</div>
                   )}
                 </div>
+
+              <div style={{ textAlign: 'center', marginTop: 16 }}>
+                <div style={{ fontSize: 12, color: bodyColor, fontWeight: 700 }}>New challenge tomorrow 💪</div>
               </div>
-            )}
-
-            {/* ACTIVE — Question */}
-            {/* ACTIVE — Question */}
-            {phase === 'active' && q && (
-              <div style={{ animation: 'slideUp 0.2s ease' }}>
-
-                {/* Score row */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20, padding: '0 2px' }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: bodyColor }}>Q{total + 1}</div>
-                  <div style={{ fontSize: 15, fontWeight: 900, color: M.correctColor }}>✓ {correct} correct</div>
-                </div>
-
-                {/* Question */}
-                <div style={{ background: isNova ? 'rgba(255,255,255,0.06)' : M.cardBg, border: M.cardBorder, borderRadius: isBlaze ? 12 : 20, padding: '22px 20px', marginBottom: 16, boxShadow: M.cardShadow }}>
-                  <div style={{ fontSize: 17, fontWeight: 800, color: M.textPrimary, lineHeight: 1.5, fontFamily: 'Nunito, sans-serif' }}>
-                    <MathText text={q.question_text} />
-                  </div>
-                </div>
-
-                {/* Options */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {q.options.map(opt => {
-                    const isChosen  = chosen === opt.id
-                    const isCorrect = opt.is_correct
-                    let bg = M.cardBg, border = M.cardBorder, color = M.textPrimary
-                    if (revealed) {
-                      if (isCorrect)       { bg = `${M.correctColor}18`; border = `2px solid ${M.correctColor}`; color = M.correctColor }
-                      else if (isChosen)   { bg = 'rgba(255,77,77,0.1)'; border = '2px solid #ff4d4d'; color = '#ff4d4d' }
-                    } else if (isChosen) {
-                      bg = `${accent}14`; border = `2px solid ${accent}`
-                    }
-                    return (
-                      <button key={opt.id} onClick={() => handleAnswer(opt.id)}
-                        style={{ width: '100%', padding: '14px 18px', textAlign: 'left', cursor: revealed ? 'default' : 'pointer', background: bg, border, borderRadius: isBlaze ? 10 : 16, fontFamily: 'Nunito, sans-serif', fontSize: 14, fontWeight: 700, color, transition: 'all 0.15s', boxShadow: M.cardShadow }}>
-                        <MathText text={opt.option_text} />
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* DONE — Results */}
-            {phase === 'done' && (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', paddingTop: 20, animation: 'slideUp 0.4s ease' }}>
-
-                <div style={{ fontSize: 56, marginBottom: 8, animation: 'pop 0.5s ease' }}>
-                  {correct === 0 ? '💪' : correct < 5 ? '🌟' : correct < 10 ? '⭐' : '🏆'}
-                </div>
-
-                <div style={{ fontSize: 26, fontWeight: 900, color: M.textPrimary, marginBottom: 4 }}>
-                  {isNewBest ? '🎉 New Best!' : correct === 0 ? 'Keep Going!' : 'Time\'s Up!'}
-                </div>
-
-                {/* Big score */}
-                <div style={{ background: isBlaze ? '#FFD700' : `${accent}12`, border: isBlaze ? '2.5px solid #0d0d0d' : `2px solid ${accent}30`, borderRadius: isBlaze ? 14 : 24, padding: '24px 48px', marginBottom: 20, boxShadow: isBlaze ? '4px 4px 0 #0d0d0d' : `0 6px 24px ${accent}22` }}>
-                  <div style={{ fontSize: 11, fontWeight: 800, color: isBlaze ? '#555' : bodyColor, textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: 4 }}>Correct Answers</div>
-                  <div style={{ fontSize: 64, fontWeight: 900, color: isBlaze ? '#0d0d0d' : accent, lineHeight: 1, fontFamily: 'Nunito, sans-serif', letterSpacing: -2 }}>{correct}</div>
-                  <div style={{ fontSize: 13, color: isBlaze ? '#444' : bodyColor, marginTop: 4 }}>out of {total} attempted</div>
-                </div>
-
-                {/* Personal best badge */}
-                <div style={{ fontSize: 13, color: bodyColor, marginBottom: 20, textAlign: 'center' }}>
-                  {isNewBest
-                    ? <span style={{ color: M.correctColor, fontWeight: 800, fontSize: 14 }}>🏆 New personal best — {correct} correct!</span>
-                    : blitzBest > 0
-                      ? <span>Personal best: <strong style={{ color: accent }}>{blitzBest} correct</strong></span>
-                      : 'Complete more lessons for more questions!'}
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 300 }}>
-                  <button onClick={startBlitzReal} style={{ ...M.primaryBtn, fontSize: 16, padding: '16px' }}>
-                    {isBlaze ? '⚡ GO AGAIN' : correct < (blitzBest || correct + 1) ? `🔄 Beat your best (${blitzBest})` : '🔄 Play Again'}
-                  </button>
-                  <button onClick={() => router.push('/learn?tab=learn')}
-                    style={{ padding: '14px', background: 'transparent', border: `1.5px solid ${accent}30`, borderRadius: isBlaze ? 10 : 16, fontFamily: 'Nunito, sans-serif', fontSize: 14, fontWeight: 700, color: bodyColor, cursor: 'pointer' }}>
-                    Back
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
-    </>
+    </div>
+  )
+}
+
+function WorkedSolution({ solution, M, isNova, isBlaze, accent, bodyColor }) {
+  return (
+    <div style={{ background: isNova ? 'rgba(255,255,255,0.05)' : `${accent}07`, border: `1.5px solid ${accent}20`, borderRadius: 14, padding: '16px' }}>
+      <div style={{ fontSize: 10, fontWeight: 800, color: accent, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>Worked Solution</div>
+      {solution.split('\n').map((line, i) => {
+        const isAnswer = line.trim().startsWith('Answer:')
+        const isMath   = /^[0-9\-+×÷=()₦%.,\s]+$/.test(line.trim()) && line.trim().length > 0
+        return (
+          <div key={i} style={{ fontSize: isAnswer ? 16 : isMath ? 15 : 12, fontWeight: isAnswer ? 900 : isMath ? 700 : 600, color: isAnswer ? accent : isMath ? M.textPrimary : bodyColor, fontStyle: isMath ? 'normal' : 'italic', marginBottom: 4, lineHeight: 1.6, fontFamily: 'Nunito, sans-serif' }}>
+            {line || '\u00A0'}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function Confetti({ accent }) {
+  const colours = [accent, '#FFD700', '#FF6B6B', '#00E676', '#A78BFA']
+  return (
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, pointerEvents: 'none', zIndex: 100, overflow: 'hidden', height: 300 }}>
+      {Array.from({ length: 22 }).map((_, i) => (
+        <div key={i} style={{
+          position: 'absolute',
+          left: `${(i * 4.5 + Math.random() * 4) % 100}%`,
+          top: -20,
+          width: i % 3 === 0 ? 10 : 6,
+          height: i % 3 === 0 ? 10 : 6,
+          borderRadius: i % 2 === 0 ? '50%' : 2,
+          background: colours[i % colours.length],
+          animation: `confetti-fall ${1.2 + (i % 4) * 0.3}s ease ${(i % 6) * 0.1}s forwards`,
+        }} />
+      ))}
+    </div>
   )
 }

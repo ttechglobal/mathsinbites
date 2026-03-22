@@ -25,17 +25,19 @@ export default function GeneratePage({ levels }) {
   const [generating,     setGenerating]     = useState({})
   const [generated,      setGenerated]      = useState({})
   const [errors,         setErrors]         = useState({})
-  const [levelSubject,   setLevelSubject]   = useState({})  // levelId -> 'maths' | 'further_maths'
+  const [batchRunning,   setBatchRunning]   = useState({})  // topicId → bool
+  const [batchStatus,    setBatchStatus]    = useState({})  // topicId → status string
+  const [batchProgress,  setBatchProgress]  = useState({})  // topicId → {done,total}
 
   const toggle = (setter, id) => setter(p => ({ ...p, [id]: !p[id] }))
 
-  async function generateLesson(subtopicId, subj = 'maths') {
+  async function generateLesson(subtopicId) {
     setGenerating(p => ({ ...p, [subtopicId]: true }))
     setErrors(p => ({ ...p, [subtopicId]: null }))
     try {
       const res  = await fetch('/api/generate/lesson', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subtopicId, subject: subj }),
+        body: JSON.stringify({ subtopicId }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
@@ -47,12 +49,70 @@ export default function GeneratePage({ levels }) {
     }
   }
 
-  async function generateAllInTopic(subtopics, subj = 'maths') {
+  async function generateAllInTopic(subtopics) {
     for (const sub of subtopics) {
       if (!sub.is_published && !generated[sub.id]) {
-        await generateLesson(sub.id, subj)
+        await generateLesson(sub.id)
         await new Promise(r => setTimeout(r, 1000))
       }
+    }
+  }
+
+  async function batchGenerateTopic(topic) {
+    const subs = (topic.subtopics || []).filter(s => !s.is_published && !generated[s.id])
+    if (!subs.length) return
+    const tid = topic.id
+    setBatchRunning(p  => ({ ...p, [tid]: true }))
+    setBatchProgress(p => ({ ...p, [tid]: { done: 0, total: subs.length } }))
+    setBatchStatus(p   => ({ ...p, [tid]: 'Submitting batch…' }))
+
+    try {
+      // 1. Submit batch to server
+      const res = await fetch('/api/generate/lesson-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subtopicIds: subs.map(s => s.id) }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Batch submission failed')
+
+      const batchId = data.batchId
+      setBatchStatus(p => ({ ...p, [tid]: `Processing… (batch ${batchId.slice(-6)})` }))
+
+      // 2. Poll until complete
+      let attempts = 0
+      const maxAttempts = 60  // 5 minutes max polling
+      while (attempts < maxAttempts) {
+        await new Promise(r => setTimeout(r, 5000))  // poll every 5s
+        const poll = await fetch(`/api/generate/lesson-batch?batchId=${batchId}`)
+        const pollData = await poll.json()
+
+        if (pollData.status === 'ended') {
+          // Mark all succeeded subtopics as done
+          const succeeded = pollData.succeeded || []
+          succeeded.forEach(subtopicId => {
+            setGenerated(p => ({ ...p, [subtopicId]: true }))
+          })
+          setBatchProgress(p => ({ ...p, [tid]: { done: succeeded.length, total: subs.length } }))
+          setBatchStatus(p => ({ ...p, [tid]: `✓ Done — ${succeeded.length}/${subs.length} generated` }))
+          break
+        }
+
+        const processed = pollData.request_counts?.processing !== undefined
+          ? pollData.request_counts.succeeded + pollData.request_counts.errored
+          : 0
+        setBatchProgress(p => ({ ...p, [tid]: { done: processed, total: subs.length } }))
+        setBatchStatus(p => ({ ...p, [tid]: `Processing ${processed}/${subs.length}…` }))
+        attempts++
+      }
+
+      if (attempts >= maxAttempts) {
+        setBatchStatus(p => ({ ...p, [tid]: 'Batch is taking long — check back in a few minutes' }))
+      }
+    } catch (err) {
+      setBatchStatus(p => ({ ...p, [tid]: `Error: ${err.message}` }))
+    } finally {
+      setBatchRunning(p => ({ ...p, [tid]: false }))
     }
   }
 
@@ -118,23 +178,6 @@ export default function GeneratePage({ levels }) {
                         <div style={{ height:'100%', width:`${pct}%`, background: pct===100 ? A.electric : A.accent, borderRadius:3, transition:'width 0.4s' }} />
                       </div>
                       <span style={{ fontSize:11, fontWeight:900, color: pct===100 ? A.electric : A.dim2, minWidth:30, textAlign:'right' }}>{pct}%</span>
-                      {/* Per-level subject toggle — only for SS levels */}
-                      {['SS1','SS2','SS3'].includes(level.name) && (
-                        <div style={{ display:'flex', gap:4, flexShrink:0 }} onClick={e => e.stopPropagation()}>
-                          {[['maths','M'],['further_maths','FM']].map(([val, lbl]) => {
-                            const active = (levelSubject[level.id] || 'maths') === val
-                            return (
-                              <button key={val} onClick={() => setLevelSubject(p => ({ ...p, [level.id]: val }))}
-                                style={{ padding:'3px 9px', borderRadius:6, cursor:'pointer', fontSize:10, fontWeight:800,
-                                  border: active ? `1.5px solid ${A.accentHi}` : `1.5px solid ${A.border}`,
-                                  background: active ? 'rgba(124,58,237,0.18)' : 'transparent',
-                                  color: active ? A.accentHi : A.dim2, fontFamily:'Nunito,sans-serif',
-                                  transition:'all 0.12s',
-                                }}>{lbl}</button>
-                            )
-                          })}
-                        </div>
-                      )}
                     </div>
                   </button>
 
@@ -179,7 +222,8 @@ export default function GeneratePage({ levels }) {
                                         {topicDone}/{topicSubs.length}
                                       </span>
                                       {/* Generate All */}
-                                      <button onClick={() => generateAllInTopic(topicSubs, levelSubject[level.id] || 'maths')} style={{
+                                      {/* Sequential generate */}
+                                      <button onClick={() => generateAllInTopic(topicSubs)} style={{
                                         display:'flex', alignItems:'center', gap:5,
                                         padding:'5px 12px', borderRadius:8,
                                         background:'rgba(200,241,53,0.08)', border:'1.5px solid rgba(200,241,53,0.22)',
@@ -192,6 +236,36 @@ export default function GeneratePage({ levels }) {
                                       >
                                         <Zap size={11} /> Generate All
                                       </button>
+
+                                      {/* Batch API button */}
+                                      <button
+                                        onClick={() => batchGenerateTopic(topic)}
+                                        disabled={!!batchRunning[topic.id]}
+                                        title='Submit all to Claude Batch API — cheaper & async'
+                                        style={{
+                                          display:'flex', alignItems:'center', gap:5,
+                                          padding:'5px 12px', borderRadius:8,
+                                          background: batchRunning[topic.id] ? 'rgba(124,58,237,0.05)' : 'rgba(124,58,237,0.12)',
+                                          border:'1.5px solid rgba(124,58,237,0.35)',
+                                          color: batchRunning[topic.id] ? 'rgba(159,103,255,0.45)' : A.accentHi,
+                                          fontSize:11, fontWeight:800,
+                                          cursor: batchRunning[topic.id] ? 'not-allowed' : 'pointer',
+                                          flexShrink:0, fontFamily:'Nunito,sans-serif',
+                                          opacity: batchRunning[topic.id] ? 0.7 : 1,
+                                        }}
+                                      >
+                                        {batchRunning[topic.id]
+                                          ? <><span className='spin'>↻</span> {batchStatus[topic.id] || 'Running…'}</>
+                                          : <><Zap size={11} /> Batch API</>
+                                        }
+                                      </button>
+
+                                      {/* Batch progress */}
+                                      {batchStatus[topic.id] && !batchRunning[topic.id] && (
+                                        <span style={{ fontSize:10, fontWeight:700, color: batchStatus[topic.id].startsWith('✓') ? A.electric : A.coral }}>
+                                          {batchStatus[topic.id]}
+                                        </span>
+                                      )}
                                     </div>
 
                                     {/* Subtopics */}
@@ -236,7 +310,7 @@ export default function GeneratePage({ levels }) {
 
                                               {/* Action button */}
                                               <button
-                                                onClick={() => generateLesson(sub.id, levelSubject[level.id] || 'maths')}
+                                                onClick={() => generateLesson(sub.id)}
                                                 disabled={status === 'generating'}
                                                 style={{
                                                   display:'flex', alignItems:'center', gap:5,

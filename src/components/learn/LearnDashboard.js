@@ -422,7 +422,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
   const TABS = [
     { id: 'learn',       icon: '📚', label: 'Learn'     },
     { id: 'practice',    icon: '✏️', label: 'Practice'  },
-    { id: 'challenge',   icon: '⚡', label: '120s Fame' },
+    { id: 'challenge',   icon: '⚡', label: 'Challenge' },
     { id: 'leaderboard', icon: '🏆', label: 'Leaders'   },
     { id: 'profile',     icon: '👤', label: 'Profile'   },
   ]
@@ -445,12 +445,13 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
       zIndex: 40,
     }}>
       {/* Logo */}
-      <div style={{ padding: isDesktop ? '0 8px 20px' : '0 0 20px', display: 'flex', alignItems: 'center', justifyContent: isDesktop ? 'flex-start' : 'center' }}>
-        <MIBLogo size={32} theme={isNova ? 'dark' : 'light'} M={M} />
+      <div style={{ padding: isDesktop ? '0 4px 20px' : '0 0 20px', display: 'flex', alignItems: 'center', justifyContent: isDesktop ? 'flex-start' : 'center', overflow: 'hidden', minWidth: 0 }}>
+        <MIBLogo size={28} theme={isNova ? 'dark' : 'light'} M={M} style={{ flexShrink: 0 }} />
         {isDesktop && (
-          <span style={{ marginLeft: 10, fontSize: 15, fontWeight: 900, color: M.textPrimary, fontFamily: M.headingFont, letterSpacing: -0.3 }}>
-            MathsInBites
-          </span>
+          <div style={{ marginLeft: 8, minWidth: 0, overflow: 'hidden' }}>
+            <div style={{ fontSize: 13, fontWeight: 900, color: M.textPrimary, fontFamily: 'Nunito, sans-serif', letterSpacing: -0.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>MathsInBites</div>
+            <div style={{ fontSize: 9, fontWeight: 700, color: M.textSecondary, fontFamily: 'Nunito, sans-serif', textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 1 }}>Learn · Practice · Win</div>
+          </div>
         )}
       </div>
 
@@ -926,7 +927,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
             if (item.kind === 'challenge') {
               return (
                 <div key={`challenge-${item.topicsCompletedCount}`} style={{ display: 'flex', justifyContent: 'center', padding: '24px 0', position: 'relative', zIndex: 2 }}>
-                  <button onClick={() => router.push('/learn/challenge?mode=topic')} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+                  <button onClick={() => router.push('/learn/challenge')} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
                     <div style={{ width: 76, height: 76, borderRadius: 24, background: 'linear-gradient(135deg,#FFD700 0%,#FF8C00 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 0 10px rgba(255,180,0,0.12), 0 10px 32px rgba(255,140,0,0.48)', animation: 'float 3s ease-in-out infinite', fontSize: 32 }}>🏆</div>
                     <div style={{ textAlign: 'center' }}>
                       <div style={{ fontSize: 14, fontWeight: 900, color: '#A06000', fontFamily: 'Nunito, sans-serif' }}>Challenge Unlocked!</div>
@@ -1161,49 +1162,27 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
   )
 
   // ══════════════════════════════════════════════════════════════════════════
-  // CHALLENGE TAB — "60 Seconds of Fame"
-  // Answer as many questions as you can in 2 minutes. Score = questions correct.
-  // ══════════════════════════════════════════════════════════════════════════
+  // CHALLENGE TAB — Daily Challenge
   const ChallengeTab = (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '70vh', padding: '32px 20px 120px', maxWidth: 520, margin: '0 auto', textAlign: 'center' }}>
-
-      {/* Mascot */}
+    <div style={{ height: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 20px 120px', maxWidth: 520, margin: '0 auto', textAlign: 'center' }}>
       <div style={{ animation: 'float 2.5s ease-in-out infinite', marginBottom: 16, filter: `drop-shadow(0 8px 28px ${accent}55)` }}>
         <BicPencil pose="celebrate" size={110} />
       </div>
-
-      {/* Title */}
-      <div style={{ fontFamily: M.headingFont, fontSize: 28, fontWeight: 900, color: M.textPrimary, marginBottom: 4, lineHeight: 1.1 }}>
-        ⚡ 120 Seconds
+      <div style={{ fontFamily: M.headingFont, fontSize: 28, fontWeight: 900, color: M.textPrimary, marginBottom: 4, lineHeight: 1.1 }}>⚡ Daily</div>
+      <div style={{ fontFamily: M.headingFont, fontSize: 18, fontWeight: 700, color: accent, marginBottom: 18, letterSpacing: 0.5 }}>Challenge</div>
+      <div style={{ fontSize: 13, color: bodyColor, fontWeight: 600, lineHeight: 1.7, maxWidth: 280, marginBottom: 28 }}>
+        One new question every day. Type your answer, use hints, earn 15 XP if you crack it!
       </div>
-      <div style={{ fontFamily: M.headingFont, fontSize: 18, fontWeight: 700, color: accent, marginBottom: 18, letterSpacing: 0.5 }}>
-        of Fame
-      </div>
-
-      {/* Description */}
-      <div style={{ fontSize: 13, color: bodyColor, fontWeight: 600, lineHeight: 1.7, maxWidth: 260, marginBottom: 28 }}>
-        {isRoots
-          ? 'How many questions can you answer in 2 minutes? Show your class! 🇳🇬'
-          : 'Can you be the best? Answer as many questions as you can in 2 minutes.'}
-      </div>
-
-      {/* Personal best pill */}
-      {student?.blitz_best > 0 && (
-        <div style={{ background: `${accent}12`, border: `1.5px solid ${accent}30`, borderRadius: 20, padding: '8px 20px', marginBottom: 28, fontSize: 13, fontWeight: 700, color: bodyColor, fontFamily: 'Nunito, sans-serif' }}>
-          Your best: <strong style={{ color: accent }}>{student.blitz_best} correct</strong>
-        </div>
-      )}
-
-      {/* CTA */}
-      <button
-        onClick={() => router.push('/learn/challenge?mode=blitz')}
-        style={{ ...M.primaryBtn, fontSize: 19, padding: '18px 64px', borderRadius: isBlaze ? 10 : 24, boxShadow: isBlaze ? '4px 4px 0 #0d0d0d' : `0 10px 32px ${accent}55`, animation: 'pulse-glow 2.5s ease-in-out infinite' }}>
-        {isBlaze ? '⚡ GO!' : isRoots ? '🇳🇬 Go!' : 'Go →'}
+      <button onClick={() => router.push('/learn/challenge')}
+        style={{ ...M.primaryBtn, fontSize: 17, padding: '16px 56px', borderRadius: isBlaze ? 10 : 22, boxShadow: isBlaze ? '4px 4px 0 #0d0d0d' : `0 10px 32px ${accent}55`, animation: 'pulse-glow 2.5s ease-in-out infinite' }}>
+        {isRoots ? '🇳🇬 Take Challenge!' : "Today's Challenge →"}
       </button>
     </div>
   )
 
   // ══════════════════════════════════════════════════════════════════════════
+  // LEADERBOARD TAB
+ // ══════════════════════════════════════════════════════════════════════════
   // LEADERBOARD TAB
   // ══════════════════════════════════════════════════════════════════════════
   const LB_TABS = [
@@ -1531,7 +1510,7 @@ const RightPanel = isDesktop ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {[
             { icon: '✏️', label: 'Practice Questions', tab: 'practice', color: accent },
-            { icon: '⚡', label: '120 Seconds of Fame', tab: 'challenge', color: '#FF9500' },
+            { icon: '⚡', label: 'Daily Challenge', tab: 'challenge', color: '#FF9500' },
             { icon: '🏆', label: 'Leaderboard', tab: 'leaderboard', color: '#FFD700' },
           ].map(a => (
             <button key={a.tab} onClick={() => setActiveTab(a.tab)}

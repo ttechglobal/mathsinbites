@@ -33,6 +33,7 @@ const NAV = [
   { href:'/admin/students',   icon:'◉',  emoji:'👥', label:'Students',   color: A.teal    },
   { href:'/admin/analytics',  icon:'↗',  emoji:'📈', label:'Analytics',  color:'#A3E635'  },
   { href:'/admin/flags',      icon:'⚑',  emoji:'🚩', label:'Flagged',    color: A.coral   },
+  { href:'/admin/daily-challenge', icon:'⚡', emoji:'⚡', label:'Daily Q',   color: A.gold    },
 ]
 
 export default function AdminShell({ children }) {
