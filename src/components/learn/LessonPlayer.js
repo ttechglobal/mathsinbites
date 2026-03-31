@@ -337,7 +337,44 @@ function BackBtn({ onBack, isFirst }) {
   )
 }
 
-// ── Shared: next button ───────────────────────────────────────────────────────
+// ── Shared: bottom nav bar (Back + Next side by side) ────────────────────────
+function BottomBar({ onNext, onBack, isFirst, label = 'Next →', accent, M }) {
+  return (
+    <div style={{ paddingTop: 14, flexShrink: 0, display: 'flex', gap: 10 }}>
+      {!isFirst && (
+        <button onClick={onBack} style={{
+          flex: '0 0 52px', padding: '15px 0', borderRadius: 14,
+          border: `1.5px solid ${M.progressTrack}`,
+          background: 'transparent', cursor: 'pointer',
+          fontSize: 17, color: M.textSecondary,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          transition: 'background 0.15s',
+        }}>←</button>
+      )}
+      <button
+        onClick={onNext}
+        style={{
+          flex: 1, padding: '15px',
+          borderRadius: 14, border: 'none',
+          background: `linear-gradient(135deg, ${accent}, ${accent}CC)`,
+          color: '#fff', fontSize: 17, fontWeight: 900,
+          cursor: 'pointer', fontFamily: 'Nunito, sans-serif',
+          boxShadow: `0 5px 20px ${accent}40`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+          transition: 'transform 0.1s',
+        }}
+        onMouseDown={e => e.currentTarget.style.transform='scale(0.98)'}
+        onMouseUp={e => e.currentTarget.style.transform='scale(1)'}
+        onTouchStart={e => e.currentTarget.style.transform='scale(0.98)'}
+        onTouchEnd={e => e.currentTarget.style.transform='scale(1)'}
+      >
+        {label}
+      </button>
+    </div>
+  )
+}
+
+// ── Shared: next button (legacy, now wraps BottomBar) ────────────────────────
 function NextBtn({ onNext, label = 'Next →', accent, M }) {
   return (
     <button
@@ -397,8 +434,6 @@ function BiteHook({ bite, accent, M, onNext, onBack, isFirst }) {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '16px 20px' }}>
-      <BackBtn onBack={onBack} isFirst={isFirst} />
-
       {/* Topic pill */}
       <div style={{ alignSelf: 'center', background: `${accent}14`, border: `1px solid ${accent}25`, borderRadius: 20, padding: '4px 14px', marginBottom: 14, fontSize: 11, fontWeight: 800, color: accent, letterSpacing: 0.6, textTransform: 'uppercase', fontFamily: 'Nunito, sans-serif', animation: 'revealUp 0.3s ease both' }}>
         {bite.title}
@@ -428,159 +463,223 @@ function BiteHook({ bite, accent, M, onNext, onBack, isFirst }) {
         </div>
       </div>
 
-      <div style={{ paddingTop: 14, flexShrink: 0, animation: 'revealUp 0.4s 0.5s ease both' }}>
-        <NextBtn onNext={onNext} label="Let's explore this →" accent={accent} M={M} />
-      </div>
+      <BottomBar onNext={onNext} onBack={onBack} isFirst={isFirst} label="Let's explore this →" accent={accent} M={M} />
     </div>
   )
 }
 
-// ── CONCEPT / DEFINITION / INTRODUCTION / RULE — all auto-flow ───────────────
+// ── CONCEPT / DEFINITION / INTRODUCTION / RULE ──────────────────────────────
+// Layout: FOCAL POINT first (big), support text small beneath
 function BiteConcept({ bite, accent, M, onNext, onBack, isFirst }) {
   const mascotLines = {
     concept:      `Here's the big idea.`,
-    definition:   `Let's get this definition right.`,
-    introduction: `We're starting something new. Stay with me.`,
-    rule:         `This is the rule — read it carefully.`,
-    summary:      `Let's pull everything together.`,
+    definition:   `Get this definition right.`,
+    introduction: `Starting something new — stay with me.`,
+    rule:         `This is the rule to remember.`,
+    summary:      `Let's pull it all together.`,
     default:      `Here's what you need to know.`,
   }
   const mascotText = mascotLines[bite.type] || mascotLines.default
   const lines = fmtExp(bite.explanation || '')
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '16px 20px' }}>
-      <BackBtn onBack={onBack} isFirst={isFirst} />
-
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '14px 20px' }}>
       <MascotSpeech text={mascotText} accent={accent} M={M} />
 
-      {/* Title */}
-      <div style={{ fontSize: 22, fontWeight: 900, color: M.textPrimary, lineHeight: 1.2, fontFamily: M.headingFont, marginBottom: 14, animation: 'revealUp 0.4s 0.2s ease both' }}>
-        {bite.title}
-      </div>
-
-      {/* SVG illustration — if present, auto-flows in */}
+      {/* SVG — if present, flows in early */}
       {bite.svg_code && (
-        <div style={{ marginBottom: 14, flexShrink: 0, animation: 'revealUp 0.4s 0.3s ease both' }}>
+        <div style={{ marginBottom: 14, flexShrink: 0, animation: 'revealUp 0.4s 0.2s ease both' }}>
           <SvgIllustration svg_code={bite.svg_code} M={M} />
         </div>
       )}
 
-      {/* Explanation — line by line like a board */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto' }}>
+      {/* FOCAL POINT: Title large */}
+      <div style={{
+        fontSize: 24, fontWeight: 900, color: M.textPrimary,
+        lineHeight: 1.15, fontFamily: M.headingFont,
+        marginBottom: 12,
+        animation: 'revealUp 0.4s 0.18s ease both',
+      }}>
+        {bite.title}
+      </div>
+
+      {/* Support text — FOCAL POINT first line is big & bold, rest are secondary */}
+      <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: 4 }}>
         {lines.map((line, i) => (
           <div key={i} style={{
-            fontSize: 15, color: M.textSecondary, lineHeight: 1.8,
-            fontFamily: 'Nunito, sans-serif', fontWeight: 600,
-            paddingLeft: 12, borderLeft: `2px solid ${accent}28`,
-            animation: `revealUp 0.4s ${0.25 + i * 0.1}s ease both`,
+            fontSize: i === 0 ? 19 : 15,
+            color: i === 0 ? M.textPrimary : M.textSecondary,
+            lineHeight: 1.75,
+            fontFamily: 'Nunito, sans-serif',
+            fontWeight: i === 0 ? 800 : 600,
+            padding: i === 0 ? '13px 14px' : '2px 0 2px 14px',
+            borderLeft: `3px solid ${i === 0 ? accent : accent + '30'}`,
+            background: i === 0 ? `${accent}09` : 'transparent',
+            borderRadius: i === 0 ? '0 12px 12px 0' : 0,
+            animation: `revealUp 0.4s ${0.22 + i * 0.09}s ease both`,
           }}>
             <MathText text={line} />
           </div>
         ))}
 
-        {/* Formula — auto-flows in after explanation */}
+        {/* FORMULA — the real focal point for rule/concept slides */}
         {bite.formula && (
           <div style={{
             background: M.mathBg, borderRadius: 14, padding: '16px 18px',
-            borderLeft: `4px solid ${accent}`, marginTop: 8,
-            animation: `revealUp 0.4s ${0.25 + lines.length * 0.1}s ease both`,
+            borderLeft: `4px solid ${accent}`, marginTop: 10,
+            animation: `revealUp 0.4s ${0.28 + lines.length * 0.09}s ease both`,
           }}>
-            <div style={{ fontSize: 10, fontWeight: 800, color: accent, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 8, fontFamily: 'Nunito, sans-serif' }}>Formula</div>
-            <div style={{ fontFamily: 'monospace', fontSize: 21, fontWeight: 700, color: accent, lineHeight: 1.6 }}>
-              <MathText text={bite.formula} />
-            </div>
-            {bite.formula_note && <div style={{ fontSize: 12, color: M.textSecondary, marginTop: 10, lineHeight: 1.65, fontFamily: 'Nunito, sans-serif' }}>{bite.formula_note}</div>}
+            <div style={{ fontSize: 10, fontWeight: 800, color: accent, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 10, fontFamily: 'Nunito, sans-serif' }}>Formula</div>
+            {/* Render each line of formula on its own line */}
+            {(bite.formula || '').split(/\n/).map((fline, fi) => (
+              <div key={fi} style={{
+                fontFamily: 'monospace', fontSize: fi === 0 ? 22 : 18,
+                fontWeight: 900, color: accent, lineHeight: 1.7,
+              }}>
+                <MathText text={fline} />
+              </div>
+            ))}
+            {bite.formula_note && (
+              <div style={{ fontSize: 11, color: M.textSecondary, marginTop: 10, lineHeight: 1.6, fontFamily: 'Nunito, sans-serif' }}>{bite.formula_note}</div>
+            )}
           </div>
         )}
       </div>
 
-      <div style={{ paddingTop: 14, flexShrink: 0, animation: `revealUp 0.4s ${0.4 + lines.length * 0.1}s ease both` }}>
-        <NextBtn onNext={onNext} accent={accent} M={M} />
-      </div>
+      <BottomBar onNext={onNext} onBack={onBack} isFirst={isFirst} accent={accent} M={M} />
     </div>
   )
 }
+
 
 function BiteRule({ bite, accent, M, onNext, onBack, isFirst }) {
   return <BiteConcept bite={bite} accent={accent} M={M} onNext={onNext} onBack={onBack} isFirst={isFirst} />
 }
 
-// ── WORKED EXAMPLE — all steps shown at once, big text, flow in ───────────────
+
+// ── WORKED EXAMPLE — steps flow in, label deduplication, inline check-in ─────
 function BiteExample({ bite, accent, M, onNext, onBack, isFirst }) {
-  const steps = bite.steps || []
+  const rawSteps = bite.steps || []
+
+  // Parse each step — detect check_in: label="Check" or text starts "check:"
+  const steps = rawSteps.map(step => {
+    const text  = (step.text || step.content || String(step)).trim()
+    const label = (step.label || '').trim()
+    if (label.toLowerCase() === 'check' || /^check:/i.test(text)) {
+      const body  = text.replace(/^check:/i, '')
+      const parts = body.split('|')
+      return { _kind: 'checkin', question: parts[0]?.trim() || '', answer: parts[1]?.trim() || '', hint: parts[2]?.trim() || '' }
+    }
+    return { _kind: 'step', text, label }
+  })
+
+  const [checkins, setCheckins] = useState({})  // idx → 'correct'|'wrong'
+  const [typed,    setTyped]    = useState({})   // idx → string
+
+  function smartMatch(a, b) {
+    const n = s => String(s).toLowerCase().replace(/[₦,\s]/g,'').replace(/\.0+$/,'').replace(/^0+(\d)/,'$1').trim()
+    return n(a) === n(b)
+  }
+  function doCheck(i) {
+    const ok = smartMatch(typed[i] || '', steps[i].answer)
+    setCheckins(p => ({ ...p, [i]: ok ? 'correct' : 'wrong' }))
+  }
+
+  let stepNum = 0
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '16px 20px' }}>
-      <BackBtn onBack={onBack} isFirst={isFirst} />
-
       <MascotSpeech text="Watch how I work through this." accent={accent} M={M} pose="think" />
 
       {/* Question card */}
-      <div style={{ background: `${accent}0C`, border: `1.5px solid ${accent}25`, borderRadius: 14, padding: '14px 16px', marginBottom: 14, flexShrink: 0, animation: 'revealUp 0.4s 0.2s ease both' }}>
-        <div style={{ fontSize: 10, fontWeight: 800, color: accent, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6, fontFamily: 'Nunito, sans-serif' }}>Question</div>
+      <div style={{ background: `${accent}0C`, border: `1.5px solid ${accent}22`, borderRadius: 14, padding: '12px 16px', marginBottom: 14, flexShrink: 0, animation: 'revealUp 0.4s 0.2s ease both' }}>
+        <div style={{ fontSize: 10, fontWeight: 800, color: accent, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 5, fontFamily: 'Nunito, sans-serif' }}>Question</div>
         <div style={{ fontSize: 16, color: M.textPrimary, lineHeight: 1.75, fontFamily: 'Nunito, sans-serif', fontWeight: 700 }}>
           <MathText text={bite.explanation || bite.title || ''} />
         </div>
       </div>
 
-      {/* ALL steps shown, staggered animation, BIG text */}
+      {/* Steps list */}
       <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
         {steps.map((step, i) => {
-          const text    = step.text || step.content || String(step)
-          const label   = (step.label || '').trim()
-          const isAns   = /^(answer|solution)/i.test(label) || /^answer:/i.test(text.trim())
+          const delay = 0.3 + i * 0.09
+
+          // ── Check-in step ──
+          if (step._kind === 'checkin') {
+            const state = checkins[i]
+            return (
+              <div key={i} style={{ padding: '12px 0', borderBottom: `1px solid ${M.progressTrack}`, animation: `revealUp 0.4s ${delay}s ease both` }}>
+                <div style={{ background: `${accent}0C`, border: `1.5px solid ${accent}28`, borderRadius: 12, padding: '12px 14px' }}>
+                  <div style={{ fontSize: 10, fontWeight: 900, color: accent, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, fontFamily: 'Nunito, sans-serif' }}>⚡ Quick check</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: M.textPrimary, marginBottom: 10, lineHeight: 1.6, fontFamily: 'Nunito, sans-serif' }}>{step.question}</div>
+                  {!state && (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input value={typed[i] || ''} onChange={e => setTyped(p => ({ ...p, [i]: e.target.value }))}
+                        onKeyDown={e => e.key === 'Enter' && (typed[i] || '').trim() && doCheck(i)}
+                        placeholder="Type answer…"
+                        style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: `1.5px solid ${accent}40`, background: M.lessonCard, color: M.textPrimary, fontSize: 15, fontFamily: 'Nunito, sans-serif', outline: 'none' }} />
+                      <button onClick={() => doCheck(i)} disabled={!(typed[i] || '').trim()}
+                        style={{ padding: '8px 14px', borderRadius: 8, border: 'none', background: (typed[i] || '').trim() ? accent : `${accent}28`, color: (typed[i] || '').trim() ? '#fff' : accent, fontSize: 13, fontWeight: 900, cursor: (typed[i] || '').trim() ? 'pointer' : 'not-allowed', fontFamily: 'Nunito, sans-serif' }}>
+                        Check
+                      </button>
+                    </div>
+                  )}
+                  {state === 'correct' && <div style={{ fontSize: 14, fontWeight: 800, color: '#22c55e', animation: 'revealUp 0.3s ease both' }}>✓ Correct! {step.answer}</div>}
+                  {state === 'wrong' && (
+                    <div style={{ animation: 'revealUp 0.3s ease both' }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#EF4444', marginBottom: step.hint ? 4 : 0 }}>Not quite — the answer is <strong>{step.answer}</strong></div>
+                      {step.hint && <div style={{ fontSize: 12, color: M.textSecondary, fontStyle: 'italic', fontFamily: 'Nunito, sans-serif' }}>{step.hint}</div>}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          }
+
+          // ── Regular step ──
+          const isAns = /^(answer|solution)/i.test(step.label) || /^answer:/i.test(step.text)
+          if (!isAns) stepNum++
+          // Show label badge only if it adds info beyond the step number
+          const showLabel = step.label && !/^step\s*\d+$/i.test(step.label) && !isAns && step.label.toLowerCase() !== 'working'
+          const lines = (step.text || '').split('\\n').filter(Boolean)
+
           return (
-            <div key={i} style={{
-              display: 'flex', gap: 12, padding: '11px 0',
-              borderBottom: `1px solid ${M.progressTrack}`,
-              animation: `revealUp 0.4s ${0.3 + i * 0.09}s ease both`,
-            }}>
-              {/* Step number */}
-              <div style={{
-                width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
-                background: isAns ? accent : `${accent}18`,
-                border: `2px solid ${isAns ? accent : accent + '35'}`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 12, fontWeight: 900,
-                color: isAns ? '#fff' : accent, marginTop: 2,
-              }}>
-                {isAns ? '✓' : i + 1}
+            <div key={i} style={{ display: 'flex', gap: 12, padding: '12px 0', borderBottom: `1px solid ${M.progressTrack}`, animation: `revealUp 0.4s ${delay}s ease both` }}>
+              {/* Number / tick */}
+              <div style={{ width: 30, height: 30, borderRadius: '50%', flexShrink: 0, background: isAns ? accent : `${accent}14`, border: `2px solid ${isAns ? accent : accent+'35'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: isAns ? 14 : 12, fontWeight: 900, color: isAns ? '#fff' : accent, marginTop: 2 }}>
+                {isAns ? '✓' : stepNum}
               </div>
               <div style={{ flex: 1 }}>
-                {label && (
-                  <div style={{ fontSize: 10, fontWeight: 800, color: accent, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 3, fontFamily: 'Nunito, sans-serif' }}>{label}</div>
+                {/* Label badge — only shown when it adds value */}
+                {showLabel && (
+                  <div style={{ fontSize: 9, fontWeight: 900, color: accent, textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: 4, fontFamily: 'Nunito, sans-serif' }}>{step.label}</div>
                 )}
-                <div style={{
-                  fontSize: isAns ? 19 : 16,
-                  fontWeight: isAns ? 900 : 700,
-                  color: isAns ? accent : M.textPrimary,
-                  fontFamily: 'Nunito, sans-serif', lineHeight: 1.65,
-                }}>
-                  <MathText text={text} />
-                </div>
+                {/* Lines — each on its own row */}
+                {lines.map((line, li) => {
+                  const isAnswerLine = /^answer:/i.test(line.trim())
+                  return (
+                    <div key={li} style={{ fontSize: isAns || isAnswerLine ? 22 : 18, fontWeight: isAns || isAnswerLine ? 900 : 700, color: isAns || isAnswerLine ? accent : M.textPrimary, fontFamily: 'Nunito, sans-serif', lineHeight: 1.75, marginBottom: li < lines.length - 1 ? 4 : 0 }}>
+                      <MathText text={line} />
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )
         })}
       </div>
 
-      <div style={{ paddingTop: 14, flexShrink: 0, animation: `revealUp 0.4s ${0.4 + steps.length * 0.09}s ease both` }}>
-        <NextBtn onNext={onNext} label="Got it →" accent={accent} M={M} />
-      </div>
+      <BottomBar onNext={onNext} onBack={onBack} isFirst={isFirst} label="Got it →" accent={accent} M={M} />
     </div>
   )
 }
 
-// ── YOU TRY — attempt → optional hint → reveal solution ──────────────────────
 function BiteYouTry({ bite, accent, M, onNext, onBack, isFirst }) {
   const [phase, setPhase] = useState('attempt')
   const steps = bite.steps || []
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '16px 20px' }}>
-      <BackBtn onBack={onBack} isFirst={isFirst} />
-
       <MascotSpeech
         text={phase === 'attempt' ? `Your turn. Give this a try!` : phase === 'hint' ? `Here's a nudge.` : `Here's the full working.`}
         accent={accent} M={M}
@@ -628,7 +727,12 @@ function BiteYouTry({ bite, accent, M, onNext, onBack, isFirst }) {
       <div style={{ paddingTop: 14, flexShrink: 0 }}>
         {phase === 'attempt' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <NextBtn onNext={() => setPhase('solution')} label="Show solution →" accent={accent} M={M} />
+            <div style={{ display: 'flex', gap: 10 }}>
+              {!isFirst && (
+                <button onClick={onBack} style={{ flex: '0 0 52px', padding: '15px 0', borderRadius: 14, border: `1.5px solid ${M.progressTrack}`, background: 'transparent', cursor: 'pointer', fontSize: 17, color: M.textSecondary, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>←</button>
+              )}
+              <NextBtn onNext={() => setPhase('solution')} label="Show solution →" accent={accent} M={M} />
+            </div>
             {bite.hint && (
               <button onClick={() => setPhase('hint')} style={{ padding: '12px', borderRadius: 14, border: `1.5px solid ${accent}30`, background: 'transparent', color: accent, fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: 'Nunito, sans-serif' }}>
                 Give me a hint first
@@ -636,8 +740,8 @@ function BiteYouTry({ bite, accent, M, onNext, onBack, isFirst }) {
             )}
           </div>
         )}
-        {phase === 'hint' && <NextBtn onNext={() => setPhase('solution')} label="Now show solution →" accent={accent} M={M} />}
-        {phase === 'solution' && <NextBtn onNext={onNext} label="Continue →" accent={accent} M={M} />}
+        {phase === 'hint' && <BottomBar onNext={() => setPhase('solution')} onBack={onBack} isFirst={isFirst} label="Now show solution →" accent={accent} M={M} />}
+        {phase === 'solution' && <BottomBar onNext={onNext} onBack={() => setPhase('hint')} isFirst={false} label="Continue →" accent={accent} M={M} />}
       </div>
     </div>
   )
@@ -658,7 +762,6 @@ function BiteObservation({ bite, accent, M, onNext, onBack, isFirst }) {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '16px 20px' }}>
-      <BackBtn onBack={onBack} isFirst={isFirst} />
       <MascotSpeech text="Look at this pattern carefully." accent={accent} M={M} pose="think" />
 
       <div style={{ fontSize: 18, fontWeight: 900, color: M.textPrimary, marginBottom: 12, animation: 'revealUp 0.4s 0.2s ease both' }}>{bite.title}</div>
@@ -700,9 +803,7 @@ function BiteObservation({ bite, accent, M, onNext, onBack, isFirst }) {
         </div>
       )}
 
-      <div style={{ paddingTop: 14, flexShrink: 0, animation: 'revealUp 0.4s 0.7s ease both' }}>
-        <NextBtn onNext={onNext} accent={accent} M={M} />
-      </div>
+      <BottomBar onNext={onNext} onBack={onBack} isFirst={isFirst} accent={accent} M={M} />
     </div>
   )
 }
@@ -718,7 +819,6 @@ function BitePrediction({ bite, accent, M, onNext, onBack, isFirst }) {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '16px 20px' }}>
-      <BackBtn onBack={onBack} isFirst={isFirst} />
       <MascotSpeech text="Quick — what do you think?" accent={accent} M={M} pose="think" />
 
       <div style={{ fontSize: 18, fontWeight: 900, color: M.textPrimary, marginBottom: 10, lineHeight: 1.35, animation: 'revealUp 0.4s 0.2s ease both' }}>{bite.title}</div>
@@ -750,9 +850,7 @@ function BitePrediction({ bite, accent, M, onNext, onBack, isFirst }) {
         </div>
       )}
 
-      <div style={{ paddingTop: 14, flexShrink: 0, marginTop: 'auto' }}>
-        <NextBtn onNext={onNext} accent={accent} M={M} />
-      </div>
+      <BottomBar onNext={onNext} onBack={onBack} isFirst={isFirst} accent={accent} M={M} />
     </div>
   )
 }
@@ -761,12 +859,72 @@ function BitePattern({ bite, accent, M, onNext, onBack, isFirst }) {
   return <BiteObservation bite={bite} accent={accent} M={M} onNext={onNext} onBack={onBack} isFirst={isFirst} />
 }
 
+// ── Board-style explanation line renderer ─────────────────────────────────────
+// Parses a raw explanation string into lines and renders each one correctly:
+//   • Lines starting with a number/letter followed by ) or . → numbered step
+//   • Lines with = signs → math line (monospace, larger)
+//   • Lines starting with ∴ or "Therefore/So/Hence/Answer" → answer line (accent)
+//   • Everything else → explanation prose (italic, secondary)
+function BoardExplanation({ text, accent, M }) {
+  if (!text) return null
+  const raw = text.trim()
+  // Split on newlines first, then sentence boundaries
+  const lines = raw.includes('\n')
+    ? raw.split('\n').map(l => l.trim()).filter(Boolean)
+    : raw.replace(/([.!?])\s+(?=[A-Z])/g, '$1\n').split('\n').map(l => l.trim()).filter(Boolean)
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {lines.map((line, i) => {
+        const isAnswer  = /^(answer|solution|∴|therefore|hence|so[,:])/i.test(line)
+        const isMath    = /=/.test(line) && !/^[A-Z][a-z]{2,}.*[^=]$/.test(line)
+        const isStep    = /^(\d+[.)]\s*|[a-z][.)]\s*)/i.test(line)
+        const stepMatch = line.match(/^(\d+[.)]\s*|[a-z][.)]\s*)(.*)/i)
+
+        if (isAnswer) return (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, padding: '10px 14px', background: `${accent}10`, borderRadius: 10, borderLeft: `3px solid ${accent}` }}>
+            <span style={{ fontSize: 10, fontWeight: 900, color: accent, textTransform: 'uppercase', letterSpacing: 1, fontFamily: 'Nunito, sans-serif', flexShrink: 0 }}>Answer</span>
+            <span style={{ fontFamily: "'Courier New', monospace", fontSize: 18, fontWeight: 900, color: accent }}>
+              <MathText text={line.replace(/^(answer|solution)[:\s]*/i, '')} />
+            </span>
+          </div>
+        )
+
+        if (isStep && stepMatch) return (
+          <div key={i} style={{ display: 'flex', gap: 10, padding: '8px 0', borderBottom: `1px solid ${M.progressTrack}` }}>
+            <div style={{ width: 24, height: 24, borderRadius: '50%', flexShrink: 0, background: `${accent}14`, border: `1.5px solid ${accent}35`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 900, color: accent, fontFamily: 'Nunito, sans-serif', marginTop: 1 }}>
+              {stepMatch[1].replace(/[.)]/g, '').trim()}
+            </div>
+            <div style={{ flex: 1, fontSize: 15, fontWeight: 600, color: M.textPrimary, fontFamily: isMath ? "'Courier New', monospace" : 'Nunito, sans-serif', lineHeight: 1.7 }}>
+              <MathText text={stepMatch[2]} />
+            </div>
+          </div>
+        )
+
+        if (isMath) return (
+          <div key={i} style={{ fontFamily: "'Courier New', monospace", fontSize: 17, fontWeight: 700, color: M.textPrimary, lineHeight: 2.1, paddingLeft: 4, letterSpacing: 0.2 }}>
+            <MathText text={line} />
+          </div>
+        )
+
+        return (
+          <div key={i} style={{ fontSize: 14, fontWeight: 600, fontStyle: 'italic', color: M.textSecondary, lineHeight: 1.65, fontFamily: 'Nunito, sans-serif', paddingLeft: 2 }}>
+            {line}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 // ── PRACTICE / QUIZ ───────────────────────────────────────────────────────────
 function BitePractice({ bite, accent, M, onNext, onBack, isFirst, onCorrect, supabase, student }) {
   const [picked,  setPicked]  = useState(null)
   const [showExp, setShowExp] = useState(false)
 
   const options = bite.options || []
+  // explanation_text OR fallback to explanation field
+  const expText = bite.explanation_text || bite.explanation || ''
 
   function pick(opt) {
     if (picked !== null) return
@@ -778,32 +936,30 @@ function BitePractice({ bite, accent, M, onNext, onBack, isFirst, onCorrect, sup
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '16px 20px' }}>
-      <BackBtn onBack={onBack} isFirst={isFirst} />
-
       <MascotSpeech
-        text={picked == null ? `Here's a question.` : correct ? `Yes! Correct! 🎉` : `Not quite — but let's see why.`}
+        text={picked == null ? `Here's a question for you.` : correct ? `Correct! Well done.` : `Not this time — let's break it down.`}
         accent={accent} M={M}
         pose={picked ? (correct ? 'celebrate' : 'think') : 'happy'}
       />
 
       {/* Question */}
-      <div style={{ fontSize: 17, fontWeight: 700, color: M.textPrimary, lineHeight: 1.75, fontFamily: 'Nunito, sans-serif', marginBottom: 16, animation: 'revealUp 0.4s 0.2s ease both' }}>
+      <div style={{ fontSize: 17, fontWeight: 700, color: M.textPrimary, lineHeight: 1.75, fontFamily: 'Nunito, sans-serif', marginBottom: 14, animation: 'revealUp 0.4s 0.15s ease both' }}>
         <MathText text={bite.question_text || bite.title || ''} />
       </div>
 
       {/* Options */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 9 }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 9, overflowY: 'auto' }}>
         {options.map((opt, i) => {
           const isCor  = opt.is_correct
           const isSel  = picked === opt
           const shown  = picked !== null
           let bg = 'transparent', border = M.progressTrack, color = M.textPrimary
-          if (shown && isCor)             { bg = 'rgba(34,197,94,0.1)';   border = '#22c55e'; color = '#16a34a' }
-          if (shown && isSel && !isCor)   { bg = 'rgba(239,68,68,0.08)';  border = '#EF4444'; color = '#DC2626' }
-          if (!shown && isSel)            { bg = `${accent}12`;           border = accent;    color = accent    }
+          if (shown && isCor)           { bg = 'rgba(34,197,94,0.1)';  border = '#22c55e'; color = '#16a34a' }
+          if (shown && isSel && !isCor) { bg = 'rgba(239,68,68,0.08)'; border = '#EF4444'; color = '#DC2626' }
+          if (!shown && isSel)          { bg = `${accent}12`;          border = accent;    color = accent    }
           return (
             <button key={i} onClick={() => pick(opt)}
-              style={{ padding: '14px 16px', borderRadius: 14, border: `2px solid ${border}`, background: bg, cursor: picked ? 'default' : 'pointer', textAlign: 'left', fontSize: 16, fontWeight: 700, color, fontFamily: 'Nunito, sans-serif', transition: 'all 0.18s', display: 'flex', alignItems: 'center', gap: 12, animation: `revealUp 0.4s ${0.25 + i * 0.07}s ease both` }}>
+              style={{ padding: '13px 16px', borderRadius: 14, border: `2px solid ${border}`, background: bg, cursor: picked ? 'default' : 'pointer', textAlign: 'left', fontSize: 16, fontWeight: 700, color, fontFamily: 'Nunito, sans-serif', transition: 'all 0.18s', display: 'flex', alignItems: 'center', gap: 12, animation: `revealUp 0.4s ${0.2 + i * 0.07}s ease both` }}>
               <div style={{ width: 28, height: 28, borderRadius: '50%', flexShrink: 0, background: `${border}18`, border: `1.5px solid ${border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 900, color: border }}>
                 {shown ? (isCor ? '✓' : isSel ? '✗' : String.fromCharCode(65+i)) : String.fromCharCode(65+i)}
               </div>
@@ -811,27 +967,112 @@ function BitePractice({ bite, accent, M, onNext, onBack, isFirst, onCorrect, sup
             </button>
           )
         })}
-      </div>
 
-      {/* Explanation */}
-      {picked && bite.explanation_text && (
-        <div style={{ marginTop: 10 }}>
-          {showExp
-            ? <div style={{ background: M.mathBg, borderRadius: 12, padding: '12px 14px', fontSize: 14, color: M.textSecondary, lineHeight: 1.75, fontFamily: 'Nunito, sans-serif', fontWeight: 600, animation: 'revealUp 0.3s ease both' }}>
-                <MathText text={bite.explanation_text} />
-              </div>
-            : <button onClick={() => setShowExp(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: accent, fontFamily: 'Nunito, sans-serif', fontWeight: 800, padding: '4px 0' }}>
-                Why? See explanation →
-              </button>
-          }
-        </div>
-      )}
-
-      <div style={{ paddingTop: 12, flexShrink: 0 }}>
-        {picked !== null && (
-          <NextBtn onNext={onNext} label={bite._isLast ? 'Finish lesson' : 'Next question →'} accent={accent} M={M} />
+        {/* WHY button — appears immediately after options once answered */}
+        {picked !== null && expText && (
+          <button
+            onClick={() => setShowExp(true)}
+            style={{
+              marginTop: 6,
+              padding: '11px 16px',
+              borderRadius: 12,
+              border: `1.5px solid ${accent}35`,
+              background: `${accent}0D`,
+              cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 8,
+              fontFamily: 'Nunito, sans-serif',
+              animation: 'revealUp 0.35s ease both',
+            }}>
+            <span style={{ fontSize: 15 }}>💡</span>
+            <span style={{ fontSize: 14, fontWeight: 800, color: accent }}>Why is this the answer?</span>
+            <span style={{ marginLeft: 'auto', fontSize: 12, color: accent, opacity: 0.7 }}>Tap to see →</span>
+          </button>
         )}
       </div>
+
+      {/* Bottom row: Back + Next side by side */}
+      <div style={{ paddingTop: 12, flexShrink: 0 }}>
+        <div style={{ display: 'flex', gap: 10 }}>
+          {!isFirst && (
+            <button onClick={onBack} style={{
+              flex: '0 0 56px', padding: '14px 0', borderRadius: 14,
+              border: `1.5px solid ${M.progressTrack}`,
+              background: 'transparent', cursor: 'pointer',
+              fontSize: 16, color: M.textSecondary,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>←</button>
+          )}
+          {picked !== null && (
+            <button onClick={onNext} style={{
+              flex: 1, padding: '14px',
+              borderRadius: 14, border: 'none',
+              background: `linear-gradient(135deg, ${accent}, ${accent}CC)`,
+              color: '#fff', fontSize: 16, fontWeight: 900,
+              cursor: 'pointer', fontFamily: 'Nunito, sans-serif',
+              boxShadow: `0 5px 18px ${accent}40`,
+            }}>
+              {bite._isLast ? 'Finish lesson ✓' : 'Next →'}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Explanation bottom-sheet modal */}
+      {showExp && (
+        <div
+          onClick={() => setShowExp(false)}
+          style={{
+            position: 'fixed', inset: 0,
+            background: 'rgba(0,0,0,0.6)',
+            zIndex: 9999,
+            display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+          }}>
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: M.lessonBg,
+              borderRadius: '22px 22px 0 0',
+              padding: '0 0 32px',
+              width: '100%', maxWidth: 640,
+              maxHeight: '85vh',
+              display: 'flex', flexDirection: 'column',
+              boxShadow: '0 -12px 48px rgba(0,0,0,0.25)',
+              animation: 'slideUp 0.28s cubic-bezier(0.32,0.72,0,1) both',
+            }}>
+            {/* Handle */}
+            <div style={{ padding: '14px 0 10px', display: 'flex', justifyContent: 'center', flexShrink: 0 }}>
+              <div style={{ width: 36, height: 4, borderRadius: 2, background: M.progressTrack }} />
+            </div>
+            {/* Header */}
+            <div style={{ padding: '0 20px 14px', flexShrink: 0, borderBottom: `1px solid ${M.progressTrack}` }}>
+              <div style={{ fontSize: 10, fontWeight: 900, color: accent, textTransform: 'uppercase', letterSpacing: 1.4, marginBottom: 4, fontFamily: 'Nunito, sans-serif' }}>
+                Step-by-step explanation
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: M.textPrimary, fontFamily: 'Nunito, sans-serif', lineHeight: 1.5 }}>
+                <MathText text={bite.question_text || bite.title || ''} />
+              </div>
+            </div>
+            {/* Scrollable body */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
+              <BoardExplanation text={expText} accent={accent} M={M} />
+            </div>
+            {/* Close */}
+            <div style={{ padding: '12px 20px 0', flexShrink: 0 }}>
+              <button
+                onClick={() => setShowExp(false)}
+                style={{
+                  width: '100%', padding: '14px',
+                  borderRadius: 14, border: 'none',
+                  background: accent, color: '#fff',
+                  fontSize: 16, fontWeight: 900,
+                  cursor: 'pointer', fontFamily: 'Nunito, sans-serif',
+                }}>
+                Got it ✓
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -1030,53 +1271,60 @@ export default function LessonPlayer({ lesson, subtopic, student, nextSubtopicId
   const lessonTitle = subtopic?.title || lesson?.title || ''
   const entryPitch = (() => {
     const t = lessonTitle.toLowerCase()
-    if (t.includes('introduc')) return `It\'s time to meet something new. Let\'s dive in!`
-    if (t.includes('convert') || t.includes('chang')) return `Time to learn how to convert — this one\'s actually useful in real life.`
-    if (t.includes('formula') || t.includes('rule')) return `There\'s a rule that makes this easy. Let me show you.`
-    if (t.includes('problem') || t.includes('solv')) return `Problem-solving time. You\'ve got this — I promise.`
-    if (t.includes('application') || t.includes('apply')) return `Let\'s see how this maths actually works in the real world.`
-    if (t.includes('proof') || t.includes('theorem')) return `This one will make you feel like a mathematician. Ready?`
-    if (t.includes('simplif') || t.includes('factor')) return `This looks complicated. But once you see the trick — it\'s easy.`
-    if (t.includes('graph') || t.includes('plot')) return `Time to draw — this is where maths gets visual.`
-    return `It\'s time to learn about ${lessonTitle}. Stay with me — this is going to make sense.`
+    if (t.includes('binary')) return `Time to learn how computers count. It's simpler than it looks.`
+    if (t.includes('introduc')) return `Something new is coming. Stay with me — it'll click.`
+    if (t.includes('addition') || t.includes('subtraction')) return `Let's work through this together, step by step.`
+    if (t.includes('convert') || t.includes('chang')) return `Time to learn how to convert. This one's actually useful.`
+    if (t.includes('formula') || t.includes('rule')) return `There's a rule that makes this easy. I'll show you.`
+    if (t.includes('interest') || t.includes('percentage')) return `This is how money grows. Pay attention — it matters.`
+    if (t.includes('probab')) return `Let's talk about chance. More useful than you think.`
+    if (t.includes('algebra') || t.includes('equation')) return `We're solving for the unknown. Let's find it together.`
+    if (t.includes('proof') || t.includes('theorem')) return `This one will make you feel like a real mathematician.`
+    if (t.includes('simplif') || t.includes('factor')) return `This looks complex — but the trick makes it easy.`
+    if (t.includes('graph') || t.includes('plot')) return `This is where maths gets visual. Let's draw it out.`
+    if (t.includes('fraction') || t.includes('ratio')) return `Fractions are everywhere in real life. Let's break this down.`
+    if (t.includes('trigon') || t.includes('sine') || t.includes('cosine')) return `Triangles have secrets. Let's find them.`
+    if (t.includes('statistic') || t.includes('data') || t.includes('mean')) return `Numbers tell stories. Let's read this one.`
+    return `It's time to learn about ${lessonTitle}. Let's take it one step at a time.`
   })()
 
   const entryCTA = isBlaze ? "⚡ LET'S GO!" : isRoots ? '🇳🇬 Let\'s Go!' : isSpark ? '✨ I\'m ready!' : "Let's go →"
 
   const EntryScreen = (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '32px 24px', animation: 'slideUp 0.35s ease' }}>
-      {/* Top: mascot + speech bubble */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ animation: 'float 3s ease-in-out infinite', marginBottom: 20 }}>
-          <BicPencil pose="celebrate" size={100} />
-        </div>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '28px 24px 24px', animation: 'slideUp 0.35s ease' }}>
 
-        {/* Speech bubble */}
+      {/* TOPIC — at the very top, large and anchoring */}
+      <div style={{ flexShrink: 0, marginBottom: 24, animation: 'revealUp 0.35s ease both' }}>
+        <div style={{ fontSize: 10, fontWeight: 900, color: accent, textTransform: 'uppercase', letterSpacing: 1.5, fontFamily: 'Nunito, sans-serif', marginBottom: 6, textAlign: 'center', opacity: 0.8 }}>
+          Today's lesson
+        </div>
+        <div style={{ fontSize: 26, fontWeight: 900, color: M.textPrimary, lineHeight: 1.15, fontFamily: M.headingFont, textAlign: 'center' }}>
+          {lessonTitle}
+        </div>
+      </div>
+
+      {/* MASCOT + SPEECH BUBBLE — mascot speaks naturally about the lesson */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ animation: 'float 3s ease-in-out infinite', marginBottom: 12 }}>
+          <BicPencil pose="celebrate" size={90} />
+        </div>
         <div style={{
-          background: M.lessonCard, border: `2px solid ${accent}30`,
-          borderRadius: '20px 20px 20px 4px',
-          padding: '18px 22px', marginBottom: 28, maxWidth: 300,
-          boxShadow: `0 8px 28px ${accent}18`,
-          position: 'relative',
+          background: M.lessonCard, border: `1.5px solid ${accent}28`,
+          borderRadius: '4px 18px 18px 18px',
+          padding: '14px 18px', maxWidth: 280,
+          boxShadow: `0 6px 20px ${accent}14`,
+          animation: 'revealUp 0.45s 0.18s ease both',
         }}>
-          {/* Excited opener line */}
-          <div style={{ fontSize: 13, fontWeight: 800, color: accent, marginBottom: 10, fontFamily: 'Nunito, sans-serif', lineHeight: 1.5 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: M.textPrimary, lineHeight: 1.65, fontFamily: 'Nunito, sans-serif' }}>
             {entryPitch}
           </div>
-          {/* The actual topic — big and bold */}
-          <div style={{ fontSize: 22, fontWeight: 900, color: M.textPrimary, lineHeight: 1.2, fontFamily: M.headingFont }}>
-            {lessonTitle}
-          </div>
-          {/* topic breadcrumb removed — not needed on entry */}
         </div>
-
-        {/* step count removed — keep it clean */}
       </div>
 
       {/* CTA at bottom */}
       <button
         onClick={() => setStep(0)}
-        style={{ ...M.primaryBtn, fontSize: 18, padding: '18px 32px', width: '100%', borderRadius: 18, boxShadow: `0 8px 28px ${accent}45` }}>
+        style={{ ...M.primaryBtn, fontSize: 18, padding: '18px 32px', width: '100%', borderRadius: 18, boxShadow: `0 8px 28px ${accent}45`, flexShrink: 0 }}>
         {entryCTA}
       </button>
     </div>
@@ -1193,6 +1441,6 @@ export default function LessonPlayer({ lesson, subtopic, student, nextSubtopicId
         mode={mode}
       />
     </div>
-
   )
+
 }

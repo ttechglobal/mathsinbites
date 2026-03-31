@@ -11,6 +11,86 @@ import ModePicker from '@/components/ModePicker'
 import ProfileSwitcher from '@/components/ProfileSwitcher'
 import WelcomeScreen from '@/components/WelcomeScreen'
 import SubjectSwitcher from '@/components/learn/SubjectSwitcher'
+import PuzzleMode from '@/components/learn/PuzzleMode'
+
+// ── SVG icons for tabs — replaces all emoji in navigation ────────────────────
+function TabIcon({ id, size = 20, color = "currentColor" }) {
+  const s = { width: size, height: size, display: "block" }
+  if (id === "learn") return (
+    <svg style={s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+    </svg>
+  )
+  if (id === "practice") return (
+    <svg style={s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>
+    </svg>
+  )
+  if (id === "challenge") return (
+    <svg style={s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+    </svg>
+  )
+  if (id === "leaderboard") return (
+    <svg style={s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
+      <path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/>
+      <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/>
+      <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>
+    </svg>
+  )
+  if (id === "profile") return (
+    <svg style={s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+    </svg>
+  )
+  if (id === "home") return (
+    <svg style={s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+    </svg>
+  )
+  if (id === "xp") return (
+    <svg style={s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+    </svg>
+  )
+  if (id === "streak") return (
+    <svg style={s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
+    </svg>
+  )
+  if (id === "trophy") return (
+    <svg style={s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
+      <path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/>
+      <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/>
+      <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>
+    </svg>
+  )
+  if (id === "lessons") return (
+    <svg style={s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+      <polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/>
+    </svg>
+  )
+  if (id === "progress") return (
+    <svg style={s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+    </svg>
+  )
+  if (id === "target") return (
+    <svg style={s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>
+    </svg>
+  )
+  if (id === "users") return (
+    <svg style={s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+    </svg>
+  )
+  return null
+}
 
 function MathFloats({ M }) {
   const syms = M?.floatSyms || ['x²', '∑', 'π', '√', '∫', 'θ', '∞', '±', 'Δ']
@@ -446,8 +526,8 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
           <>
             <button onClick={() => setActiveTab('home')}
               style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <div style={{ width: 34, height: 34, borderRadius: isBlaze ? 8 : 12, background: isBlaze ? 'rgba(0,0,0,0.06)' : isNova ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)', border: isBlaze ? '1.5px solid #0d0d0d' : `1.5px solid ${isNova ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.1)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>
-                🏠
+              <div style={{ width: 34, height: 34, borderRadius: isBlaze ? 8 : 12, background: isBlaze ? 'rgba(0,0,0,0.06)' : isNova ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)', border: isBlaze ? '1.5px solid #0d0d0d' : `1.5px solid ${isNova ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.1)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: M.textSecondary }}>
+                <TabIcon id="home" size={16} color="currentColor" />
               </div>
             </button>
             {ModeBtn}
@@ -458,8 +538,8 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
                 <span style={{ fontSize: 8, color: isBlaze ? '#FFD700' : accent, opacity: 0.7 }}>▾</span>
               </button>
             )}
-            <div style={{ background: isBlaze ? '#FFD700' : isNova ? 'rgba(124,58,237,0.2)' : `${accent}14`, border: isBlaze ? '1.5px solid #0d0d0d' : `1.5px solid ${accent}30`, borderRadius: isBlaze ? 8 : 20, padding: '4px 12px', display: 'flex', gap: 4, alignItems: 'center', boxShadow: isBlaze ? '2px 2px 0 #0d0d0d' : 'none' }}>
-              <span style={{ fontSize: 11 }}>⚡</span>
+            <div style={{ background: isBlaze ? '#FFD700' : isNova ? 'rgba(124,58,237,0.2)' : `${accent}14`, border: isBlaze ? '1.5px solid #0d0d0d' : `1.5px solid ${accent}30`, borderRadius: isBlaze ? 8 : 20, padding: '4px 12px', display: 'flex', gap: 5, alignItems: 'center', boxShadow: isBlaze ? '2px 2px 0 #0d0d0d' : 'none' }}>
+              <TabIcon id="xp" size={12} color={isBlaze ? '#0d0d0d' : accent} />
               <span style={{ fontSize: 12, fontWeight: 900, color: isBlaze ? '#0d0d0d' : accent, fontFamily: 'Nunito, sans-serif' }}>{xp.toLocaleString()}</span>
             </div>
             {ProfileBtn}
@@ -471,11 +551,11 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
 
   // ── Bottom Nav ────────────────────────────────────────────────────────────
   const TABS = [
-    { id: 'learn',       icon: '📚', label: 'Learn'     },
-    { id: 'practice',    icon: '✏️', label: 'Practice'  },
-    { id: 'challenge',   icon: '⚡', label: 'Challenge' },
-    { id: 'leaderboard', icon: '🏆', label: 'Leaders'   },
-    { id: 'profile',     icon: '👤', label: 'Profile'   },
+    { id: 'learn',       icon: 'learn',       label: 'Learn'     },
+    { id: 'practice',    icon: 'practice',    label: 'Practice'  },
+    { id: 'challenge',   icon: 'challenge',   label: 'Puzzles'   },
+    { id: 'leaderboard', icon: 'leaderboard', label: 'Leaders'   },
+    { id: 'profile',     icon: 'profile',     label: 'Profile'   },
   ]
 
 
@@ -528,7 +608,9 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
               fontFamily: 'Nunito, sans-serif',
               transition: 'background 0.15s',
             }}>
-            <span style={{ fontSize: 18, lineHeight: 1, flexShrink: 0 }}>{t.icon}</span>
+            <span style={{ lineHeight: 1, flexShrink: 0, color: isActive ? (isBlaze ? '#0d0d0d' : accent) : M.textSecondary }}>
+              <TabIcon id={t.id} size={20} color="currentColor" />
+            </span>
             {isDesktop && (
               <span style={{
                 fontSize: 13, fontWeight: isActive ? 800 : 600,
@@ -581,7 +663,9 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
               border: isActive && isBlaze ? '1.5px solid #0d0d0d' : 'none',
               boxShadow: isActive && isBlaze ? '2px 2px 0 #0d0d0d' : 'none',
             }}>
-              <span style={{ fontSize: isActive ? 18 : 16, lineHeight: 1 }}>{t.icon}</span>
+              <span style={{ color: isActive ? M.navActive : M.navText }}>
+                <TabIcon id={t.id} size={isActive ? 20 : 18} color="currentColor" />
+              </span>
             </div>
             <span style={{
               fontSize: 9, fontWeight: isActive ? 800 : 600,
@@ -746,20 +830,30 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
           </div>
         </div>
 
-        {/* ── Stats row ── */}
-        <div style={{ display: 'flex', gap: 10, marginBottom: 22 }}>
-          {[
-            { emoji: activeFace.emoji, value: activeFace.display, label: `${activeFace.label} Rank`, color: accent, fade: !rankVisible },
-            { emoji: '🔥', value: String(streak || 0), label: 'Streak', color: '#FF9500' },
-            { emoji: '⚡', value: xp.toLocaleString(), label: 'XP', color: accent },
-          ].map((s, i) => (
-            <div key={i} onClick={i === 0 ? () => setActiveTab('leaderboard') : undefined}
-              style={{ flex: 1, textAlign: 'center', padding: '12px 4px', background: isNova ? 'rgba(255,255,255,0.07)' : '#fff', border: isNova ? '1px solid rgba(255,255,255,0.1)' : `1.5px solid ${s.color}18`, borderRadius: isBlaze ? 10 : 16, boxShadow: isBlaze ? '2px 2px 0 #0d0d0d' : '0 2px 12px rgba(0,0,0,0.05)', cursor: i === 2 ? 'pointer' : 'default', opacity: s.fade ? 0 : 1, transition: 'opacity 0.5s ease' }}>
-              <div style={{ fontSize: 16, marginBottom: 3 }}>{s.emoji}</div>
-              <div style={{ fontSize: 16, fontWeight: 900, color: isNova ? '#F8F7FF' : s.color, fontFamily: 'Nunito, sans-serif', lineHeight: 1 }}>{s.value}</div>
-              <div style={{ fontSize: 8, fontWeight: 700, color: bodyColor, textTransform: 'uppercase', letterSpacing: 0.6, fontFamily: 'Nunito, sans-serif', marginTop: 3 }}>{s.label}</div>
-            </div>
-          ))}
+        {/* ── Stats bar — clean, no boxes, just numbers inline ── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 20, paddingLeft: 2 }}>
+          {/* XP */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <TabIcon id="xp" size={14} color={accent} />
+            <span style={{ fontSize: 18, fontWeight: 900, color: isNova ? '#F8F7FF' : accent, fontFamily: 'Nunito, sans-serif', lineHeight: 1 }}>{xp.toLocaleString()}</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: bodyColor, textTransform: 'uppercase', letterSpacing: 0.5, fontFamily: 'Nunito, sans-serif' }}>XP</span>
+          </div>
+          <div style={{ width: 1, height: 16, background: isNova ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)' }} />
+          {/* Rank */}
+          <div
+            onClick={() => setActiveTab('leaderboard')}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', opacity: rankVisible ? 1 : 0, transition: 'opacity 0.4s' }}>
+            <TabIcon id="trophy" size={14} color={accent} />
+            <span style={{ fontSize: 18, fontWeight: 900, color: isNova ? '#F8F7FF' : accent, fontFamily: 'Nunito, sans-serif', lineHeight: 1 }}>{activeFace.display}</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: bodyColor, textTransform: 'uppercase', letterSpacing: 0.5, fontFamily: 'Nunito, sans-serif' }}>{activeFace.label}</span>
+          </div>
+          <div style={{ width: 1, height: 16, background: isNova ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)' }} />
+          {/* Progress */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <TabIcon id="progress" size={14} color={accent} />
+            <span style={{ fontSize: 18, fontWeight: 900, color: isNova ? '#F8F7FF' : accent, fontFamily: 'Nunito, sans-serif', lineHeight: 1 }}>{overallPct}%</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: bodyColor, textTransform: 'uppercase', letterSpacing: 0.5, fontFamily: 'Nunito, sans-serif' }}>Done</span>
+          </div>
         </div>
 
         {/* ── Subject switcher card (SS only) — contains next lesson + continue ── */}
@@ -784,30 +878,32 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
 
         {/* Continue Learning is now inside SubjectSwitcher for all student types */}
 
-        {/* ── Quick actions ── */}
-        <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-          <button onClick={() => setActiveTab('challenge')}
-            style={{ flex: 1, padding: '14px 10px', cursor: 'pointer', textAlign: 'center', background: 'rgba(255,196,0,0.1)', border: '1.5px solid rgba(255,196,0,0.35)', borderRadius: isBlaze ? 10 : 16, fontFamily: 'Nunito, sans-serif', position: 'relative' }}>
-            <div style={{ fontSize: 22, marginBottom: 4 }}>⚡</div>
-            <div style={{ fontSize: 11, fontWeight: 800, color: '#A06000', fontFamily: 'Nunito, sans-serif' }}>120s of Fame</div>
-          </button>
-          <button onClick={() => setActiveTab('practice')}
-            style={{ flex: 1, padding: '14px 10px', cursor: 'pointer', textAlign: 'center', background: isNova ? 'rgba(255,255,255,0.06)' : `${accent}08`, border: isNova ? '1px solid rgba(255,255,255,0.1)' : `1.5px solid ${accent}25`, borderRadius: isBlaze ? 10 : 16, fontFamily: 'Nunito, sans-serif' }}>
-            <div style={{ fontSize: 22, marginBottom: 4 }}>✏️</div>
-            <div style={{ fontSize: 12, fontWeight: 800, color: accent, fontFamily: 'Nunito, sans-serif' }}>Practice</div>
-          </button>
-          <button onClick={() => setActiveTab('leaderboard')}
-            style={{ flex: 1, padding: '14px 10px', cursor: 'pointer', textAlign: 'center', background: isNova ? 'rgba(255,255,255,0.06)' : 'rgba(255,196,0,0.06)', border: '1.5px solid rgba(255,196,0,0.2)', borderRadius: isBlaze ? 10 : 16, fontFamily: 'Nunito, sans-serif' }}>
-            <div style={{ fontSize: 22, marginBottom: 4 }}>👑</div>
-            <div style={{ fontSize: 12, fontWeight: 800, color: '#A06000', fontFamily: 'Nunito, sans-serif' }}>Rankings</div>
-          </button>
+        {/* ── Quick actions — minimal pill row ── */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+          {[
+            { iconId: 'challenge', label: 'Puzzles',    tab: 'challenge',   color: '#CC8800' },
+            { iconId: 'practice',  label: 'Practice',    tab: 'practice',    color: accent    },
+            { iconId: 'trophy',    label: 'Rankings',    tab: 'leaderboard', color: accent    },
+          ].map(a => (
+            <button key={a.tab} onClick={() => setActiveTab(a.tab)} style={{
+              flex: 1, padding: '10px 6px',
+              background: 'transparent',
+              border: `1.5px solid ${isNova ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.08)'}`,
+              borderRadius: isBlaze ? 8 : 12,
+              cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
+              fontFamily: 'Nunito, sans-serif', transition: 'opacity 0.15s',
+            }}>
+              <TabIcon id={a.iconId} size={18} color={a.color} />
+              <span style={{ fontSize: 10, fontWeight: 800, color: isNova ? 'rgba(255,255,255,0.55)' : bodyColor }}>{a.label}</span>
+            </button>
+          ))}
         </div>
 
         {/* ── Profile switcher shortcut (if multiple profiles) ── */}
         {allStudents.length > 1 && (
           <button onClick={() => setShowSwitcher(true)}
-            style={{ width: '100%', padding: '13px', cursor: 'pointer', background: 'transparent', border: `1.5px solid ${accent}30`, borderRadius: isBlaze ? 8 : 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, fontFamily: 'Nunito, sans-serif', color: accent, fontSize: 13, fontWeight: 800 }}>
-            <span style={{ fontSize: 18 }}>👥</span>
+            style={{ width: '100%', padding: '11px', cursor: 'pointer', background: 'transparent', border: `1px solid ${accent}25`, borderRadius: isBlaze ? 8 : 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: 'Nunito, sans-serif', color: accent, fontSize: 12, fontWeight: 800 }}>
+            <TabIcon id="users" size={15} color={accent} />
             Switch Profile
           </button>
         )}
@@ -945,14 +1041,26 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
 
             // ── TOPIC CHAPTER CARD ──
             if (item.kind === 'topic') {
-              if (isExamMode) return null  // exam mode: no topic dividers, pure flat path
+              if (isExamMode) return null
               const { topic, tAccent, doneCount, allDone } = item
               return (
-                <div key={`topic-${topic.id}`} ref={el => { topicNodeRefs.current[topic.title] = el }} style={{ padding: '0 18px', marginTop: 28, marginBottom: 20, position: 'relative', zIndex: 2 }}>
-                  <div style={{ padding: '11px 16px', background: isNova ? 'rgba(255,255,255,0.07)' : '#fff', borderRadius: isBlaze ? 10 : 16, border: allDone ? `2px solid ${M.correctColor}55` : `2px solid ${tAccent}32`, boxShadow: allDone ? `0 3px 12px ${M.correctColor}14` : '0 3px 12px rgba(0,0,0,0.06)', textAlign: 'center' }}>
-                    <div style={{ fontSize: 13, fontWeight: 900, color: isNova ? '#F8F7FF' : M.textPrimary, fontFamily: 'Nunito, sans-serif', lineHeight: 1.2, marginBottom: 3 }}>{topic.title}</div>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: allDone ? M.correctColor : bodyColor, fontFamily: 'Nunito, sans-serif' }}>{allDone ? '✓ All lessons done' : `${doneCount} of ${topic.subtopics?.length || 0} lessons completed`}</div>
+                <div key={`topic-${topic.id}`} ref={el => { topicNodeRefs.current[topic.title] = el }}
+                  style={{ padding: '0 24px', marginTop: 32, marginBottom: 18, position: 'relative', zIndex: 2 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ flex: 1, height: 1.5, background: allDone ? `${M.correctColor}50` : `${tAccent}30`, borderRadius: 1 }} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                      {allDone && <span style={{ fontSize: 11, color: M.correctColor, fontWeight: 900 }}>✓</span>}
+                      <span style={{ fontSize: 12, fontWeight: 900, color: allDone ? M.correctColor : isNova ? 'rgba(255,255,255,0.55)' : bodyColor, fontFamily: 'Nunito, sans-serif', letterSpacing: 0.3, textTransform: 'uppercase' }}>
+                        {topic.title}
+                      </span>
+                    </div>
+                    <div style={{ flex: 1, height: 1.5, background: allDone ? `${M.correctColor}50` : `${tAccent}30`, borderRadius: 1 }} />
                   </div>
+                  {!allDone && (
+                    <div style={{ textAlign: 'center', marginTop: 4, fontSize: 10, color: bodyColor, fontFamily: 'Nunito, sans-serif', fontWeight: 600, opacity: 0.7 }}>
+                      {doneCount} of {topic.subtopics?.length || 0} done
+                    </div>
+                  )}
                 </div>
               )
             }
@@ -1283,19 +1391,13 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
   // ══════════════════════════════════════════════════════════════════════════
   // CHALLENGE TAB — Daily Challenge
   const ChallengeTab = (
-    <div style={{ height: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 20px 120px', maxWidth: 520, margin: '0 auto', textAlign: 'center' }}>
-      <div style={{ animation: 'float 2.5s ease-in-out infinite', marginBottom: 16, filter: `drop-shadow(0 8px 28px ${accent}55)` }}>
-        <BicPencil pose="celebrate" size={110} />
-      </div>
-      <div style={{ fontFamily: M.headingFont, fontSize: 28, fontWeight: 900, color: M.textPrimary, marginBottom: 4, lineHeight: 1.1 }}>⚡ Daily</div>
-      <div style={{ fontFamily: M.headingFont, fontSize: 18, fontWeight: 700, color: accent, marginBottom: 18, letterSpacing: 0.5 }}>Challenge</div>
-      <div style={{ fontSize: 13, color: bodyColor, fontWeight: 600, lineHeight: 1.7, maxWidth: 280, marginBottom: 28 }}>
-        One new question every day. Type your answer, use hints, earn 15 XP if you crack it!
-      </div>
-      <button onClick={() => router.push('/learn/challenge')}
-        style={{ ...M.primaryBtn, fontSize: 17, padding: '16px 56px', borderRadius: isBlaze ? 10 : 22, boxShadow: isBlaze ? '4px 4px 0 #0d0d0d' : `0 10px 32px ${accent}55`, animation: 'pulse-glow 2.5s ease-in-out infinite' }}>
-        {isRoots ? '🇳🇬 Take Challenge!' : "Today's Challenge →"}
-      </button>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <PuzzleMode
+        questions={[]}
+        topicTitle={nextLesson?.topicTitle || allSubtopics[0]?.topicTitle || 'Maths Puzzle'}
+        student={student}
+        onComplete={(pts) => setActiveTab('home')}
+      />
     </div>
   )
 
@@ -1305,16 +1407,18 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
   // LEADERBOARD TAB
   // ══════════════════════════════════════════════════════════════════════════
   const LB_TABS = [
-    { id: 'class',   label: student?.class_level || 'My Class', icon: '🎓' },
-    { id: 'school',  label: 'My School',                        icon: '🏫' },
-    { id: 'overall', label: 'Overall',                          icon: '🌍' },
+    { id: 'class',   label: student?.class_level || 'My Class', icon: 'class'   },
+    { id: 'school',  label: 'My School',                        icon: 'school'  },
+    { id: 'overall', label: 'Overall',                          icon: 'overall' },
   ]
 
   const LeaderboardTab = (
     <div style={{ padding: '20px 18px 120px', maxWidth: 520, margin: '0 auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
         <div>
-          <h2 style={{ fontFamily: M.headingFont, fontSize: 22, fontWeight: 800, color: M.textPrimary, marginBottom: 2 }}>👑 Leaderboard</h2>
+          <h2 style={{ fontFamily: M.headingFont, fontSize: 22, fontWeight: 800, color: M.textPrimary, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <TabIcon id="trophy" size={22} color={accent} /> Leaderboard
+          </h2>
           <p style={{ fontSize: 11, color: bodyColor, fontFamily: 'Nunito, sans-serif', fontWeight: 500 }}>{getMonthLabel()} · resets monthly</p>
         </div>
         <div style={{ background: isBlaze ? '#FFD700' : isNova ? 'rgba(124,58,237,0.15)' : `${accent}12`, border: isBlaze ? '2px solid #0d0d0d' : `1px solid ${accent}30`, borderRadius: isBlaze ? 8 : 20, padding: '6px 14px', textAlign: 'center' }}>
@@ -1347,7 +1451,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
           </div>
         ) : leaderboard.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '48px 20px' }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>🏆</div>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12, opacity: 0.4 }}><TabIcon id="trophy" size={40} color={accent} /></div>
             <p style={{ fontWeight: 800, color: M.textPrimary, fontSize: 15, fontFamily: 'Nunito, sans-serif' }}>No rankings yet</p>
             <p style={{ fontSize: 12, marginTop: 4, color: bodyColor, fontFamily: 'Nunito, sans-serif', fontWeight: 500 }}>Complete lessons to appear here!</p>
           </div>
@@ -1356,8 +1460,14 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
           const xpVal = entry.monthly_xp || 0
           return (
             <div key={entry.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 16px', background: isMe ? (isNova ? 'rgba(124,58,237,0.12)' : `${accent}08`) : 'transparent', borderLeft: `3px solid ${isMe ? accent : 'transparent'}`, borderBottom: `1px solid ${isNova ? 'rgba(255,255,255,0.05)' : '#f2f2f2'}` }}>
-              <div style={{ width: 28, textAlign: 'center', fontWeight: 900, fontSize: 16 }}>
-                {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : <span style={{ fontSize: 12, fontWeight: 700, color: M.textSecondary }}>#{idx + 1}</span>}
+              <div style={{ width: 28, textAlign: 'center', fontWeight: 900, fontSize: 13 }}>
+                {idx === 0
+                  ? <span style={{ display: 'inline-block', width: 24, height: 24, borderRadius: '50%', background: '#FFD700', border: '2px solid #B8860B', color: '#7A5800', fontSize: 11, fontWeight: 900, lineHeight: '22px', textAlign: 'center' }}>1</span>
+                  : idx === 1
+                  ? <span style={{ display: 'inline-block', width: 24, height: 24, borderRadius: '50%', background: '#C0C0C0', border: '2px solid #888', color: '#444', fontSize: 11, fontWeight: 900, lineHeight: '22px', textAlign: 'center' }}>2</span>
+                  : idx === 2
+                  ? <span style={{ display: 'inline-block', width: 24, height: 24, borderRadius: '50%', background: '#CD7F32', border: '2px solid #8B4513', color: '#fff', fontSize: 11, fontWeight: 900, lineHeight: '22px', textAlign: 'center' }}>3</span>
+                  : <span style={{ fontSize: 12, fontWeight: 700, color: M.textSecondary }}>#{idx + 1}</span>}
               </div>
               <div style={{ width: 36, height: 36, borderRadius: '50%', background: `${accent}22`, border: `1.5px solid ${accent}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 14, color: accent, flexShrink: 0 }}>
                 {entry.display_name?.[0]?.toUpperCase()}
@@ -1574,13 +1684,15 @@ const RightPanel = isDesktop ? (
         {/* Stats */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           {[
-            { label: 'XP', value: xp.toLocaleString(), icon: '⚡' },
-            { label: 'Streak', value: `${streak}d`, icon: '🔥' },
-            { label: 'Lessons', value: doneLessons, icon: '📚' },
-            { label: 'Progress', value: `${overallPct}%`, icon: '🎯' },
+            { label: 'XP',       value: xp.toLocaleString(), iconId: 'xp',       color: accent },
+            { label: 'Streak',   value: `${streak}d`,         iconId: 'streak',   color: '#FF9500' },
+            { label: 'Lessons',  value: doneLessons,           iconId: 'lessons',  color: accent },
+            { label: 'Progress', value: `${overallPct}%`,      iconId: 'progress', color: accent },
           ].map(s => (
             <div key={s.label} style={{ textAlign: 'center', padding: '10px 6px', background: isNova ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.6)', borderRadius: isBlaze ? 6 : 12, border: isBlaze ? '1.5px solid rgba(0,0,0,0.15)' : 'none' }}>
-              <div style={{ fontSize: 16, marginBottom: 2 }}>{s.icon}</div>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 4, color: isBlaze ? '#0d0d0d' : s.color }}>
+                <TabIcon id={s.iconId} size={17} color="currentColor" />
+              </div>
               <div style={{ fontSize: 15, fontWeight: 900, color: isBlaze ? '#0d0d0d' : accent, fontFamily: 'Nunito, sans-serif' }}>{s.value}</div>
               <div style={{ fontSize: 9, fontWeight: 700, color: bodyColor, textTransform: 'uppercase', letterSpacing: 0.5, fontFamily: 'Nunito, sans-serif' }}>{s.label}</div>
             </div>
@@ -1628,9 +1740,9 @@ const RightPanel = isDesktop ? (
         <div style={{ fontSize: 11, fontWeight: 800, color: M.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, fontFamily: 'Nunito, sans-serif', marginBottom: 10 }}>Quick Actions</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {[
-            { icon: '✏️', label: 'Practice Questions', tab: 'practice', color: accent },
-            { icon: '⚡', label: 'Daily Challenge', tab: 'challenge', color: '#FF9500' },
-            { icon: '🏆', label: 'Leaderboard', tab: 'leaderboard', color: '#FFD700' },
+            { iconId: 'practice',    label: 'Practice Questions', tab: 'practice',    color: accent },
+            { iconId: 'challenge',   label: 'Daily Challenge',    tab: 'challenge',   color: '#FF9500' },
+            { iconId: 'leaderboard', label: 'Leaderboard',        tab: 'leaderboard', color: '#FFD700' },
           ].map(a => (
             <button key={a.tab} onClick={() => setActiveTab(a.tab)}
               style={{
@@ -1641,7 +1753,7 @@ const RightPanel = isDesktop ? (
                 borderRadius: isBlaze ? 8 : 12,
                 fontFamily: 'Nunito, sans-serif',
               }}>
-              <span style={{ fontSize: 16 }}>{a.icon}</span>
+              <span style={{ color: a.color }}><TabIcon id={a.iconId} size={16} color={a.color} /></span>
               <span style={{ fontSize: 12, fontWeight: 700, color: M.textPrimary }}>{a.label}</span>
             </button>
           ))}
@@ -1658,7 +1770,7 @@ const RightPanel = isDesktop ? (
             borderRadius: isBlaze ? 8 : 12, fontFamily: 'Nunito, sans-serif',
             color: accent, fontSize: 12, fontWeight: 800,
           }}>
-          <span style={{ fontSize: 16 }}>👥</span> Switch Profile
+          <TabIcon id="users" size={16} color={accent} /> Switch Profile
         </button>
       )}
     </div>
