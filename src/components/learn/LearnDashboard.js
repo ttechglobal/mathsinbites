@@ -177,7 +177,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
       if (!initialStudent?.id) return
       const [prog, stud] = await Promise.all([
         supabase.from('student_progress').select('*').eq('student_id', initialStudent.id),
-        supabase.from('students').select('xp, monthly_xp, streak_days, fm_xp, fm_monthly_xp, subjects, active_subject').eq('id', initialStudent.id).single(),
+        supabase.from('students').select('xp, monthly_xp, streak_days, fm_xp, fm_monthly_xp, subjects, active_subject, learning_mode, exam_type, exam_subject').eq('id', initialStudent.id).single(),
       ])
       if (prog.data) setProgressData(prog.data)
       if (stud.data) setStudent(s => ({ ...s, ...stud.data }))
@@ -234,21 +234,72 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
   // ── Computed ──────────────────────────────────────────────────────────────
   const completedIds = new Set(progressData.filter(p => p.status === 'completed').map(p => p.subtopic_id))
   const isFM      = activeSubject === 'further_maths'
+  const isExamMode = student?.learning_mode === 'exam'
 
   // Re-fetch level curriculum when subject or class changes
-  // useRef guard prevents re-fetching the same code twice
+  // In exam mode: merge SS1+SS2+SS3 into one synthetic level
+  // Exam mode: load all subtopics across SS1+SS2+SS3 as one flat path
+  const [examSubtopics, setExamSubtopics] = useState([])
+  useEffect(() => {
+    if (!isExamMode) { setExamSubtopics([]); return }
+    const examSubject = isFM ? 'further_maths' : 'maths'
+    const ssCodes = isFM ? ['FM_SS1','FM_SS2','FM_SS3'] : ['SS1','SS2','SS3']
+    async function loadExamPath() {
+      const { data: levels } = await supabase
+        .from('levels').select('id, code').in('code', ssCodes)
+      if (!levels?.length) return
+      const levelIds = levels.sort((a,b) => a.code.localeCompare(b.code)).map(l => l.id)
+      const allSubs = []
+      for (const lid of levelIds) {
+        const { data: terms } = await supabase.from('terms').select('id, term_number').eq('level_id', lid).order('term_number')
+        for (const t of terms || []) {
+          const { data: units } = await supabase.from('units').select('id, order_index').eq('term_id', t.id).order('order_index')
+          for (const u of units || []) {
+            const { data: topics } = await supabase.from('topics').select('id, title, order_index').eq('unit_id', u.id).order('order_index')
+            for (const tp of topics || []) {
+              const { data: subs } = await supabase.from('subtopics').select('id, title, order_index, is_published').eq('topic_id', tp.id).order('order_index')
+              for (const s of subs || []) allSubs.push({ ...s, topicTitle: tp.title })
+            }
+          }
+        }
+      }
+      setExamSubtopics(allSubs)
+    }
+    loadExamPath()
+  }, [isExamMode, isFM])
+
   const lastLevelCode = useRef(null)
   useEffect(() => {
+    const isEM = student?.learning_mode === 'exam'
     const code = isFM ? `FM_${student?.class_level}` : student?.class_level
-    if (!code || code === lastLevelCode.current) return
-    lastLevelCode.current = code
-    supabase
-      .from('levels')
-      .select('*, terms(*, units(*, topics(*, subtopics(*))))')
-      .eq('code', code)
-      .maybeSingle()
-      .then(({ data }) => setCurrentLevel(data || null))
-  }, [isFM, student?.class_level])
+    const cacheKey = isEM ? `exam_${isFM ? 'fm' : 'maths'}` : code
+    if (!cacheKey) return
+    if (cacheKey === lastLevelCode.current) return
+    lastLevelCode.current = cacheKey
+
+    if (isEM) {
+      // Exam mode: fetch SS1+SS2+SS3 and merge into one flat level
+      const codes = isFM ? ['FM_SS1','FM_SS2','FM_SS3'] : ['SS1','SS2','SS3']
+      supabase
+        .from('levels')
+        .select('*, terms(*, units(*, topics(*, subtopics(*))))')
+        .in('code', codes)
+        .then(({ data: levels }) => {
+          if (!levels?.length) { setCurrentLevel(null); return }
+          const merged = { id: 'exam', code: 'EXAM', name: 'Exam Prep',
+            terms: levels.flatMap(l => l.terms || []) }
+          setCurrentLevel(merged)
+        })
+    } else {
+      if (!code) return
+      supabase
+        .from('levels')
+        .select('*, terms(*, units(*, topics(*, subtopics(*))))')
+        .eq('code', code)
+        .maybeSingle()
+        .then(({ data }) => setCurrentLevel(data || null))
+    }
+  }, [isFM, student?.learning_mode, student?.class_level])
   const xp        = isFM ? (student?.fm_xp        || 0) : (student?.xp        || 0)
   const monthlyXp = isFM ? (student?.fm_monthly_xp || 0) : (student?.monthly_xp || 0)
   const streak    = student?.streak_days || 0
@@ -780,9 +831,75 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
         onScroll={handlePathScrollFull}
         style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', position: 'relative', zIndex: 1 }}>
 
-        {/* Path starts immediately — all context lives on Home tab */}
+        {/* Exam mode banner */}
+      {isExamMode && (
+        <div style={{ flexShrink: 0, padding: '10px 16px', background: `${accent}10`, borderBottom: `1px solid ${accent}25`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <span style={{ fontSize: 10, fontWeight: 900, color: accent, textTransform: 'uppercase', letterSpacing: 1, fontFamily: 'Nunito, sans-serif' }}>🎯 {student?.exam_type?.toUpperCase() || 'WAEC'} Exam Prep</span>
+            <span style={{ fontSize: 10, color: bodyColor, fontFamily: 'Nunito, sans-serif', marginLeft: 8 }}>All topics · No term divisions</span>
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: bodyColor, fontFamily: 'Nunito, sans-serif' }}>
+            {completedIds.size} / {allSubtopics.length} done
+          </div>
+        </div>
+      )}
 
-        {!currentLevel?.terms?.length && (
+      {/* Path starts immediately — all context lives on Home tab */}
+
+        {/* ── EXAM PREP PATH ── */}
+        {isExamMode && examSubtopics.length > 0 && (() => {
+          const examDone = examSubtopics.filter(s => completedIds.has(s.id))
+          const firstUndone = examSubtopics.find(s => !completedIds.has(s.id))
+          return (
+            <div style={{ maxWidth: 520, margin: '0 auto', padding: `20px 0 ${isMobile ? 'max(170px, calc(140px + env(safe-area-inset-bottom)))' : '80px'}`, position: 'relative' }}>
+              {/* Starting point picker banner */}
+              {firstUndone && (
+                <div style={{ margin: '0 18px 28px', padding: '14px 16px', background: `${accent}10`, border: `1.5px solid ${accent}28`, borderRadius: isBlaze ? 10 : 18 }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: accent, textTransform: 'uppercase', letterSpacing: 1, fontFamily: 'Nunito, sans-serif', marginBottom: 6 }}>📌 Pick your starting point</div>
+                  <div style={{ fontSize: 12, color: bodyColor, fontFamily: 'Nunito, sans-serif', lineHeight: 1.6, marginBottom: 10 }}>All topics from SS1 to SS3 are below. Tap any lesson to begin from there.</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: bodyColor, fontFamily: 'Nunito, sans-serif' }}>{examDone.length} of {examSubtopics.length} topics completed</div>
+                </div>
+              )}
+              {/* Flat lesson nodes — no term/topic dividers */}
+              {examSubtopics.map((sub, i) => {
+                const isDone    = completedIds.has(sub.id)
+                const isCurrent = !isDone && (i === 0 || completedIds.has(examSubtopics[i-1]?.id))
+                const isLocked  = !isDone && !isCurrent && i > 0 && !completedIds.has(examSubtopics[i-1]?.id)
+                const nodeColor = isDone ? '#22c55e' : isCurrent ? accent : isNova ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)'
+                return (
+                  <div key={sub.id} ref={isCurrent ? currentNodeRef : null}
+                    style={{ display: 'flex', alignItems: 'center', padding: '10px 18px', gap: 14, cursor: isLocked ? 'default' : 'pointer', opacity: isLocked ? 0.45 : 1 }}
+                    onClick={() => !isLocked && router.push(`/learn/lesson/${sub.id}`)}
+                  >
+                    {/* Node circle */}
+                    <div style={{ width: 44, height: 44, borderRadius: '50%', flexShrink: 0, background: isDone ? '#22c55e' : isCurrent ? `linear-gradient(135deg,${accent},${M.accent2||accent})` : (isNova ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.07)'), border: isCurrent ? `3px solid ${accent}` : isDone ? '3px solid #22c55e' : `2px solid ${isNova ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.12)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, boxShadow: isCurrent ? `0 4px 14px ${accent}45` : 'none' }}>
+                      {isDone ? '✓' : isCurrent ? '▶' : isLocked ? '🔒' : String(i + 1)}
+                    </div>
+                    {/* Label */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {i === 0 || sub.topicTitle !== examSubtopics[i-1]?.topicTitle ? (
+                        <div style={{ fontSize: 9, fontWeight: 800, color: accent, textTransform: 'uppercase', letterSpacing: 1, fontFamily: 'Nunito, sans-serif', marginBottom: 2, opacity: 0.7 }}>{sub.topicTitle}</div>
+                      ) : null}
+                      <div style={{ fontSize: 13, fontWeight: isCurrent ? 900 : 700, color: isDone ? M.textSecondary : M.textPrimary, fontFamily: 'Nunito, sans-serif', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub.title}</div>
+                    </div>
+                    {isDone && <span style={{ fontSize: 12, color: '#22c55e', flexShrink: 0 }}>✓</span>}
+                    {isCurrent && <span style={{ fontSize: 10, fontWeight: 800, color: accent, background: `${accent}14`, borderRadius: 20, padding: '3px 10px', flexShrink: 0, fontFamily: 'Nunito, sans-serif' }}>Start here</span>}
+                  </div>
+                )
+              })}
+            </div>
+          )
+        })()}
+
+        {isExamMode && examSubtopics.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '60px 20px', color: bodyColor, fontFamily: 'Nunito, sans-serif' }}>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>⏳</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: M.textPrimary, marginBottom: 6 }}>Loading exam path…</div>
+            <div style={{ fontSize: 13 }}>Gathering all SS1–SS3 topics</div>
+          </div>
+        )}
+
+        {!isExamMode && !currentLevel?.terms?.length && (
           <div style={{ textAlign: 'center', padding: '60px 20px' }}>
             <BicPencil pose="think" size={100} style={{ display: 'inline-block', marginBottom: 18 }} />
             <p style={{ fontWeight: 800, fontSize: 18, color: M.textPrimary, fontFamily: M.headingFont }}>Content coming soon!</p>
@@ -795,8 +912,9 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
 
           {pathItems.map((item, idx) => {
 
-            // ── TERM WORLD BANNER ──
+            // ── TERM WORLD BANNER (hidden in exam mode) ──
             if (item.kind === 'term') {
+              if (isExamMode) return null
               const { term, termIdx, tAccent, termProg, termDone, termSubs } = item
               const pct   = termSubs.length > 0 ? Math.round((termProg / termSubs.length) * 100) : 0
               const icons = ['🌱', '🔥', '⭐', '💎', '🚀']
@@ -827,6 +945,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
 
             // ── TOPIC CHAPTER CARD ──
             if (item.kind === 'topic') {
+              if (isExamMode) return null  // exam mode: no topic dividers, pure flat path
               const { topic, tAccent, doneCount, allDone } = item
               return (
                 <div key={`topic-${topic.id}`} ref={el => { topicNodeRefs.current[topic.title] = el }} style={{ padding: '0 18px', marginTop: 28, marginBottom: 20, position: 'relative', zIndex: 2 }}>

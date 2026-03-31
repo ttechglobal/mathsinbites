@@ -764,6 +764,7 @@ ${STUDENT_CONTEXTS}`
       title:       bitesData.lesson_title || title,
       summary:     `Learn about ${title} step by step.`,
       subject:     subject,
+      class_level: level,  // enables class-filtered guest queries
       ...(withHook && bitesData.hook ? { hook: bitesData.hook } : {}),
     }
     const { data: lesson, error } = await supabase
