@@ -868,13 +868,12 @@ function BitePattern({ bite, accent, M, onNext, onBack, isFirst }) {
 function BoardExplanation({ text, accent, M }) {
   if (!text) return null
   const raw = text.trim()
-  // Split on newlines first, then sentence boundaries
   const lines = raw.includes('\n')
     ? raw.split('\n').map(l => l.trim()).filter(Boolean)
     : raw.replace(/([.!?])\s+(?=[A-Z])/g, '$1\n').split('\n').map(l => l.trim()).filter(Boolean)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       {lines.map((line, i) => {
         const isAnswer  = /^(answer|solution|∴|therefore|hence|so[,:])/i.test(line)
         const isMath    = /=/.test(line) && !/^[A-Z][a-z]{2,}.*[^=]$/.test(line)
@@ -882,33 +881,33 @@ function BoardExplanation({ text, accent, M }) {
         const stepMatch = line.match(/^(\d+[.)]\s*|[a-z][.)]\s*)(.*)/i)
 
         if (isAnswer) return (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, padding: '10px 14px', background: `${accent}10`, borderRadius: 10, borderLeft: `3px solid ${accent}` }}>
-            <span style={{ fontSize: 10, fontWeight: 900, color: accent, textTransform: 'uppercase', letterSpacing: 1, fontFamily: 'Nunito, sans-serif', flexShrink: 0 }}>Answer</span>
-            <span style={{ fontFamily: "'Courier New', monospace", fontSize: 18, fontWeight: 900, color: accent }}>
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 16, padding: '16px 20px', background: `${accent}10`, borderRadius: 14, borderLeft: `4px solid ${accent}` }}>
+            <span style={{ fontSize: 11, fontWeight: 900, color: accent, textTransform: 'uppercase', letterSpacing: 1.2, fontFamily: 'Nunito, sans-serif', flexShrink: 0 }}>Answer</span>
+            <span style={{ fontFamily: "'Courier New', monospace", fontSize: 22, fontWeight: 900, color: accent }}>
               <MathText text={line.replace(/^(answer|solution)[:\s]*/i, '')} />
             </span>
           </div>
         )
 
         if (isStep && stepMatch) return (
-          <div key={i} style={{ display: 'flex', gap: 10, padding: '8px 0', borderBottom: `1px solid ${M.progressTrack}` }}>
-            <div style={{ width: 24, height: 24, borderRadius: '50%', flexShrink: 0, background: `${accent}14`, border: `1.5px solid ${accent}35`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 900, color: accent, fontFamily: 'Nunito, sans-serif', marginTop: 1 }}>
+          <div key={i} style={{ display: 'flex', gap: 14, padding: '12px 0', borderBottom: `1px solid ${M.progressTrack}` }}>
+            <div style={{ width: 30, height: 30, borderRadius: '50%', flexShrink: 0, background: `${accent}14`, border: `2px solid ${accent}35`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900, color: accent, fontFamily: 'Nunito, sans-serif', marginTop: 2 }}>
               {stepMatch[1].replace(/[.)]/g, '').trim()}
             </div>
-            <div style={{ flex: 1, fontSize: 15, fontWeight: 600, color: M.textPrimary, fontFamily: isMath ? "'Courier New', monospace" : 'Nunito, sans-serif', lineHeight: 1.7 }}>
+            <div style={{ flex: 1, fontSize: 17, fontWeight: 600, color: M.textPrimary, fontFamily: isMath ? "'Courier New', monospace" : 'Nunito, sans-serif', lineHeight: 1.75 }}>
               <MathText text={stepMatch[2]} />
             </div>
           </div>
         )
 
         if (isMath) return (
-          <div key={i} style={{ fontFamily: "'Courier New', monospace", fontSize: 17, fontWeight: 700, color: M.textPrimary, lineHeight: 2.1, paddingLeft: 4, letterSpacing: 0.2 }}>
+          <div key={i} style={{ fontFamily: "'Courier New', monospace", fontSize: 20, fontWeight: 700, color: M.textPrimary, lineHeight: 2.2, paddingLeft: 6, letterSpacing: 0.3 }}>
             <MathText text={line} />
           </div>
         )
 
         return (
-          <div key={i} style={{ fontSize: 14, fontWeight: 600, fontStyle: 'italic', color: M.textSecondary, lineHeight: 1.65, fontFamily: 'Nunito, sans-serif', paddingLeft: 2 }}>
+          <div key={i} style={{ fontSize: 16, fontWeight: 600, fontStyle: 'italic', color: M.textSecondary, lineHeight: 1.75, fontFamily: 'Nunito, sans-serif', paddingLeft: 4, marginTop: 2 }}>
             {line}
           </div>
         )
@@ -1023,7 +1022,7 @@ function BitePractice({ bite, accent, M, onNext, onBack, isFirst, onCorrect, sup
           onClick={() => setShowExp(false)}
           style={{
             position: 'fixed', inset: 0,
-            background: 'rgba(0,0,0,0.6)',
+            background: 'rgba(0,0,0,0.7)',
             zIndex: 9999,
             display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
           }}>
@@ -1031,41 +1030,54 @@ function BitePractice({ bite, accent, M, onNext, onBack, isFirst, onCorrect, sup
             onClick={e => e.stopPropagation()}
             style={{
               background: M.lessonBg,
-              borderRadius: '22px 22px 0 0',
-              padding: '0 0 32px',
+              borderRadius: '32px 32px 0 0',
+              padding: '0 0 48px',
               width: '100%', maxWidth: 640,
-              maxHeight: '85vh',
+              height: '96vh',
               display: 'flex', flexDirection: 'column',
-              boxShadow: '0 -12px 48px rgba(0,0,0,0.25)',
-              animation: 'slideUp 0.28s cubic-bezier(0.32,0.72,0,1) both',
+              boxShadow: '0 -20px 80px rgba(0,0,0,0.35)',
+              animation: 'slideUp 0.32s cubic-bezier(0.32,0.72,0,1) both',
             }}>
             {/* Handle */}
-            <div style={{ padding: '14px 0 10px', display: 'flex', justifyContent: 'center', flexShrink: 0 }}>
-              <div style={{ width: 36, height: 4, borderRadius: 2, background: M.progressTrack }} />
+            <div style={{ padding: '20px 0 14px', display: 'flex', justifyContent: 'center', flexShrink: 0 }}>
+              <div style={{ width: 48, height: 6, borderRadius: 99, background: M.progressTrack }} />
             </div>
             {/* Header */}
-            <div style={{ padding: '0 20px 14px', flexShrink: 0, borderBottom: `1px solid ${M.progressTrack}` }}>
-              <div style={{ fontSize: 10, fontWeight: 900, color: accent, textTransform: 'uppercase', letterSpacing: 1.4, marginBottom: 4, fontFamily: 'Nunito, sans-serif' }}>
-                Step-by-step explanation
+            <div style={{ padding: '0 28px 20px', flexShrink: 0, borderBottom: `2px solid ${M.progressTrack}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                <div style={{ width: 36, height: 36, borderRadius: '50%', background: `${accent}18`, border: `2px solid ${accent}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
+                  💡
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 900, color: accent, textTransform: 'uppercase', letterSpacing: 1.4, fontFamily: 'Nunito, sans-serif' }}>
+                    Step-by-step explanation
+                  </div>
+                  <div style={{ fontSize: 11, color: M.textSecondary, fontFamily: 'Nunito, sans-serif', fontWeight: 600, marginTop: 1 }}>
+                    Here is exactly how to solve this
+                  </div>
+                </div>
               </div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: M.textPrimary, fontFamily: 'Nunito, sans-serif', lineHeight: 1.5 }}>
+              {/* Question repeated */}
+              <div style={{ fontSize: 17, fontWeight: 700, color: M.textPrimary, fontFamily: 'Nunito, sans-serif', lineHeight: 1.65, padding: '14px 18px', background: `${accent}09`, borderRadius: 16, borderLeft: `4px solid ${accent}` }}>
                 <MathText text={bite.question_text || bite.title || ''} />
               </div>
             </div>
             {/* Scrollable body */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '28px 28px 12px' }}>
               <BoardExplanation text={expText} accent={accent} M={M} />
             </div>
             {/* Close */}
-            <div style={{ padding: '12px 20px 0', flexShrink: 0 }}>
+            <div style={{ padding: '20px 28px 0', flexShrink: 0 }}>
               <button
                 onClick={() => setShowExp(false)}
                 style={{
-                  width: '100%', padding: '14px',
-                  borderRadius: 14, border: 'none',
-                  background: accent, color: '#fff',
-                  fontSize: 16, fontWeight: 900,
+                  width: '100%', padding: '18px',
+                  borderRadius: 18, border: 'none',
+                  background: `linear-gradient(135deg, ${accent}, ${accent}CC)`,
+                  color: '#fff', fontSize: 17, fontWeight: 900,
                   cursor: 'pointer', fontFamily: 'Nunito, sans-serif',
+                  boxShadow: `0 6px 24px ${accent}45`,
+                  letterSpacing: 0.3,
                 }}>
                 Got it ✓
               </button>

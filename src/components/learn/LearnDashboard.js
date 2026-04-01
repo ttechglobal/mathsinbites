@@ -797,63 +797,187 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
     return next ? [currentTopic, next] : [currentTopic]
   })()
 
+  // ── Mastery Level System ───────────────────────────────────────────────────
+  // 12 creative levels inspired by anime, RPG, and academic achievement.
+  // XP thresholds are designed to feel achievable: early levels fast,
+  // later levels require sustained dedication across an academic term.
+  const MASTERY_RANKS = [
+    { title: 'Rookie',          minXp: 0,    color: '#94a3b8', icon: '🌱', flavor: 'Every master started here.' },
+    { title: 'Spark',           minXp: 40,   color: '#60a5fa', icon: '✨', flavor: 'The fire is beginning to ignite.' },
+    { title: 'Seeker',          minXp: 100,  color: '#34d399', icon: '🔭', flavor: 'Curiosity unlocks everything.' },
+    { title: 'Cipher',          minXp: 220,  color: '#a78bfa', icon: '🔢', flavor: 'Numbers speak to you now.' },
+    { title: 'Arithmancer',     minXp: 420,  color: '#f472b6', icon: '🪄', flavor: 'You wield maths like magic.' },
+    { title: 'Scholar',         minXp: 700,  color: '#fb923c', icon: '📖', flavor: 'Knowledge is your superpower.' },
+    { title: 'Prodigy',         minXp: 1100, color: '#facc15', icon: '⚡', flavor: 'Your peers look up to you.' },
+    { title: 'Sage',            minXp: 1600, color: '#2dd4bf', icon: '🌀', flavor: 'Calm, precise, unstoppable.' },
+    { title: 'Apex',            minXp: 2400, color: '#f97316', icon: '🔥', flavor: 'You operate at another level.' },
+    { title: 'Legend',          minXp: 3400, color: '#c084fc', icon: '👁', flavor: 'Your name echoes in classrooms.' },
+    { title: 'Maths Titan',     minXp: 4800, color: '#e11d48', icon: '⚔️', flavor: 'A force of mathematical nature.' },
+    { title: 'Infinity',        minXp: 7000, color: '#fbbf24', icon: '∞',  flavor: 'Beyond rank. Beyond limits.' },
+  ]
+  const masteryRank  = MASTERY_RANKS.slice().reverse().find(r => xp >= r.minXp) || MASTERY_RANKS[0]
+  const nextRank     = MASTERY_RANKS.find(r => r.minXp > xp)
+  const rankProgress = nextRank
+    ? Math.min(100, Math.round(((xp - masteryRank.minXp) / (nextRank.minXp - masteryRank.minXp)) * 100))
+    : 100
+
+  // ── Rotating bubble slides ─────────────────────────────────────────────────
+  const [bubbleSlide, setBubbleSlide] = useState(0)
+  const [bubbleFade,  setBubbleFade]  = useState(true)
+  const bubbleSlides = [
+    { type: 'greeting' },
+    { type: 'rank'     },
+    { type: 'xp'       },
+    { type: 'progress' },
+  ]
+  useEffect(() => {
+    const t = setInterval(() => {
+      setBubbleFade(false)
+      setTimeout(() => {
+        setBubbleSlide(s => (s + 1) % bubbleSlides.length)
+        setBubbleFade(true)
+      }, 280)
+    }, 3800)
+    return () => clearInterval(t)
+  }, [])
+
+  function BubbleContent() {
+    const slide = bubbleSlides[bubbleSlide]
+    if (slide.type === 'greeting') {
+      return (
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 900, color: accent, marginBottom: 3, textTransform: 'uppercase', letterSpacing: 0.7, fontFamily: 'Nunito, sans-serif' }}>{M.name} says</div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: isNova ? '#F8F7FF' : isBlaze ? '#0d0d0d' : M.textPrimary, fontFamily: 'Nunito, sans-serif', lineHeight: 1.5 }}>{mascotGreeting}</div>
+        </div>
+      )
+    }
+    if (slide.type === 'rank') {
+      return (
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 900, color: masteryRank.color, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.7, fontFamily: 'Nunito, sans-serif' }}>Your Mastery Rank</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <span style={{ fontSize: 24 }}>{masteryRank.icon}</span>
+            <span style={{ fontSize: 18, fontWeight: 900, color: masteryRank.color, fontFamily: 'Nunito, sans-serif' }}>{masteryRank.title}</span>
+          </div>
+          {nextRank && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ fontSize: 10, color: bodyColor, fontFamily: 'Nunito, sans-serif', fontWeight: 700 }}>Next: {nextRank.title}</span>
+                <span style={{ fontSize: 10, color: accent, fontFamily: 'Nunito, sans-serif', fontWeight: 900 }}>{rankProgress}%</span>
+              </div>
+              <div style={{ height: 5, background: 'rgba(0,0,0,0.08)', borderRadius: 99, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: rankProgress + '%', background: 'linear-gradient(90deg,' + masteryRank.color + ',' + (nextRank?.color || accent) + ')', borderRadius: 99, transition: 'width 0.6s ease' }} />
+              </div>
+              <div style={{ fontSize: 10, color: bodyColor, fontFamily: 'Nunito, sans-serif', marginTop: 3, fontWeight: 600 }}>{nextRank.minXp - xp} XP to {nextRank.title}</div>
+            </div>
+          )}
+          {!nextRank && <div style={{ fontSize: 12, color: masteryRank.color, fontFamily: 'Nunito, sans-serif', fontWeight: 800 }}>You have reached the highest rank!</div>}
+        </div>
+      )
+    }
+    if (slide.type === 'xp') {
+      return (
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 900, color: accent, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.7, fontFamily: 'Nunito, sans-serif' }}>Total XP Earned</div>
+          <div style={{ fontSize: 32, fontWeight: 900, color: accent, fontFamily: M.headingFont, lineHeight: 1, marginBottom: 2 }}>{xp.toLocaleString()}</div>
+          <div style={{ fontSize: 12, color: bodyColor, fontFamily: 'Nunito, sans-serif', fontWeight: 700 }}>This month: {monthlyXp.toLocaleString()} XP</div>
+        </div>
+      )
+    }
+    if (slide.type === 'progress') {
+      return (
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 900, color: accent, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.7, fontFamily: 'Nunito, sans-serif' }}>Your Progress</div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 6 }}>
+            <span style={{ fontSize: 32, fontWeight: 900, color: accent, fontFamily: M.headingFont, lineHeight: 1 }}>{overallPct}%</span>
+            <span style={{ fontSize: 12, color: bodyColor, fontFamily: 'Nunito, sans-serif', fontWeight: 700 }}>of {totalLessons} lessons done</span>
+          </div>
+          <div style={{ height: 6, background: 'rgba(0,0,0,0.08)', borderRadius: 99, overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: overallPct + '%', background: 'linear-gradient(90deg,' + accent + ',' + (M.accent2 || accent) + ')', borderRadius: 99, transition: 'width 0.6s ease' }} />
+          </div>
+        </div>
+      )
+    }
+    return null
+  }
+
   const HomeTab = (
     <div style={{ height: '100%', overflowY: 'auto', background: isNova ? '#0F0C29' : M.mapBg || '#F4F5FA', position: 'relative' }}>
       {isNova ? <NovaStars /> : <MathFloats M={M} />}
       <div style={{ maxWidth: isDesktop ? 600 : 520, margin: '0 auto', padding: `24px 18px ${isMobile ? '140px' : '60px'}`, position: 'relative', zIndex: 1 }}>
 
-        {/* ── Mascot greeting ── */}
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14, marginBottom: 22 }}>
+        {/* ── Mascot card — full-width rectangle ── */}
+        <div style={{
+          width: '100%',
+          background: isNova ? 'rgba(124,58,237,0.18)' : isBlaze ? '#FFD700' : `${accent}0E`,
+          border: isBlaze ? '2.5px solid #0d0d0d' : `1.5px solid ${accent}28`,
+          borderRadius: isBlaze ? 14 : 22,
+          padding: '18px 18px 16px',
+          boxShadow: isBlaze ? '4px 4px 0 #0d0d0d' : `0 6px 28px ${accent}14`,
+          marginBottom: 0,
+          position: 'relative',
+          display: 'flex', alignItems: 'center', gap: 16,
+        }}>
           {/* Mascot */}
-          <div style={{ flexShrink: 0, filter: `drop-shadow(0 6px 18px ${accent}40)` }}>
-            <BicPencil pose="celebrate" size={72} />
+          <div style={{ flexShrink: 0, filter: `drop-shadow(0 4px 14px ${accent}35)` }}>
+            <BicPencil pose={bubbleSlide === 1 ? 'celebrate' : 'happy'} size={64} />
           </div>
-
-          {/* Speech bubble */}
+          {/* Message */}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{
-              background: isNova ? 'rgba(124,58,237,0.18)' : isBlaze ? '#FFD700' : `${accent}12`,
-              border: isBlaze ? '2px solid #0d0d0d' : `1.5px solid ${accent}30`,
-              borderRadius: isBlaze ? '12px 12px 12px 0' : '18px 18px 18px 0',
-              padding: '12px 16px',
-              boxShadow: isBlaze ? '3px 3px 0 #0d0d0d' : `0 4px 18px ${accent}18`,
-            }}>
-              <div style={{ fontSize: 11, fontWeight: 900, color: accent, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.7, fontFamily: 'Nunito, sans-serif' }}>
-                {M.name}
-              </div>
-              <div style={{ fontSize: 14, fontWeight: 800, color: isNova ? '#F8F7FF' : isBlaze ? '#0d0d0d' : M.textPrimary, fontFamily: 'Nunito, sans-serif', lineHeight: 1.5 }}>
-                {mascotGreeting}
-              </div>
+            <div style={{ fontSize: 10, fontWeight: 900, color: isBlaze ? '#444' : accent, textTransform: 'uppercase', letterSpacing: 0.8, fontFamily: 'Nunito, sans-serif', marginBottom: 4 }}>
+              {M.name} says
             </div>
-            {/* Bubble tail */}
-            <div style={{ width: 0, height: 0, borderLeft: '10px solid transparent', borderRight: '0 solid transparent', borderTop: `10px solid ${isBlaze ? '#0d0d0d' : `${accent}30`}`, marginLeft: 14 }} />
+            <div style={{ fontSize: 14, fontWeight: 800, color: isNova ? '#F8F7FF' : isBlaze ? '#0d0d0d' : M.textPrimary, fontFamily: 'Nunito, sans-serif', lineHeight: 1.55, opacity: bubbleFade ? 1 : 0, transition: 'opacity 0.25s ease' }}>
+              {mascotGreeting}
+            </div>
+          </div>
+          {/* Slide dots (bottom right) */}
+          <div style={{ position: 'absolute', bottom: 10, right: 14, display: 'flex', gap: 4 }}>
+            {[0,1,2,3].map(i => (
+              <div key={i}
+                onClick={() => { setBubbleFade(false); setTimeout(() => { setBubbleSlide(i); setBubbleFade(true) }, 120) }}
+                style={{ width: i === bubbleSlide ? 16 : 5, height: 5, borderRadius: 99, background: i === bubbleSlide ? (isBlaze ? '#0d0d0d' : accent) : (isBlaze ? '#0d0d0d40' : accent + '35'), transition: 'all 0.25s', cursor: 'pointer' }} />
+            ))}
           </div>
         </div>
 
-        {/* ── Stats bar — clean, no boxes, just numbers inline ── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 20, paddingLeft: 2 }}>
-          {/* XP */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <TabIcon id="xp" size={14} color={accent} />
-            <span style={{ fontSize: 18, fontWeight: 900, color: isNova ? '#F8F7FF' : accent, fontFamily: 'Nunito, sans-serif', lineHeight: 1 }}>{xp.toLocaleString()}</span>
-            <span style={{ fontSize: 10, fontWeight: 700, color: bodyColor, textTransform: 'uppercase', letterSpacing: 0.5, fontFamily: 'Nunito, sans-serif' }}>XP</span>
+        {/* ── Stats row — centered below the card ── */}
+        <div style={{ display: 'flex', alignItems: 'stretch', justifyContent: 'center', gap: 0, marginBottom: 18, marginTop: 16, background: isNova ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.75)', borderRadius: 16, border: `1px solid ${isNova ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.07)'}`, overflow: 'hidden', backdropFilter: 'blur(8px)' }}>
+          {[
+            { label: 'XP', value: xp.toLocaleString(), sub: 'total', color: accent, icon: '⚡' },
+            { label: masteryRank.title, value: masteryRank.icon, sub: rankProgress < 100 ? (nextRank ? nextRank.minXp - xp + ' to next' : 'Max rank!') : 'Max rank!', color: masteryRank.color, icon: null },
+            { label: 'Progress', value: overallPct + '%', sub: doneLessons + ' of ' + totalLessons, color: M.correctColor, icon: null },
+          ].map((s, i) => (
+            <div key={i} style={{ flex: 1, textAlign: 'center', padding: '14px 8px', borderRight: i < 2 ? `1px solid ${isNova ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)'}` : 'none' }}>
+              <div style={{ fontSize: 22, fontWeight: 900, color: s.color, fontFamily: M.headingFont, lineHeight: 1, marginBottom: 2 }}>{s.value}</div>
+              <div style={{ fontSize: 10, fontWeight: 900, color: s.color, fontFamily: 'Nunito, sans-serif', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 }}>{s.label}</div>
+              <div style={{ fontSize: 9, color: bodyColor, fontFamily: 'Nunito, sans-serif', fontWeight: 600 }}>{s.sub}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Mastery rank progress bar ── */}
+        <div style={{ marginBottom: 20, padding: '12px 16px', background: isNova ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.8)', borderRadius: 14, border: `1px solid ${masteryRank.color}20`, backdropFilter: 'blur(8px)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 18 }}>{masteryRank.icon}</span>
+              <span style={{ fontSize: 13, fontWeight: 900, color: masteryRank.color, fontFamily: 'Nunito, sans-serif' }}>{masteryRank.title}</span>
+            </div>
+            {nextRank && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ fontSize: 10, color: bodyColor, fontFamily: 'Nunito, sans-serif', fontWeight: 700 }}>Next:</span>
+                <span style={{ fontSize: 12, fontWeight: 900, color: nextRank.color, fontFamily: 'Nunito, sans-serif' }}>{nextRank.icon} {nextRank.title}</span>
+              </div>
+            )}
           </div>
-          <div style={{ width: 1, height: 16, background: isNova ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)' }} />
-          {/* Rank */}
-          <div
-            onClick={() => setActiveTab('leaderboard')}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', opacity: rankVisible ? 1 : 0, transition: 'opacity 0.4s' }}>
-            <TabIcon id="trophy" size={14} color={accent} />
-            <span style={{ fontSize: 18, fontWeight: 900, color: isNova ? '#F8F7FF' : accent, fontFamily: 'Nunito, sans-serif', lineHeight: 1 }}>{activeFace.display}</span>
-            <span style={{ fontSize: 10, fontWeight: 700, color: bodyColor, textTransform: 'uppercase', letterSpacing: 0.5, fontFamily: 'Nunito, sans-serif' }}>{activeFace.label}</span>
+          <div style={{ height: 8, background: isNova ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.07)', borderRadius: 99, overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: rankProgress + '%', background: `linear-gradient(90deg, ${masteryRank.color}, ${nextRank?.color || masteryRank.color})`, borderRadius: 99, transition: 'width 1s ease' }} />
           </div>
-          <div style={{ width: 1, height: 16, background: isNova ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)' }} />
-          {/* Progress */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <TabIcon id="progress" size={14} color={accent} />
-            <span style={{ fontSize: 18, fontWeight: 900, color: isNova ? '#F8F7FF' : accent, fontFamily: 'Nunito, sans-serif', lineHeight: 1 }}>{overallPct}%</span>
-            <span style={{ fontSize: 10, fontWeight: 700, color: bodyColor, textTransform: 'uppercase', letterSpacing: 0.5, fontFamily: 'Nunito, sans-serif' }}>Done</span>
-          </div>
+          {nextRank && (
+            <div style={{ fontSize: 10, color: bodyColor, fontFamily: 'Nunito, sans-serif', marginTop: 5, fontWeight: 600, textAlign: 'right' }}>
+              {nextRank.minXp - xp} XP to go
+            </div>
+          )}
         </div>
 
         {/* ── Subject switcher card (SS only) — contains next lesson + continue ── */}
@@ -1045,22 +1169,20 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
               const { topic, tAccent, doneCount, allDone } = item
               return (
                 <div key={`topic-${topic.id}`} ref={el => { topicNodeRefs.current[topic.title] = el }}
-                  style={{ padding: '0 24px', marginTop: 32, marginBottom: 18, position: 'relative', zIndex: 2 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ flex: 1, height: 1.5, background: allDone ? `${M.correctColor}50` : `${tAccent}30`, borderRadius: 1 }} />
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                      {allDone && <span style={{ fontSize: 11, color: M.correctColor, fontWeight: 900 }}>✓</span>}
-                      <span style={{ fontSize: 12, fontWeight: 900, color: allDone ? M.correctColor : isNova ? 'rgba(255,255,255,0.55)' : bodyColor, fontFamily: 'Nunito, sans-serif', letterSpacing: 0.3, textTransform: 'uppercase' }}>
+                  style={{ padding: '0 16px', marginTop: 32, marginBottom: 18, position: 'relative', zIndex: 2 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ flex: 1, height: 1.5, background: allDone ? `${M.correctColor}45` : `${tAccent}28`, borderRadius: 1 }} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0, maxWidth: '60%' }}>
+                      {allDone && <span style={{ fontSize: 12, color: M.correctColor, fontWeight: 900 }}>✓</span>}
+                      <span style={{ fontSize: 11, fontWeight: 900, color: allDone ? M.correctColor : isNova ? 'rgba(255,255,255,0.6)' : bodyColor, fontFamily: 'Nunito, sans-serif', letterSpacing: 0.6, textTransform: 'uppercase', textAlign: 'center', lineHeight: 1.45, wordBreak: 'break-word' }}>
                         {topic.title}
                       </span>
                     </div>
-                    <div style={{ flex: 1, height: 1.5, background: allDone ? `${M.correctColor}50` : `${tAccent}30`, borderRadius: 1 }} />
+                    <div style={{ flex: 1, height: 1.5, background: allDone ? `${M.correctColor}45` : `${tAccent}28`, borderRadius: 1 }} />
                   </div>
-                  {!allDone && (
-                    <div style={{ textAlign: 'center', marginTop: 4, fontSize: 10, color: bodyColor, fontFamily: 'Nunito, sans-serif', fontWeight: 600, opacity: 0.7 }}>
-                      {doneCount} of {topic.subtopics?.length || 0} done
-                    </div>
-                  )}
+                  <div style={{ textAlign: 'center', marginTop: 5, fontSize: 10, color: bodyColor, fontFamily: 'Nunito, sans-serif', fontWeight: 600, opacity: 0.65 }}>
+                    {allDone ? 'All done' : `${doneCount} of ${topic.subtopics?.length || 0} done`}
+                  </div>
                 </div>
               )
             }
@@ -1072,11 +1194,13 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
               const nodeSize = isCurrent ? 64 : isDone ? 52 : isLocked ? 38 : 46
 
               return (
-                <div key={`lesson-${sub.id}`} ref={isCurrent ? currentNodeRef : null} style={{ position: 'relative', zIndex: 2, padding: '22px 0',
-                    paddingLeft:  globalIdx % 4 === 1 ? '22%' : globalIdx % 4 === 3 ? '12%' : '17%',
-                    paddingRight: globalIdx % 4 === 1 ? '8%'  : globalIdx % 4 === 3 ? '18%' : '13%',
+                <div key={`lesson-${sub.id}`} ref={isCurrent ? currentNodeRef : null} style={{
+                    position: 'relative', zIndex: 2,
+                    padding: '18px 0',
+                    paddingLeft:  globalIdx % 4 === 1 ? '18%' : globalIdx % 4 === 3 ? '10%' : '14%',
+                    paddingRight: globalIdx % 4 === 1 ? '10%' : globalIdx % 4 === 3 ? '18%' : '14%',
                   }}>
-                  <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', paddingLeft: 0, paddingRight: 0, gap: 10, paddingBottom: 2 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                     <button
                       onClick={() => !isLocked && setSelectedNode(isSelected ? null : { sub, isCurrent, isDone, tAccent })}
                       style={{
@@ -1102,12 +1226,12 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
                             : <span style={{ fontSize: nodeSize * 0.40, opacity: 0.8 }}>{M.emoji}</span>
                       }
                     </button>
-
-                    <div style={{ textAlign: 'left', maxWidth: isCurrent ? 180 : 155 }}>
-                      <div style={{ fontSize: isCurrent ? 14 : 12, fontWeight: isCurrent ? 900 : isDone ? 500 : 600, color: isDone ? bodyColor : isNova ? '#F8F7FF' : M.textPrimary, fontFamily: 'Nunito, sans-serif', lineHeight: 1.35 }}>
+                    {/* Label centered below node */}
+                    <div style={{ textAlign: 'center', maxWidth: 140 }}>
+                      <div style={{ fontSize: isCurrent ? 13 : 11, fontWeight: isCurrent ? 900 : isDone ? 500 : 700, color: isDone ? bodyColor : isNova ? '#F8F7FF' : M.textPrimary, fontFamily: 'Nunito, sans-serif', lineHeight: 1.35, wordBreak: 'break-word' }}>
                         {sub.title}
                       </div>
-                      {isCurrent && <div style={{ fontSize: 11, fontWeight: 700, color: accent, fontFamily: 'Nunito, sans-serif', marginTop: 4 }}>Tap to start →</div>}
+                      {isCurrent && <div style={{ fontSize: 10, fontWeight: 800, color: accent, fontFamily: 'Nunito, sans-serif', marginTop: 3 }}>Tap to start →</div>}
                     </div>
                   </div>
                 </div>
