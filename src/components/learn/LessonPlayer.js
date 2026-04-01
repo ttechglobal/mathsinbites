@@ -340,7 +340,7 @@ function BackBtn({ onBack, isFirst }) {
 // ── Shared: bottom nav bar (Back + Next side by side) ────────────────────────
 function BottomBar({ onNext, onBack, isFirst, label = 'Next →', accent, M }) {
   return (
-    <div style={{ paddingTop: 14, flexShrink: 0, display: 'flex', gap: 10 }}>
+    <div style={{ paddingTop: 14, paddingBottom: 'max(16px, env(safe-area-inset-bottom))', flexShrink: 0, display: 'flex', gap: 10 }}>
       {!isFirst && (
         <button onClick={onBack} style={{
           flex: '0 0 52px', padding: '15px 0', borderRadius: 14,
@@ -354,7 +354,7 @@ function BottomBar({ onNext, onBack, isFirst, label = 'Next →', accent, M }) {
       <button
         onClick={onNext}
         style={{
-          flex: 1, padding: '15px',
+          flex: 1, padding: '16px',
           borderRadius: 14, border: 'none',
           background: `linear-gradient(135deg, ${accent}, ${accent}CC)`,
           color: '#fff', fontSize: 17, fontWeight: 900,
@@ -1424,13 +1424,13 @@ export default function LessonPlayer({ lesson, subtopic, student, nextSubtopicId
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: M.lessonBg, display: 'flex', justifyContent: 'center' }}>
+    <div style={{ minHeight: '100dvh', background: M.lessonBg, display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
       <style>{`
         @keyframes slideUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
         @keyframes revealUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
         @keyframes float { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-8px); } }
       `}</style>
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', fontFamily: M.font, background: M.lessonBg, position: 'relative', overflow: 'hidden', width: '100%', maxWidth: 680 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', fontFamily: M.font, background: M.lessonBg, position: 'relative', width: '100%', maxWidth: 680, minHeight: '100dvh' }}>
       {/* Thin progress strip at very top */}
       <div style={{ height: 4, background: M.progressTrack, flexShrink: 0 }}>
         <div style={{ width: `${progressPct}%`, height: '100%', background: accent, transition: 'width 0.4s ease', borderRadius: '0 2px 2px 0' }} />
@@ -1438,8 +1438,8 @@ export default function LessonPlayer({ lesson, subtopic, student, nextSubtopicId
 
       {TopBar}
 
-      {/* Content */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
+      {/* Content — flex:1 so it grows to fill available space, overflowY:auto lets it scroll */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
         {isEntry    && EntryScreen}
         {isComplete && CompleteScreen}
         {!isEntry && !isComplete && currentBite && renderBite(currentBite, biteProps, step)}

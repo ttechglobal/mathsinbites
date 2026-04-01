@@ -39,30 +39,112 @@ function generateLatinSquare(seed) {
   return rowOrder.map(function(r) { return colOrder.map(function(c) { return base[r][c] }) })
 }
 
-// ─── Question templates ───────────────────────────────────────────────────────
+// ─── Topic-aware question bank ────────────────────────────────────────────────
+// Questions are strictly matched to the topic keyword so puzzle reinforces learning.
 function makeQuestion(answer, topicHint, seed) {
   var topic = (topicHint || '').toLowerCase()
+
+  // ── Base 2 / Binary ───────────────────────────────────────────────────────
+  var binary = {
+    1: ['In base 2: 1 + 0 = ?', 'Binary 01 in decimal = ?', '1 base 10 in base 2 = 0_ (last digit)?'],
+    2: ['In base 2: 1 + 1 = 1_ (what is the carry digit in the next column)?', 'Binary 10 in decimal = ?', '2 in base 2 = 1_ (how many zeros)?'],
+    3: ['Binary 11 in decimal = ?', '1 + 1 + 1 in base 2: the decimal result = ?', 'In base 2, 11 = _ in base 10'],
+    4: ['Binary 100 in decimal = ?', '2 squared in base 10 = ?', '4 in base 2 = 1__ (how many zeros follow the 1)?'],
+  }
+
+  // ── Algebra / Equations ───────────────────────────────────────────────────
   var algebra = {
-    1: ['x + 3 = 4, find x', '2x - 1 = 1, find x', 'If 5 x something = 5, what is the something?'],
-    2: ['x + 1 = 3, find x', '10 divided by 5 = ?', 'Square root of 4 = ?'],
-    3: ['x - 1 = 2, find x', '2x + 1 = 7, find x', '9 divided by 3 = ?'],
-    4: ['x divided by 2 = 2, find x', '12 divided by 3 = ?', '2 squared = ?'],
+    1: ['x + 3 = 4, find x', '2x - 1 = 1, find x', 'x times 5 = 5, find x'],
+    2: ['x + 1 = 3, find x', '3x = 6, find x', 'x squared - 2 = 2, find x'],
+    3: ['x - 1 = 2, find x', '2x + 1 = 7, find x', '9 / 3 = ?'],
+    4: ['x / 2 = 2, find x', '5x - 16 = 4, find x', '2 squared = ?'],
   }
+
+  // ── Percentages ───────────────────────────────────────────────────────────
   var percent = {
-    1: ['1% of 100 = ?', '10% of 10 = ?', '1 in every 4 is what fraction? (numerator only)'],
-    2: ['20% of 10 = ?', 'Half of 4 = ?', '50% of 4 = ?'],
-    3: ['30% of 10 = ?', 'Three quarters of 4 = ?', '75% of 4 = ?'],
-    4: ['40% of 10 = ?', '4 squared divided by 4 = ?', '80% of 5 = ?'],
+    1: ['1% of 100 = ?', '10% of 10 = ?', '25% of 4 = ?'],
+    2: ['20% of 10 = ?', '50% of 4 = ?', 'Half of 4 = ?'],
+    3: ['30% of 10 = ?', '75% of 4 = ?', '60% of 5 = ?'],
+    4: ['40% of 10 = ?', '80% of 5 = ?', '100% of 4 = ?'],
   }
+
+  // ── Ratio and Proportion ──────────────────────────────────────────────────
   var ratio = {
-    1: ['Share 4 in ratio 1:3. What is the smaller share?', 'Simplify 2:6 to 1:?'],
-    2: ['Share 4 in ratio 1:1. Each part = ?', '4 divided equally into 2 = ?'],
-    3: ['Share 12 in ratio 1:3. Larger share = ?', 'Three quarters of 4 = ?'],
-    4: ['Share 20 in ratio 1:4. Larger share = ?', '2 doubled = ?'],
+    1: ['Share 4 in ratio 1:3. Smaller share = ?', 'Ratio 1:3 — the smaller part if total is 4'],
+    2: ['Share 4 equally. Each part = ?', '4 in ratio 2:2. Each share = ?'],
+    3: ['Share 12 in ratio 1:3. Larger share = ?', 'In a 1:3 ratio with total 16, the larger share = ?'],
+    4: ['Share 20 in ratio 1:4. Larger share = ?', 'Direct proportion: if 1 costs 2, then 2 costs ?'],
   }
-  var pool = algebra[answer] || ['What number goes here?']
-  if (topic.includes('percent') || topic.includes('%')) pool = percent[answer] || pool
-  if (topic.includes('ratio') || topic.includes('proportion')) pool = ratio[answer] || pool
+
+  // ── Fractions ─────────────────────────────────────────────────────────────
+  var fractions = {
+    1: ['1/4 of 4 = ?', 'One whole divided into 4 equal parts = 1 per part, so 1/4 x 4 = ?', '1 over 2, multiplied by 2 = ?'],
+    2: ['2/4 simplified = 1/?', '1/2 of 4 = ?', '2/3 of 3 = ?'],
+    3: ['3/4 of 4 = ?', '3/12 simplified denominator when numerator = 1?', '3/1 = ?'],
+    4: ['4/2 = ?', '4/1 = ?', '8/2 = ?'],
+  }
+
+  // ── Number Systems ────────────────────────────────────────────────────────
+  var numberSys = {
+    1: ['What is 1 in any number base?', 'Smallest positive integer = ?', 'Roman numeral I = ?'],
+    2: ['10 in binary = ? in decimal', 'Even number less than 3 = ?', 'II in Roman numerals = ?'],
+    3: ['11 in binary = ? in decimal', 'Odd number between 2 and 4 = ?', 'III in Roman numerals = ?'],
+    4: ['100 in binary = ? in decimal', '2 squared = ?', 'IV in Roman numerals = ?'],
+  }
+
+  // ── Statistics / Data ─────────────────────────────────────────────────────
+  var stats = {
+    1: ['Mean of 1, 1, 1 = ?', 'Minimum of {4, 3, 2, 1} = ?', 'Mode of {1, 1, 2, 3} = ?'],
+    2: ['Mean of 1, 2, 3 = ?', 'Median of {1, 2, 3} = ?', 'Mean of 2, 2 = ?'],
+    3: ['Mean of 2, 4 = ?', 'Median of {1, 3, 5} = ?', 'Mode of {3, 3, 4, 5} = ?'],
+    4: ['Mean of 2, 6 = ?', 'Maximum of {1, 2, 3, 4} = ?', 'Mean of 4, 4 = ?'],
+  }
+
+  // ── Geometry ──────────────────────────────────────────────────────────────
+  var geometry = {
+    1: ['A point has dimension _ (zero, written as a number)', 'How many right angles does a right angle triangle have?', 'Smallest interior angle count for a polygon?'],
+    2: ['A line has _ dimensions', 'Angles in a straight line sum to 180. Half of that in right angles = ?', 'Number of sides on a parallelogram / 2 = ?'],
+    3: ['Triangle has _ sides', 'Angles of equilateral triangle: each = 60. Total sides of a triangle = ?', '3-sided polygon side count'],
+    4: ['Square has _ sides', 'Rectangle side count', '4-sided shape side count'],
+  }
+
+  // ── Probability ───────────────────────────────────────────────────────────
+  var prob = {
+    1: ['P(head) numerator when flipping a fair coin (P = 1/2) = ?', 'Probability scale starts at ?', 'Certain event has probability = 1 or 0? (answer: 1)'],
+    2: ['P(head) denominator when flipping a fair coin (P = 1/2) = ?', 'Equally likely outcomes for a fair coin = ?', 'P(even on a 1-4 spinner) numerator = ? (out of 4)'],
+    3: ['P(odd number) on spinner 1-4: how many odd numbers? = ?', 'Favourable outcomes when rolling a 1-4 die for number > 1 = ?', '3 red balls out of 4 total: P(red) numerator = ?'],
+    4: ['P(any number) on a 1-4 spinner denominator = ?', '4 equally likely outcomes on a fair 4-sided die = ?', 'Total outcomes when rolling a 4-sided die = ?'],
+  }
+
+  // ── Indices / Powers ──────────────────────────────────────────────────────
+  var indices = {
+    1: ['Any number to the power 0 = ?', 'x^0 = ?', '5^0 = ?'],
+    2: ['Square root of 4 = ?', '2^1 = ?', '4^0.5 = ?'],
+    3: ['3^1 = ?', 'Cube root of 27 = ?', '9^0.5 = ?'],
+    4: ['2^2 = ?', '4^1 = ?', 'Square root of 16 = ?'],
+  }
+
+  // ── Default: general maths ────────────────────────────────────────────────
+  var general = {
+    1: ['x + 3 = 4, find x', '10 - 9 = ?', '1 x 7 = ?'],
+    2: ['x + 1 = 3, find x', '10 / 5 = ?', '4 / 2 = ?'],
+    3: ['x - 1 = 2, find x', '9 / 3 = ?', '6 / 2 = ?'],
+    4: ['x / 2 = 2, find x', '2 x 2 = ?', '8 / 2 = ?'],
+  }
+
+  var pool = general[answer] || ['Find the number that belongs here.']
+
+  if (topic.includes('base 2') || topic.includes('binary'))       pool = binary[answer]    || pool
+  else if (topic.includes('algebra') || topic.includes('equation')) pool = algebra[answer]  || pool
+  else if (topic.includes('percent'))                              pool = percent[answer]   || pool
+  else if (topic.includes('ratio') || topic.includes('proportion'))pool = ratio[answer]    || pool
+  else if (topic.includes('fraction'))                             pool = fractions[answer] || pool
+  else if (topic.includes('number system') || topic.includes('numeral')) pool = numberSys[answer] || pool
+  else if (topic.includes('statistic') || topic.includes('data') || topic.includes('mean') || topic.includes('median')) pool = stats[answer] || pool
+  else if (topic.includes('geometry') || topic.includes('angle') || topic.includes('shape') || topic.includes('triangle') || topic.includes('circle')) pool = geometry[answer] || pool
+  else if (topic.includes('probab'))                               pool = prob[answer]      || pool
+  else if (topic.includes('inde') || topic.includes('power') || topic.includes('exponent')) pool = indices[answer] || pool
+
   var idx = Math.floor(seededRandom(seed + answer) * pool.length)
   return pool[idx]
 }
