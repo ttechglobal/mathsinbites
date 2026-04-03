@@ -101,7 +101,8 @@ export default function AdminPage() {
     { href:'/admin/curriculum', icon:'📚', title:'Manage curriculum', desc:'Add or edit levels, terms, units, topics and subtopics',       color:A.cyan    },
     { href:'/admin/students',   icon:'👥', title:'View students',     desc:'Browse accounts, progress, XP data and class breakdowns',      color:A.teal    },
     { href:'/admin/analytics',  icon:'📈', title:'Analytics',         desc:'Completion rates, popular topics, daily active users',         color:'#A3E635' },
-    { href:'/admin/flags',      icon:'🚩', title:'Review flagged',    desc:'Questions flagged by students — needs manual review',          color:A.coral   },
+    { href:'/admin/flags',          icon:'🚩', title:'Review flagged',     desc:'Questions flagged by students — needs manual review',              color:A.coral   },
+    { href:'/admin/past-questions', icon:'📋', title:'Past Questions',      desc:'Upload and manage WAEC/BECE past question banks by year',           color:A.gold    },
   ]
 
   return (
