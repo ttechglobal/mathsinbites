@@ -13,11 +13,8 @@ import WelcomeScreen from '@/components/WelcomeScreen'
 import SubjectSwitcher from '@/components/learn/SubjectSwitcher'
 import PuzzleMode from '@/components/learn/PuzzleMode'
 
-// ── Design tokens ─────────────────────────────────────────────────────────────
-// Fonts: Sora for headings/numbers, Nunito for UI text
-// All MIB-specific CSS vars defined once in <style> tag on root render
-
 // ── Educational SVG icon system ─────────────────────────────────────────────
+// Clean, academic, consistent — no emojis anywhere
 function EduIcon({ id, size = 20, color = 'currentColor', style: extraStyle }) {
   const s = { width: size, height: size, display: 'block', flexShrink: 0, ...extraStyle }
   const p = { fill: 'none', stroke: color, strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }
@@ -138,7 +135,9 @@ function EduIcon({ id, size = 20, color = 'currentColor', style: extraStyle }) {
   )
   return null
 }
+// Alias for backwards compat
 const TabIcon = EduIcon
+
 
 function MathFloats({ M }) {
   const syms = M?.floatSyms || ['x²', '∑', 'π', '√', '∫', 'θ', '∞', '±', 'Δ']
@@ -235,6 +234,7 @@ function getTopicIcon(title) {
 
 const supabase = createClient()
 
+// ── Responsive breakpoint hook ───────────────────────────────────────────────
 function useWindowWidth() {
   const [width, setWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 375)
   useEffect(() => {
@@ -252,21 +252,25 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
 
   const [student,         setStudent]         = useState(initialStudent)
   const [currentLevel,    setCurrentLevel]    = useState(level)
-  useSessionTracker(student?.id)
+  useSessionTracker(student?.id)   // passive ping every 60s — admin analytics only
   const [progressData,    setProgressData]    = useState(progress)
+  // ── Leaderboard: all 3 boards pre-fetched in parallel for instant switching ──
   const [boards,          setBoards]          = useState({ class: [], school: [], overall: [] })
   const [leaderboardType,  setLeaderboardType]  = useState('class')
   const [practiceAttempts, setPracticeAttempts] = useState([])
   const [boardsLoaded,    setBoardsLoaded]    = useState(false)
+  // Rotating rank display: cycles class → school → overall every 3s
   const [rankFaceIdx,     setRankFaceIdx]     = useState(0)
   const [rankVisible,     setRankVisible]     = useState(true)
   const searchParams = useSearchParams()
   const [activeTab,       setActiveTab]       = useState(() => {
+    // Allow external navigation to open a specific tab: /learn?tab=learn
     const t = searchParams?.get('tab')
     return ['home','learn','practice','challenge','rank','leaderboard','profile'].includes(t) ? t : 'home'
   })
   const [showModePicker,  setShowModePicker]  = useState(false)
   const [showSwitcher,    setShowSwitcher]    = useState(false)
+
   const [showWelcome,     setShowWelcome]     = useState(false)
   const [popup,           setPopup]           = useState(null)
   const [editName,        setEditName]        = useState(initialStudent?.display_name || '')
@@ -292,6 +296,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
   const accent      = M.accentColor
   const termAccents = M.termAccents || ['#0d9488', '#f97316', '#8b5cf6']
 
+  // Show welcome screen once for new users
   useEffect(() => {
     if (typeof window !== 'undefined' && localStorage.getItem('mib_new_user')) {
       setShowWelcome(true)
@@ -313,6 +318,8 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
     return () => window.removeEventListener('focus', refreshAll)
   }, [initialStudent?.id])
 
+  // Pre-fetch all 3 leaderboards in one go as soon as we have student data.
+  // Re-fetch when activeSubject changes so the leaderboard reflects the right XP column.
   useEffect(() => {
     if (!student?.id) return
     async function fetchAll() {
@@ -337,6 +344,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
         setBoardsLoaded(true)
       } catch (e) { console.error('[leaderboard] fetch:', e.message) }
 
+      // ── Practice attempts for topic readiness ─────────────────────────
       if (initialStudent?.id) {
         try {
           const { data: attempts } = await supabase
@@ -350,6 +358,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
     fetchAll()
   }, [student?.id, student?.class_level, student?.school, activeSubject])
 
+  // Rotate rank display: class → school → overall, every 3 seconds
   useEffect(() => {
     const timer = setInterval(() => {
       setRankVisible(false)
@@ -358,15 +367,20 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
     return () => clearInterval(timer)
   }, [])
 
+  // ── Responsive breakpoints ───────────────────────────────────────────────
   const windowWidth  = useWindowWidth()
   const isDesktop    = windowWidth >= 1024
   const isTablet     = windowWidth >= 768 && windowWidth < 1024
   const isMobile     = windowWidth < 768
 
+  // ── Computed ──────────────────────────────────────────────────────────────
   const completedIds = new Set(progressData.filter(p => p.status === 'completed').map(p => p.subtopic_id))
   const isFM      = activeSubject === 'further_maths'
   const isExamMode = student?.learning_mode === 'exam'
 
+  // Re-fetch level curriculum when subject or class changes
+  // In exam mode: merge SS1+SS2+SS3 into one synthetic level
+  // Exam mode: load all subtopics across SS1+SS2+SS3 as one flat path
   const [examSubtopics, setExamSubtopics] = useState([])
   useEffect(() => {
     if (!isExamMode) { setExamSubtopics([]); return }
@@ -406,6 +420,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
     lastLevelCode.current = cacheKey
 
     if (isEM) {
+      // Exam mode: prefer EXAM_ curriculum if it exists, else fall back to SS1-SS3
       const examType = student?.exam_type || 'WAEC'
       const subj = isFM ? 'further_maths' : 'maths'
       const examCode = `EXAM_${examType}_${subj === 'further_maths' ? 'Further_Mathematics' : 'Mathematics'}`
@@ -416,8 +431,10 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
         .maybeSingle()
         .then(({ data: examLevel }) => {
           if (examLevel) {
+            // Found dedicated exam curriculum
             setCurrentLevel(examLevel)
           } else {
+            // Fall back to merging SS1+SS2+SS3
             const codes = isFM ? ['FM_SS1','FM_SS2','FM_SS3'] : ['SS1','SS2','SS3']
             supabase
               .from('levels')
@@ -441,7 +458,6 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
         .then(({ data }) => setCurrentLevel(data || null))
     }
   }, [isFM, student?.learning_mode, student?.class_level])
-
   const xp        = isFM ? (student?.fm_xp        || 0) : (student?.xp        || 0)
   const monthlyXp = isFM ? (student?.fm_monthly_xp || 0) : (student?.monthly_xp || 0)
   const streak    = student?.streak_days || 0
@@ -462,15 +478,21 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
   const doneLessons  = completedIds.size
   const overallPct   = totalLessons > 0 ? Math.round((doneLessons / totalLessons) * 100) : 0
 
+  // Active board for the Leaderboard tab
   const leaderboard   = boards[leaderboardType] || []
+
+  // Rank in each dimension (0-indexed, -1 = not found)
   const myClassRank   = boards.class.findIndex(e => e.id === student?.id)
   const mySchoolRank  = boards.school.findIndex(e => e.id === student?.id)
   const myOverallRank = boards.overall.findIndex(e => e.id === student?.id)
+
+  // Active rank for tab display
   const myRank        = leaderboard.findIndex(e => e.id === student?.id)
   const myRankDisplay = myRank >= 0 ? `#${myRank + 1}` : '—'
   const nextUp        = myRank > 0 ? leaderboard[myRank - 1] : null
   const xpToNextRank  = nextUp ? Math.max(0, (nextUp.monthly_xp || 0) - monthlyXp) : 0
 
+  // Rotating rank faces for hero + mini-card
   const rankFaces = [
     { rank: myClassRank,   label: 'Class',   display: myClassRank >= 0 ? `#${myClassRank + 1}` : '—' },
     { rank: mySchoolRank,  label: 'School',  display: mySchoolRank >= 0 ? `#${mySchoolRank + 1}` : '—' },
@@ -522,7 +544,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
           ? 'linear-gradient(135deg,#C0392B,#8B1A1A)'
           : `linear-gradient(135deg,${accent},${M.accent2 || accent})`
 
-  // ── HUD (mobile top bar) ──────────────────────────────────────────────────
+  // ── HUD ──────────────────────────────────────────────────────────────────
   const onHome = activeTab === 'home'
 
   const ProfileBtn = (
@@ -596,7 +618,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
     </div>
   )
 
-  // ── TABS config ────────────────────────────────────────────────────────────
+  // ── Bottom Nav ────────────────────────────────────────────────────────────
   const TABS = isExamMode ? [
     { id: 'learn',       icon: 'learn',       label: 'Learn'       },
     { id: 'practice',    icon: 'practice',    label: 'Practice'    },
@@ -609,6 +631,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
     { id: 'rank',     icon: 'shield',   label: 'Ranks'   },
     { id: 'profile',  icon: 'profile',  label: 'Profile' },
   ]
+
 
   // ── Side Navigation (tablet/desktop) ────────────────────────────────────
   const SideNav = (
@@ -626,6 +649,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
       position: 'relative',
       zIndex: 40,
     }}>
+      {/* Logo */}
       <div style={{ padding: isDesktop ? '0 4px 20px' : '0 0 20px', display: 'flex', alignItems: 'center', justifyContent: isDesktop ? 'flex-start' : 'center', overflow: 'hidden', minWidth: 0 }}>
         <MIBLogo size={28} theme={isNova ? 'dark' : 'light'} M={M} style={{ flexShrink: 0 }} />
         {isDesktop && (
@@ -636,6 +660,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
         )}
       </div>
 
+      {/* Nav items */}
       {TABS.map(t => {
         const isActive = activeTab === t.id
         return (
@@ -663,14 +688,19 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
             {isDesktop && (
               <span style={{
                 fontSize: 13, fontWeight: isActive ? 800 : 600,
-                color: isActive ? (isBlaze ? '#0d0d0d' : accent) : M.textSecondary,
+                color: isActive
+                  ? (isBlaze ? '#0d0d0d' : accent)
+                  : M.textSecondary,
               }}>{t.label}</span>
             )}
           </button>
         )
       })}
 
+      {/* Spacer */}
       <div style={{ flex: 1 }} />
+
+      {/* Bottom: mode + profile */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {ModeBtn}
         {ProfileBtn}
@@ -724,9 +754,10 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
 
   // ── Node selection ─────────────────────────────────────────────────────
   const [selectedNode,    setSelectedNode]    = useState(null)
-  const currentNodeRef  = useRef(null)
-  const [currentNodeDir, setCurrentNodeDir]  = useState(null)
+  const currentNodeRef  = useRef(null)   // ref on the current lesson node
+  const [currentNodeDir, setCurrentNodeDir]  = useState(null) // 'up' | 'down' | null (visible)
 
+  // Track whether current node is visible as user scrolls
   function handlePathScrollFull() {
     handlePathScroll()
     if (!currentNodeRef.current || !pathScrollRef.current) return
@@ -745,6 +776,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
     currentNodeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
 
+  // ── Sticky topic pill ──────────────────────────────────────────────────
   const [stickyTopic, setStickyTopic] = useState(null)
   const topicNodeRefs = useRef({})
   const pathScrollRef = useRef(null)
@@ -797,10 +829,16 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
     })
   })
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // HOME TAB — simplified dashboard
+  // Shows: greeting, subject card, stats row, quick actions
+  // ══════════════════════════════════════════════════════════════════════════
+  // First two topics for the subject card preview
   // ── Greeting helpers ────────────────────────────────────────────────────
   const firstName = student?.display_name?.split(' ')[0] || 'there'
 
-  // ── Topic readiness system (Exam Mode) ────────────────────────────────
+  // ── Topic readiness system (Exam Mode) ───────────────────────────────────────
+  // Computed from practice_attempts: % correct per topic
   const readinessLevel = (pct) => {
     if (pct === null || pct === undefined) return { label: 'Not Started', color: '#94a3b8', pct: 0 }
     if (pct <= 30)  return { label: 'Needs Work',  color: '#EF4444', pct }
@@ -809,11 +847,16 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
     return             { label: 'Exam Ready',   color: '#22c55e', pct }
   }
 
+  // Build a map: subtopic_id → { attempts, correct }
+  // Then roll up to topic level
   const topicReadiness = (() => {
     if (!practiceAttempts.length || !allTopics.length) return {}
+    // We don't have question→subtopic mapping here, so compute overall readiness
+    // from all attempts as proxy for overall exam readiness
     const total   = practiceAttempts.length
     const correct = practiceAttempts.filter(a => a.is_correct).length
     const overallPctPractice = total > 0 ? Math.round((correct / total) * 100) : null
+    // Return same value per topic as fallback (in future, map per-topic)
     const result = {}
     allTopics.forEach(t => { result[t.title] = overallPctPractice })
     return result
@@ -825,7 +868,10 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
     return total > 0 ? Math.round((correct / total) * 100) : null
   })()
 
-  // ── Mastery Level System ───────────────────────────────────────────────
+  // ── Mastery Level System ───────────────────────────────────────────────────
+  // 12 creative levels inspired by anime, RPG, and academic achievement.
+  // XP thresholds are designed to feel achievable: early levels fast,
+  // later levels require sustained dedication across an academic term.
   const MASTERY_RANKS = [
     { title: 'Rookie',          minXp: 0,    color: '#94a3b8', icon: 'seeker',   flavor: 'Every master started here.' },
     { title: 'Spark',           minXp: 40,   color: '#60a5fa', icon: 'sparkle',  flavor: 'The fire is beginning to ignite.' },
@@ -846,12 +892,23 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
     ? Math.min(100, Math.round(((xp - masteryRank.minXp) / (nextRank.minXp - masteryRank.minXp)) * 100))
     : 100
 
+  // ── Rank icon mapping — must be defined before HomeTab uses it ────────────
   const RANK_ICONS = {
-    'Rookie': 'seeker', 'Spark': 'sparkle', 'Seeker': 'compass', 'Cipher': 'brain',
-    'Arithmancer': 'star', 'Scholar': 'book', 'Prodigy': 'bolt', 'Sage': 'infinity',
-    'Apex': 'flame', 'Legend': 'crown', 'Maths Titan': 'sword', 'Infinity': 'shield',
+    'Rookie':      'seeker',
+    'Spark':       'sparkle',
+    'Seeker':      'compass',
+    'Cipher':      'brain',
+    'Arithmancer': 'star',
+    'Scholar':     'book',
+    'Prodigy':     'bolt',
+    'Sage':        'infinity',
+    'Apex':        'flame',
+    'Legend':      'crown',
+    'Maths Titan': 'sword',
+    'Infinity':    'shield',
   }
 
+  // ── Rank position computations — must precede HomeTab which uses myPosInRank ─
   const myRankIdx   = MASTERY_RANKS.indexOf(masteryRank)
   const totalInRank = boards.class.filter(e => {
     const eXp = e.xp || 0
@@ -864,9 +921,6 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
     return eRank.title === masteryRank.title && (e.xp || 0) > xp
   }).length + 1
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // HOME TAB — redesigned
-  // ══════════════════════════════════════════════════════════════════════════
   const HomeTab = (
     <div style={{ height:'100%', overflowY:'auto', background: isNova?'#0D0B1E': isBlaze?'#FFFBEA':'#F6F5F2' }}>
       {isNova && <NovaStars />}
@@ -883,86 +937,84 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
       <div style={{ maxWidth:480, margin:'0 auto', padding:'16px 16px 0' }}>
 
         {/* ── TOP BAR ── */}
-        <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:14, animation:'mibFadeUp 0.25s ease both' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16, animation:'mibFadeUp 0.25s ease both' }}>
+          {/* Greeting */}
           <div style={{ flex:1 }}>
-            <div style={{ fontSize:20, fontWeight:900, color: isNova?'#F0EFFF':M.textPrimary, fontFamily:'Sora, sans-serif', letterSpacing:-0.5, lineHeight:1 }}>
-              Hey, {firstName} 👋
+            <div style={{ fontSize:22, fontWeight:900, color: isNova?'#F0EFFF':M.textPrimary, fontFamily:'Sora, sans-serif', letterSpacing:-0.5, lineHeight:1 }}>
+              Hey, {firstName}! 👋
             </div>
             <div style={{ fontSize:11, color:bodyColor, fontFamily:'Nunito, sans-serif', fontWeight:600, marginTop:2 }}>
               {isExamMode ? `${student?.exam_type||'WAEC'} Prep Mode` : `${student?.class_level||''} · School Mode`}
             </div>
           </div>
-          <button onClick={() => setShowModePicker(true)} style={{ width:36, height:36, borderRadius:11, background: isNova?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.05)', border:`1px solid ${isNova?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.08)'}`, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}>
-            <EduIcon id="switch" size={17} color={bodyColor} />
+          {/* Theme icon */}
+          <button onClick={() => setShowModePicker(true)} className="mib-press" style={{ width:36, height:36, borderRadius:11, background: isNova?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.05)', border:`1px solid ${isNova?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.08)'}`, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}>
+            <EduIcon id="switch" size={18} color={bodyColor} />
           </button>
-          <button onClick={() => setActiveTab('profile')} style={{ width:36, height:36, borderRadius:'50%', background:`linear-gradient(145deg,${accent},${M.accent2||accent}CC)`, border:'none', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0, boxShadow:`0 4px 14px ${accent}50`, fontSize:14, fontWeight:900, color:'#fff', fontFamily:'Sora, sans-serif' }}>
-            {firstName?.[0]?.toUpperCase()||'?'}
+          {/* Profile icon */}
+          <button onClick={() => setActiveTab('profile')} className="mib-press" style={{ width:36, height:36, borderRadius:'50%', background:`linear-gradient(145deg,${accent},${M.accent2||accent}CC)`, border:'none', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0, boxShadow:`0 4px 14px ${accent}50`, fontSize:14, fontWeight:900, color:'#fff', fontFamily:'Sora, sans-serif' }}>
+            <div style={{ fontSize:14, fontWeight:900, color:accent, fontFamily:'Nunito, sans-serif' }}>
+              {firstName?.[0]?.toUpperCase()||'?'}
+            </div>
           </button>
         </div>
 
-        {/* ── STAT CHIPS ROW ── */}
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, marginBottom:14, animation:'mibFadeUp 0.25s 0.05s ease both' }}>
-          {[
-            { label:'XP',      value: xp >= 1000 ? (xp/1000).toFixed(1)+'k' : xp,  color:'#f59e0b', icon:'bolt'  },
-            { label:'Streak',  value: `${streak}d`,                                   color:'#ef4444', icon:'flame' },
-            { label:'Lessons', value: doneLessons,                                     color:'#22c55e', icon:'book'  },
-            { label:'Rank',    value: myClassRank >= 0 ? `#${myClassRank+1}` : '—',  color: accent,   icon:'trophy'},
-          ].map(chip => (
-            <div key={chip.label} style={{
-              background: isNova?'rgba(255,255,255,0.07)':'#fff',
-              border:`1px solid ${isNova?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)'}`,
-              borderRadius:14, padding:'10px 6px', textAlign:'center',
-              boxShadow:'0 2px 8px rgba(0,0,0,0.05)',
-            }}>
-              <EduIcon id={chip.icon} size={14} color={chip.color} style={{ margin:'0 auto 4px' }} />
-              <div style={{ fontSize:15, fontWeight:900, color:chip.color, fontFamily:'Sora, sans-serif', lineHeight:1 }}>{chip.value}</div>
-              <div style={{ fontSize:8, fontWeight:700, color:bodyColor, textTransform:'uppercase', letterSpacing:0.5, fontFamily:'Nunito, sans-serif', marginTop:3 }}>{chip.label}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* ── HERO BANNER ── */}
-        <div style={{ borderRadius:22, overflow:'hidden', position:'relative', isolation:'isolate', marginBottom:14,
-          background: isNova ? `linear-gradient(140deg,${accent}28,${accent}10)` : isBlaze ? 'linear-gradient(140deg,#FFD700,#FFB800)' : `linear-gradient(140deg,${accent},${M.accent2||accent}CC)`,
-          boxShadow: isNova ? `0 0 0 1px ${accent}30, 0 10px 36px ${accent}22` : isBlaze ? '4px 4px 0 #0d0d0d' : `0 12px 40px ${accent}40`,
-          animation:'mibFadeUp 0.3s 0.08s ease both',
-        }}>
-          {!isNova && !isBlaze && (
-            <div style={{ position:'absolute', inset:0, overflow:'hidden', pointerEvents:'none' }}>
-              <div style={{ position:'absolute', top:0, bottom:0, width:'45%', background:'linear-gradient(90deg,transparent,rgba(255,255,255,0.13),transparent)', animation:'mibShimmer 5s ease-in-out infinite' }} />
-            </div>
-          )}
-          <div style={{ position:'absolute', right:-22, top:-22, width:110, height:110, borderRadius:'50%', background:'rgba(255,255,255,0.1)', pointerEvents:'none' }} />
-          <div style={{ position:'absolute', right:18, bottom:-28, width:72, height:72, borderRadius:'50%', background:'rgba(255,255,255,0.07)', pointerEvents:'none' }} />
-          <div style={{ display:'flex', alignItems:'flex-end', position:'relative', zIndex:1 }}>
-            <div style={{ flexShrink:0, paddingLeft:14, alignSelf:'flex-end', animation:'mibBounce 3.5s ease-in-out infinite' }}>
-              <BicPencil pose="happy" size={100} />
-            </div>
-            <div style={{ flex:1, minWidth:0, padding:'20px 16px 18px 8px' }}>
-              <div style={{ fontSize:10, fontWeight:800, color: isNova?`${accent}BB`:isBlaze?'rgba(0,0,0,0.5)':'rgba(255,255,255,0.75)', fontFamily:'Nunito, sans-serif', textTransform:'uppercase', letterSpacing:1, marginBottom:6 }}>
-                {isExamMode ? `${student?.exam_type||'WAEC'} Prep` : `${masteryRank.title} Rank`}
+        {/* ── HERO CARD — mascot inside, 3D style ── */}
+        <div style={{ padding:'12px 18px 0', animation:'mibFadeUp 0.3s ease both' }}>
+          <div style={{
+            borderRadius:24, overflow:'hidden', position:'relative', isolation:'isolate',
+            background: isNova
+              ? `linear-gradient(140deg,${accent}30,${accent}12)`
+              : isBlaze ? 'linear-gradient(140deg,#FFD700,#FFB800)'
+              : `linear-gradient(140deg,${accent},${M.accent2||accent}CC)`,
+            boxShadow: isNova
+              ? `0 0 0 1px ${accent}35, 0 12px 40px ${accent}28`
+              : isBlaze ? '4px 4px 0 #0d0d0d, 0 8px 32px rgba(0,0,0,0.2)'
+              : `0 10px 40px ${accent}45, 0 2px 8px ${accent}25`,
+            minHeight:130,
+          }}>
+            {/* Shimmer */}
+            {!isNova && !isBlaze && (
+              <div style={{ position:'absolute', inset:0, overflow:'hidden', pointerEvents:'none' }}>
+                <div style={{ position:'absolute', top:0, bottom:0, width:'50%', background:'linear-gradient(90deg,transparent,rgba(255,255,255,0.13),transparent)', animation:'mibShimmer 5s ease-in-out infinite' }} />
               </div>
-              <div style={{ fontSize:15, fontWeight:800, color: isNova?'#F0EFFF':isBlaze?'#1a1a1a':'#fff', fontFamily:'Nunito, sans-serif', lineHeight:1.5 }}>
-                {isExamMode
-                  ? (overallReadinessPct !== null
-                      ? `You're ${overallReadinessPct}% ready for ${student?.exam_type||'WAEC'}. Keep pushing!`
-                      : 'Start practising to build your exam readiness.')
-                  : doneLessons === 0
-                  ? 'Your maths adventure starts now. Every lesson counts!'
-                  : myClassRank === 0
-                  ? 'Top of your class! Keep that momentum.'
-                  : streak >= 7
-                  ? `${streak} days in a row — unstoppable.`
-                  : nextRank
-                  ? `${nextRank.minXp - xp} XP to ${nextRank.title}. So close!`
-                  : 'All lessons done. A true Maths legend!'}
+            )}
+            {/* Deco circles */}
+            <div style={{ position:'absolute', right:-24, top:-24, width:120, height:120, borderRadius:'50%', background:'rgba(255,255,255,0.1)', pointerEvents:'none' }} />
+            <div style={{ position:'absolute', right:20, bottom:-32, width:80, height:80, borderRadius:'50%', background:'rgba(255,255,255,0.07)', pointerEvents:'none' }} />
+            {/* Content row */}
+            <div style={{ display:'flex', alignItems:'flex-end', gap:0, position:'relative', zIndex:1 }}>
+              {/* Mascot anchored bottom-left */}
+              <div style={{ flexShrink:0, paddingLeft:14, alignSelf:'flex-end', animation:'mibBounce 3.5s ease-in-out infinite' }}>
+                <BicPencil pose="happy" size={68} />
+              </div>
+              {/* Text */}
+              <div style={{ flex:1, minWidth:0, padding:'22px 16px 20px 10px' }}>
+                <div style={{ fontSize:11, fontWeight:800, color: isNova?accent+'CC':isBlaze?'rgba(0,0,0,0.55)':'rgba(255,255,255,0.78)', fontFamily:'Nunito, sans-serif', marginBottom:5, textTransform:'uppercase', letterSpacing:0.8 }}>
+                  {firstName ? `Welcome back, ${firstName}!` : 'Welcome back!'}
+                </div>
+                <div style={{ fontSize:15, fontWeight:800, color: isNova?'#F0EFFF':isBlaze?'#1a1a1a':'#fff', fontFamily:'Nunito, sans-serif', lineHeight:1.5 }}>
+                  {isExamMode
+                    ? (overallReadinessPct !== null
+                        ? `You're ${overallReadinessPct}% ready for ${student?.exam_type||'WAEC'}. Keep pushing!`
+                        : 'Start practising to build your exam readiness.')
+                    : doneLessons === 0
+                    ? 'Your maths adventure starts now. Every lesson counts!'
+                    : myClassRank === 0
+                    ? 'You are top of your class! Keep that energy!'
+                    : streak >= 7
+                    ? `${streak} days in a row! You are unstoppable.`
+                    : nextRank
+                    ? `${nextRank.minXp - xp} XP to ${nextRank.title}. You are so close!`
+                    : 'All lessons done. You are a Maths legend!'}
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* ── CONTINUE LEARNING ── */}
-        <div style={{ marginBottom:14, animation:'mibFadeUp 0.3s 0.12s ease both' }}>
+        {/* ── CONTINUE LEARNING — single large card ── */}
+        <div style={{ padding:'12px 18px 0', animation:'mibFadeUp 0.3s 0.1s ease both' }}>
           <SubjectSwitcher
             student={student}
             nextLesson={nextLesson}
@@ -982,46 +1034,143 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
           />
         </div>
 
-        {/* ── JOURNEY / QUICK ACCESS ── */}
-        <div style={{ animation:'mibFadeUp 0.3s 0.16s ease both' }}>
+        {/* ── JOURNEY PATH — exam readiness OR school rank track ── */}
+        <div style={{ padding:'12px 18px 0', animation:'mibFadeUp 0.3s 0.15s ease both' }}>
           {isExamMode ? (
-            /* Exam mode: readiness progress card */
-            <div style={{ background: isNova?'rgba(255,255,255,0.07)':'#fff', borderRadius:20, padding:'18px', boxShadow:'0 2px 14px rgba(0,0,0,0.07)', border:`1px solid ${isNova?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)'}`, marginBottom:14 }}>
+            /* Exam: readiness journey */
+            <div style={{ background: isNova?'rgba(255,255,255,0.06)':'#fff', borderRadius:20, padding:'16px 18px', boxShadow:'0 2px 14px rgba(0,0,0,0.07)', border:`1px solid ${isNova?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)'}` }}>
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
                 <div>
-                  <div style={{ fontSize:9, fontWeight:900, color:bodyColor, textTransform:'uppercase', letterSpacing:1.2, fontFamily:'Nunito, sans-serif', marginBottom:3 }}>Exam Readiness</div>
-                  <div style={{ fontSize:26, fontWeight:900, color: overallReadinessPct !== null ? readinessLevel(overallReadinessPct).color : accent, fontFamily:'Sora, sans-serif', lineHeight:1 }}>
+                  <div style={{ fontSize:10, fontWeight:900, color:bodyColor, textTransform:'uppercase', letterSpacing:1.1, fontFamily:'Nunito, sans-serif', marginBottom:2 }}>Exam Readiness</div>
+                  <div style={{ fontSize:22, fontWeight:900, color: overallReadinessPct !== null ? readinessLevel(overallReadinessPct).color : accent, fontFamily:M.headingFont, lineHeight:1 }}>
                     {overallReadinessPct !== null ? `${overallReadinessPct}%` : '—'}
                   </div>
                 </div>
-                <div style={{ textAlign:'right' }}>
-                  <div style={{ fontSize:9, fontWeight:700, color:bodyColor, fontFamily:'Nunito, sans-serif', marginBottom:4 }}>Rank</div>
-                  <div style={{ fontSize:20, fontWeight:900, color:accent, fontFamily:'Sora, sans-serif', opacity:rankVisible?1:0, transition:'opacity 0.4s' }}>{activeFace.display}</div>
-                  <div style={{ fontSize:9, fontWeight:700, color:bodyColor, fontFamily:'Nunito, sans-serif' }}>{activeFace.label}</div>
+                <div style={{ padding:'6px 14px', background: overallReadinessPct !== null ? readinessLevel(overallReadinessPct).color+'18' : accent+'12', border:`1.5px solid ${overallReadinessPct !== null ? readinessLevel(overallReadinessPct).color+'30' : accent+'20'}`, borderRadius:99 }}>
+                  <span style={{ fontSize:11, fontWeight:900, color: overallReadinessPct !== null ? readinessLevel(overallReadinessPct).color : accent, fontFamily:'Nunito, sans-serif' }}>
+                    {overallReadinessPct !== null ? readinessLevel(overallReadinessPct).label : 'Not started'}
+                  </span>
                 </div>
               </div>
-              <div style={{ height:6, background: isNova?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.07)', borderRadius:99, overflow:'hidden', marginBottom:14 }}>
-                <div style={{ height:'100%', width:`${overallReadinessPct||0}%`, background: overallReadinessPct !== null ? readinessLevel(overallReadinessPct).color : accent, borderRadius:99, transition:'width 1.4s ease' }} />
-              </div>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-                {[
-                  { tab:'practice', icon:'pencil', label:'Practice', desc:'Topic drills', color:'#3b82f6' },
-                  { tab:'learn',    icon:'book',   label:'Learn',    desc:'Lesson topics', color:accent   },
-                ].map(card => (
-                  <button key={card.tab} onClick={() => setActiveTab(card.tab)} className="mib-press" style={{ padding:'13px 12px', background: isNova?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.02)', border:`1.5px solid ${card.color}22`, borderRadius:14, cursor:'pointer', textAlign:'left', display:'flex', alignItems:'center', gap:10 }}>
-                    <div style={{ width:34, height:34, borderRadius:10, background:`${card.color}16`, border:`1px solid ${card.color}25`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                      <EduIcon id={card.icon} size={16} color={card.color} />
+              {/* Journey track — 5 milestone dots */}
+              {(() => {
+                const pct = overallReadinessPct || 0
+                const milestones = [0,25,50,75,100]
+                const filled = pct
+                return (
+                  <div style={{ position:'relative', marginBottom:10 }}>
+                    {/* Track line */}
+                    <div style={{ height:6, background: isNova?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.07)', borderRadius:99, overflow:'hidden', marginBottom:0 }}>
+                      <div style={{ height:'100%', width:pct+'%', background:`linear-gradient(90deg,${readinessLevel(pct).color},${readinessLevel(Math.min(pct+20,100)).color})`, borderRadius:99, transition:'width 1.4s ease' }} />
                     </div>
-                    <div>
-                      <div style={{ fontSize:12, fontWeight:800, color: isNova?'#F0EFFF':M.textPrimary, fontFamily:'Nunito, sans-serif' }}>{card.label}</div>
-                      <div style={{ fontSize:9, color:bodyColor, fontFamily:'Nunito, sans-serif', fontWeight:600 }}>{card.desc}</div>
+                    {/* Milestone dots */}
+                    <div style={{ display:'flex', justifyContent:'space-between', marginTop:8 }}>
+                      {milestones.map((m, i) => {
+                        const reached = pct >= m
+                        const labels = ['Start','25%','50%','75%','Ready!']
+                        return (
+                          <div key={m} style={{ textAlign:'center', flex: i === 0 || i === milestones.length-1 ? '0 0 auto' : 1 }}>
+                            <div style={{ width:10, height:10, borderRadius:'50%', background:reached?(readinessLevel(pct).color):'rgba(0,0,0,0.1)', border:`2px solid ${reached?readinessLevel(pct).color:'rgba(0,0,0,0.12)'}`, margin:'0 auto 3px', transition:'all 0.6s' }} />
+                            <div style={{ fontSize:8, fontWeight:700, color:reached?readinessLevel(pct).color:bodyColor, fontFamily:'Nunito, sans-serif' }}>{labels[i]}</div>
+                          </div>
+                        )
+                      })}
                     </div>
-                  </button>
-                ))}
+                  </div>
+                )
+              })()}
+              <div style={{ fontSize:11, color:bodyColor, fontFamily:'Nunito, sans-serif', fontWeight:600, lineHeight:1.5 }}>
+                {overallReadinessPct === null
+                  ? 'Complete lessons and practice questions to build your readiness score.'
+                  : overallReadinessPct < 30
+                  ? 'Study more lessons and solve practice questions to improve your score.'
+                  : overallReadinessPct < 60
+                  ? 'Good progress! Keep solving past questions to climb higher.'
+                  : overallReadinessPct < 80
+                  ? `Almost there. Focus on your weak topics to reach Exam Ready.`
+                  : 'You are well prepared. Keep your momentum going!'}
               </div>
             </div>
           ) : (
-            /* School mode: quick access grid */
+            /* School: rank progress track */
+            <button onClick={() => setActiveTab('rank')} className="mib-press" style={{ width:'100%', background: isNova?'rgba(255,255,255,0.06)':'#fff', borderRadius:20, padding:'16px 18px', boxShadow:'0 2px 14px rgba(0,0,0,0.07)', border:`1px solid ${masteryRank.color}22`, textAlign:'left', cursor:'pointer', transition:'transform 0.13s cubic-bezier(0.34,1.2,0.64,1)' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:14, marginBottom:12 }}>
+                <div style={{ width:46, height:46, borderRadius:14, background:`linear-gradient(145deg,${masteryRank.color}28,${masteryRank.color}0C)`, border:`2px solid ${masteryRank.color}40`, boxShadow:`0 4px 14px ${masteryRank.color}22,inset 0 1px 0 rgba(255,255,255,0.35)`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                  <EduIcon id={RANK_ICONS[masteryRank.title]||'star'} size={22} color={masteryRank.color} />
+                </div>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:10, fontWeight:700, color:bodyColor, fontFamily:'Nunito, sans-serif', marginBottom:2, textTransform:'uppercase', letterSpacing:0.8 }}>Your Rank</div>
+                  <div style={{ fontSize:18, fontWeight:900, color:masteryRank.color, fontFamily:M.headingFont, lineHeight:1 }}>{masteryRank.title}</div>
+                </div>
+                <div style={{ textAlign:'right' }}>
+                  <div style={{ fontSize:14, fontWeight:900, color:accent, fontFamily:'Nunito, sans-serif' }}>#{myPosInRank}</div>
+                  <div style={{ fontSize:9, color:bodyColor, fontFamily:'Nunito, sans-serif', fontWeight:600 }}>in class</div>
+                </div>
+              </div>
+              {/* Rank journey strip */}
+              <div style={{ height:6, background:'rgba(0,0,0,0.07)', borderRadius:99, overflow:'hidden', marginBottom:6 }}>
+                <div style={{ height:'100%', width:rankProgress+'%', background:`linear-gradient(90deg,${masteryRank.color},${nextRank?.color||masteryRank.color})`, borderRadius:99, transition:'width 1.1s ease' }} />
+              </div>
+              <div style={{ fontSize:10, color:bodyColor, fontFamily:'Nunito, sans-serif', fontWeight:600, marginBottom: nextRank ? 8 : 0 }}>
+                {nextRank ? `${nextRank.minXp - xp} XP to ${nextRank.title}` : 'Maximum rank achieved!'}
+              </div>
+              {nextRank && (
+                <div style={{ padding:'6px 12px', background:`${masteryRank.color}12`, border:`1px solid ${masteryRank.color}25`, borderRadius:99, display:'inline-flex', alignItems:'center', gap:5 }}>
+                  <span style={{ fontSize:12 }}>🎯</span>
+                  <span style={{ fontSize:10, fontWeight:900, color:masteryRank.color, fontFamily:'Nunito, sans-serif' }}>
+                    Complete {Math.max(1, Math.ceil((nextRank.minXp - xp) / 6))} more lessons to reach {nextRank.title}!
+                  </span>
+                </div>
+              )}
+            </button>
+          )}
+        </div>
+
+        {/* ── QUICK ACCESS ── */}
+        <div style={{ padding:'10px 18px 0', animation:'mibFadeUp 0.3s 0.2s ease both' }}>
+          {isExamMode ? (
+            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+              {/* Practice row */}
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+                <button onClick={() => setActiveTab('practice')} className="mib-press" style={{ padding:'16px', background: isNova?'rgba(255,255,255,0.07)':'#fff', border:'none', borderRadius:18, cursor:'pointer', textAlign:'left', boxShadow:'0 2px 12px rgba(0,0,0,0.07)', transition:'transform 0.13s cubic-bezier(0.34,1.2,0.64,1)' }}>
+                  <div style={{ width:40, height:40, borderRadius:12, background:'linear-gradient(145deg,rgba(59,130,246,0.22),rgba(59,130,246,0.08))', border:'1.5px solid rgba(59,130,246,0.28)', boxShadow:'0 3px 10px rgba(59,130,246,0.15),inset 0 1px 0 rgba(255,255,255,0.5)', display:'flex', alignItems:'center', justifyContent:'center', marginBottom:10 }}>
+                    <EduIcon id="pencil" size={19} color="#3b82f6" />
+                  </div>
+                  <div style={{ fontSize:13, fontWeight:900, color: isNova?'#F0EFFF':'#1a1a1a', fontFamily:'Nunito, sans-serif', marginBottom:2 }}>Practice</div>
+                  <div style={{ fontSize:9, color:bodyColor, fontFamily:'Nunito, sans-serif', fontWeight:600 }}>Questions & mock tests</div>
+                </button>
+                <button onClick={() => setActiveTab('leaderboard')} className="mib-press" style={{ padding:'16px', background: isNova?'rgba(255,255,255,0.07)':'#fff', border:'none', borderRadius:18, cursor:'pointer', textAlign:'left', boxShadow:'0 2px 12px rgba(0,0,0,0.07)', transition:'transform 0.13s cubic-bezier(0.34,1.2,0.64,1)' }}>
+                  <div style={{ width:40, height:40, borderRadius:12, background:`linear-gradient(145deg,${accent}22,${accent}08)`, border:`1.5px solid ${accent}28`, boxShadow:`0 3px 10px ${accent}15,inset 0 1px 0 rgba(255,255,255,0.5)`, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:10 }}>
+                    <EduIcon id="trophy" size={19} color={accent} />
+                  </div>
+                  <div style={{ fontSize:13, fontWeight:900, color: isNova?'#F0EFFF':'#1a1a1a', fontFamily:'Nunito, sans-serif', marginBottom:2 }}>Leaderboard</div>
+                  <div style={{ fontSize:9, color:bodyColor, fontFamily:'Nunito, sans-serif', fontWeight:600 }}>Rank among peers</div>
+                </button>
+              </div>
+              {/* Past Questions strip */}
+              <div style={{ background: isNova?'rgba(255,255,255,0.05)':'#fff', borderRadius:16, overflow:'hidden', border:`1px solid ${isNova?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)'}`, boxShadow:'0 2px 10px rgba(0,0,0,0.05)' }}>
+                <div style={{ padding:'10px 16px 8px', borderBottom:`1px solid ${isNova?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.05)'}`, display:'flex', alignItems:'center', gap:8 }}>
+                  <EduIcon id="scroll" size={12} color={bodyColor} />
+                  <span style={{ fontSize:10, fontWeight:900, color:bodyColor, textTransform:'uppercase', letterSpacing:1, fontFamily:'Nunito, sans-serif' }}>Past Questions</span>
+                </div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr' }}>
+                  <button onClick={() => router.push('/learn/past-questions')} className="mib-press" style={{ padding:'13px 12px', background:'transparent', border:'none', borderRight:`1px solid ${isNova?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.05)'}`, cursor:'pointer', textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center', gap:5, transition:'transform 0.13s cubic-bezier(0.34,1.2,0.64,1)' }}>
+                    <div style={{ width:32, height:32, borderRadius:10, background:`${accent}14`, border:`1.5px solid ${accent}25`, boxShadow:`0 2px 8px ${accent}12,inset 0 1px 0 rgba(255,255,255,0.4)`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                      <EduIcon id="book" size={15} color={accent} />
+                    </div>
+                    <div style={{ fontSize:11, fontWeight:900, color: isNova?'#F0EFFF':'#1a1a1a', fontFamily:'Nunito, sans-serif' }}>By Topic</div>
+                  </button>
+                  <button onClick={() => router.push('/learn/mock-test')} className="mib-press" style={{ padding:'13px 12px', background:'transparent', border:'none', cursor:'pointer', textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center', gap:5, transition:'transform 0.13s cubic-bezier(0.34,1.2,0.64,1)' }}>
+                    <div style={{ width:32, height:32, borderRadius:10, background:'rgba(124,58,237,0.14)', border:'1.5px solid rgba(124,58,237,0.25)', boxShadow:'0 2px 8px rgba(124,58,237,0.12),inset 0 1px 0 rgba(255,255,255,0.4)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                      <EduIcon id="shield" size={15} color="#7c3aed" />
+                    </div>
+                    <div style={{ fontSize:11, fontWeight:900, color: isNova?'#F0EFFF':'#1a1a1a', fontFamily:'Nunito, sans-serif' }}>Mock Test</div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* School mode: 4-card quick access grid */
             <div style={{ marginBottom:14 }}>
               <div style={{ fontSize:10, fontWeight:900, color:bodyColor, textTransform:'uppercase', letterSpacing:1.2, fontFamily:'Nunito, sans-serif', marginBottom:10 }}>Quick Access</div>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
@@ -1045,30 +1194,12 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
           )}
         </div>
 
-        {/* ── MASTERY RANK CHIP (school mode) ── */}
-        {!isExamMode && (
-          <div style={{ marginBottom:14, padding:'14px 16px', background: isNova?'rgba(255,255,255,0.06)':'#fff', borderRadius:16, display:'flex', alignItems:'center', gap:12, border:`1px solid ${masteryRank.color}22`, boxShadow:'0 2px 10px rgba(0,0,0,0.05)', animation:'mibFadeUp 0.3s 0.2s ease both' }}>
-            <div style={{ width:42, height:42, borderRadius:12, background:`${masteryRank.color}18`, border:`1.5px solid ${masteryRank.color}35`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-              <EduIcon id={RANK_ICONS[masteryRank.title]||'star'} size={20} color={masteryRank.color} />
-            </div>
-            <div style={{ flex:1 }}>
-              <div style={{ fontSize:12, fontWeight:900, color:masteryRank.color, fontFamily:'Sora, sans-serif' }}>{masteryRank.title}</div>
-              <div style={{ fontSize:10, color:bodyColor, fontFamily:'Nunito, sans-serif', fontWeight:600, fontStyle:'italic', marginTop:1 }}>{masteryRank.flavor}</div>
-            </div>
-            {nextRank && (
-              <div style={{ textAlign:'right', flexShrink:0 }}>
-                <div style={{ fontSize:9, color:bodyColor, fontFamily:'Nunito, sans-serif', fontWeight:600, marginBottom:3 }}>Next rank</div>
-                <div style={{ fontSize:11, fontWeight:900, color:nextRank.color, fontFamily:'Nunito, sans-serif' }}>{nextRank.minXp - xp} XP</div>
-              </div>
-            )}
-          </div>
-        )}
-
         {/* ── Profile Switcher (multi-profile) ── */}
         {allStudents.length > 1 && (
-          <div style={{ marginBottom:14, animation:'mibFadeUp 0.3s 0.22s ease both' }}>
-            <button onClick={() => setShowSwitcher(true)} style={{ width:'100%', padding:'11px 16px', background:'transparent', border:`1.5px solid ${accent}22`, borderRadius:14, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8, fontFamily:'Nunito, sans-serif', color:accent, fontSize:12, fontWeight:800 }}>
-              <EduIcon id="users" size={14} color={accent} /> Switch Profile
+          <div style={{ padding:'10px 18px 0' }}>
+            <button onClick={() => setShowSwitcher(true)} style={{ width:'100%', padding:'12px 16px', background:'transparent', border:`1px solid ${accent}22`, borderRadius:14, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8, fontFamily:'Nunito, sans-serif', color:accent, fontSize:12, fontWeight:800 }}>
+              <EduIcon id="users" size={14} color={accent} />
+              Switch Profile
             </button>
           </div>
         )}
@@ -1079,10 +1210,13 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
   )
 
   // ══════════════════════════════════════════════════════════════════════════
-  // EXAM LEARN TAB — redesigned
+  // LEARN TAB
+  // Design: centred vertical spine, all nodes centred, labels below
   // ══════════════════════════════════════════════════════════════════════════
+  // ── Exam mode: flat topic list (topics only, not subtopics) ─────────────
   const examTopics = (() => {
     if (!isExamMode) return []
+    // Build topic-level list from allTopics
     return allTopics.map(t => {
       const subs  = t.subtopics || []
       const done  = subs.filter(s => completedIds.has(s.id)).length
@@ -1094,9 +1228,13 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
   })()
 
   const [topicSearch, setTopicSearch] = useState('')
+
   const filteredExamTopics = topicSearch.trim()
     ? examTopics.filter(t => t.title.toLowerCase().includes(topicSearch.toLowerCase()))
     : examTopics
+
+  // ── EXAM LEARN TAB ─────────────────────────────────────────────────────────
+  const [showTopicModal, setShowTopicModal] = useState(false)
 
   const ExamLearnTab = (() => {
     const rPct = overallReadinessPct !== null ? overallReadinessPct
@@ -1104,209 +1242,323 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
     const rdy = readinessLevel(rPct)
 
     const STEPS = [
-      { label: 'Beginner', min: 0  },
-      { label: 'Building', min: 20 },
-      { label: 'Getting There', min: 45 },
-      { label: 'Nearly Ready', min: 70 },
-      { label: 'Exam Ready', min: 90 },
+      { label:'Beginner',     min:0  },
+      { label:'Building',     min:20 },
+      { label:'Getting There',min:45 },
+      { label:'Nearly Ready', min:70 },
+      { label:'Exam Ready',   min:90 },
     ]
-    const currentStep = [...STEPS].reverse().find(s => rPct >= s.min) || STEPS[0]
-    const nextStep    = STEPS[STEPS.indexOf(currentStep) + 1]
+    const currentStep   = [...STEPS].reverse().find(s => rPct >= s.min) || STEPS[0]
+    const nextStep      = STEPS[STEPS.indexOf(currentStep) + 1]
     const withinStepPct = nextStep
       ? Math.round(((rPct - currentStep.min) / (nextStep.min - currentStep.min)) * 100)
       : 100
 
     return (
-    <div style={{ height:'100%', display:'flex', flexDirection:'column', background: isNova?'#0D0B1E':'#F6F5F2' }}>
+    <div style={{ height:'100%', display:'flex', flexDirection:'column', background: isNova?'#0D0B1E':isBlaze?'#FFFBEA':'#F6F5F2' }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Sora:wght@700;800;900&family=Nunito:wght@500;600;700;800;900&display=swap');
-        @keyframes elIn    { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes elPulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.1)} }
+        @keyframes elIn    { from{opacity:0;transform:translateY(9px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes elPulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.12)} }
+        @keyframes elFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+        @keyframes modalUp { from{opacity:0;transform:translateY(28px)} to{opacity:1;transform:translateY(0)} }
         .el-btn:active { transform:scale(0.975); }
         .el-btn { transition:transform 0.12s cubic-bezier(0.34,1.2,0.64,1); }
       `}</style>
 
       {/* ── STICKY HEADER ── */}
-      <div style={{ flexShrink:0, background: isNova?'rgba(13,11,30,0.97)':'rgba(246,245,242,0.97)', backdropFilter:'blur(16px)', borderBottom:`1px solid ${isNova?'rgba(255,255,255,0.07)':'rgba(0,0,0,0.07)'}`, position:'sticky', top:0, zIndex:20 }}>
-        <div style={{ height:4, background: isNova?'rgba(255,255,255,0.07)':'rgba(0,0,0,0.07)', overflow:'hidden' }}>
-          <div style={{ height:'100%', width:`${rPct}%`, background:rdy.color, transition:'width 1.4s ease' }} />
+      <div style={{ flexShrink:0, background:isNova?'rgba(13,11,30,0.97)':'rgba(246,245,242,0.97)', backdropFilter:'blur(16px)', borderBottom:`1px solid ${isNova?'rgba(255,255,255,0.07)':'rgba(0,0,0,0.06)'}`, position:'sticky', top:0, zIndex:20 }}>
+        <div style={{ height:4, background:isNova?'rgba(255,255,255,0.07)':'rgba(0,0,0,0.07)', overflow:'hidden' }}>
+          <div style={{ height:'100%', width:`${rPct}%`, background:`linear-gradient(90deg,${rdy.color},${rdy.color}CC)`, transition:'width 1.4s ease' }} />
         </div>
-        <div style={{ display:'flex', alignItems:'center', gap:12, padding:'11px 18px' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 16px' }}>
           <div style={{ flex:1 }}>
-            <div style={{ fontSize:13, fontWeight:900, color: isNova?'#F0EFFF':M.textPrimary, fontFamily:'Sora, sans-serif' }}>
-              {student?.exam_type?.toUpperCase()||'WAEC'} Prep
+            <div style={{ fontSize:12, fontWeight:900, color:isNova?'#F0EFFF':M.textPrimary, fontFamily:'Sora, sans-serif' }}>
+              {student?.exam_type?.toUpperCase()||'WAEC'} Exam Prep
             </div>
             <div style={{ fontSize:10, color:bodyColor, fontFamily:'Nunito, sans-serif', fontWeight:600, marginTop:1 }}>
-              {rPct >= 90 ? 'Exam ready — keep your momentum!' : rPct >= 70 ? 'Nearly ready — push through remaining topics' : rPct >= 45 ? 'Getting there — practise daily' : 'Start your first lesson to begin'}
+              {rPct >= 90 ? '🎯 Exam ready — keep your momentum!'
+               : rPct >= 70 ? '💪 Nearly ready — push through remaining topics'
+               : rPct >= 45 ? '📈 Getting there — practise daily'
+               : rPct >  0  ? '🚀 Building up — keep going!'
+               : '✨ Start your first lesson to begin'}
             </div>
           </div>
-          <div style={{ padding:'5px 12px', background:`${rdy.color}18`, border:`1.5px solid ${rdy.color}30`, borderRadius:99 }}>
-            <span style={{ fontSize:12, fontWeight:900, color:rdy.color, fontFamily:'Sora, sans-serif' }}>{rPct}%</span>
+          <div style={{ padding:'5px 12px', background:`${rdy.color}20`, border:`1.5px solid ${rdy.color}40`, borderRadius:99 }}>
+            <span style={{ fontSize:13, fontWeight:900, color:rdy.color, fontFamily:'Sora, sans-serif' }}>{rPct}%</span>
           </div>
         </div>
       </div>
 
       {/* ── SCROLL BODY ── */}
       <div style={{ flex:1, overflowY:'auto' }}>
-        <div style={{ maxWidth:520, margin:'0 auto', padding:`20px 16px ${isMobile?'max(160px,calc(130px + env(safe-area-inset-bottom)))':'64px'}` }}>
+        <div style={{ maxWidth:520, margin:'0 auto', padding:`16px 16px ${isMobile?'max(160px,calc(130px + env(safe-area-inset-bottom)))':'64px'}` }}>
 
-          {/* Journey Tracker Card */}
-          <div style={{ background: isNova?'rgba(255,255,255,0.06)':'#fff', borderRadius:20, padding:'18px 20px', marginBottom:16, boxShadow:'0 2px 12px rgba(0,0,0,0.06)', border:`1px solid ${isNova?'rgba(255,255,255,0.07)':'rgba(0,0,0,0.06)'}`, animation:'elIn 0.3s ease both' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:14 }}>
+          {/* ── MASCOT BANNER ── */}
+          <div style={{ borderRadius:20, overflow:'hidden', position:'relative', isolation:'isolate', marginBottom:16, background:isNova?`linear-gradient(135deg,${accent}28,${accent}10)`:`linear-gradient(135deg,${rdy.color}18,${rdy.color}06)`, border:`1.5px solid ${rdy.color}25`, animation:'elIn 0.3s ease both' }}>
+            <div style={{ position:'absolute', right:-18, top:-18, width:90, height:90, borderRadius:'50%', background:`${rdy.color}12`, pointerEvents:'none' }} />
+            <div style={{ display:'flex', alignItems:'flex-end', gap:0 }}>
+              <div style={{ flexShrink:0, paddingLeft:12, alignSelf:'flex-end', animation:'elFloat 3.2s ease-in-out infinite' }}>
+                <BicPencil pose="celebrate" size={62} />
+              </div>
+              <div style={{ flex:1, padding:'16px 14px 14px 8px', minWidth:0 }}>
+                <div style={{ fontSize:14, fontWeight:900, color:isNova?'#F0EFFF':M.textPrimary, fontFamily:'Sora, sans-serif', lineHeight:1.3, marginBottom:4 }}>
+                  {rPct === 0 ? `Ready to start your ${student?.exam_type||'WAEC'} journey? 🎒`
+                   : rPct < 40 ? 'Every lesson brings you closer! Keep going 💪'
+                   : rPct < 75 ? 'Great work! You are making real progress 🌟'
+                   : 'Almost exam ready. Finish strong! 🎯'}
+                </div>
+                <div style={{ fontSize:10, color:bodyColor, fontFamily:'Nunito, sans-serif', fontWeight:600 }}>
+                  {examTopics.filter(t=>t.pct===100).length} of {examTopics.length} topics mastered
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ── JOURNEY TRACKER ── */}
+          <div style={{ background:isNova?'rgba(255,255,255,0.07)':'#fff', borderRadius:22, padding:'18px 20px', marginBottom:16, boxShadow:`0 4px 20px ${rdy.color}16`, border:`1.5px solid ${rdy.color}22`, animation:'elIn 0.3s 0.04s ease both' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:16 }}>
               <div>
-                <div style={{ fontSize:9, fontWeight:800, color:bodyColor, textTransform:'uppercase', letterSpacing:1.2, fontFamily:'Nunito, sans-serif', marginBottom:4 }}>Journey to {student?.exam_type||'WAEC'}</div>
-                <div style={{ fontSize:22, fontWeight:900, color:rdy.color, fontFamily:'Sora, sans-serif', lineHeight:1 }}>{currentStep.label}</div>
+                <div style={{ fontSize:9, fontWeight:800, color:bodyColor, textTransform:'uppercase', letterSpacing:1.4, fontFamily:'Nunito, sans-serif', marginBottom:4 }}>Your Journey</div>
+                <div style={{ fontSize:24, fontWeight:900, color:rdy.color, fontFamily:'Sora, sans-serif', lineHeight:1 }}>{currentStep.label}</div>
               </div>
               {nextStep && (
-                <div style={{ textAlign:'right' }}>
-                  <div style={{ fontSize:9, fontWeight:700, color:bodyColor, fontFamily:'Nunito, sans-serif', marginBottom:3 }}>Next milestone</div>
-                  <div style={{ fontSize:12, fontWeight:900, color:M.textPrimary, fontFamily:'Nunito, sans-serif' }}>{nextStep.label}</div>
+                <div style={{ textAlign:'right', background:`${rdy.color}10`, border:`1px solid ${rdy.color}20`, borderRadius:12, padding:'8px 12px' }}>
+                  <div style={{ fontSize:8, fontWeight:700, color:bodyColor, fontFamily:'Nunito, sans-serif', marginBottom:2 }}>Next milestone</div>
+                  <div style={{ fontSize:11, fontWeight:900, color:rdy.color, fontFamily:'Nunito, sans-serif' }}>{nextStep.label}</div>
                 </div>
               )}
             </div>
-
-            {/* Step dots */}
+            {/* Step dots track */}
             <div style={{ display:'flex', alignItems:'center', marginBottom:10 }}>
               {STEPS.map((step, i) => {
-                const reached  = rPct >= step.min
-                const isCur    = step.label === currentStep.label
-                const lineNext = i < STEPS.length - 1
+                const reached   = rPct >= step.min
+                const isCur     = step.label === currentStep.label
+                const lineNext  = i < STEPS.length - 1
                 const nextReach = i < STEPS.length - 1 && rPct >= STEPS[i+1].min
                 return (
                   <div key={step.label} style={{ display:'flex', alignItems:'center', flex: i < STEPS.length-1 ? 1 : '0 0 auto' }}>
-                    <div style={{ width:isCur?16:10, height:isCur?16:10, borderRadius:'50%', flexShrink:0, background:reached?rdy.color:isNova?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.1)', border:`2px solid ${reached?rdy.color:isNova?'rgba(255,255,255,0.15)':'rgba(0,0,0,0.13)'}`, boxShadow:isCur?`0 0 0 4px ${rdy.color}28`:'none', animation:isCur?'elPulse 2s ease-in-out infinite':'none', transition:'all 0.6s' }} />
+                    <div style={{ width:isCur?18:12, height:isCur?18:12, borderRadius:'50%', flexShrink:0, background:reached?rdy.color:isNova?'rgba(255,255,255,0.12)':'rgba(0,0,0,0.1)', border:`2.5px solid ${reached?rdy.color:isNova?'rgba(255,255,255,0.18)':'rgba(0,0,0,0.12)'}`, boxShadow:isCur?`0 0 0 5px ${rdy.color}28,0 4px 14px ${rdy.color}40`:'none', animation:isCur?'elPulse 2s ease-in-out infinite':'none', transition:'all 0.5s', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                      {reached && !isCur && <div style={{ width:5, height:5, borderRadius:'50%', background:'#fff' }} />}
+                    </div>
                     {lineNext && (
-                      <div style={{ flex:1, height:3, background:isNova?'rgba(255,255,255,0.07)':'rgba(0,0,0,0.07)', borderRadius:99, overflow:'hidden', margin:'0 2px' }}>
-                        <div style={{ height:'100%', width:nextReach?'100%':isCur?withinStepPct+'%':'0%', background:rdy.color, borderRadius:99, transition:'width 1.2s ease' }} />
+                      <div style={{ flex:1, height:4, background:isNova?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.07)', borderRadius:99, overflow:'hidden', margin:'0 3px' }}>
+                        <div style={{ height:'100%', width:nextReach?'100%':isCur?withinStepPct+'%':'0%', background:`linear-gradient(90deg,${rdy.color},${rdy.color}BB)`, borderRadius:99, transition:'width 1.4s ease' }} />
                       </div>
                     )}
                   </div>
                 )
               })}
             </div>
-            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:14 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:16 }}>
               {STEPS.map(step => (
-                <div key={step.label} style={{ fontSize:8, fontWeight:step.label===currentStep.label?900:600, color:step.label===currentStep.label?rdy.color:bodyColor, fontFamily:'Nunito, sans-serif', textAlign:'center', maxWidth:52 }}>{step.label}</div>
+                <div key={step.label} style={{ fontSize:8, fontWeight:step.label===currentStep.label?900:600, color:step.label===currentStep.label?rdy.color:bodyColor, fontFamily:'Nunito, sans-serif', textAlign:'center', maxWidth:54 }}>{step.label}</div>
               ))}
             </div>
-
-            {/* Stats row */}
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8, paddingTop:14, borderTop:`1px solid ${isNova?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.06)'}` }}>
+            {/* Stats */}
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8, paddingTop:14, borderTop:`1px solid ${isNova?'rgba(255,255,255,0.07)':'rgba(0,0,0,0.06)'}` }}>
               {[
                 { label:'Topics Done', value:`${examTopics.filter(t=>t.pct===100).length}/${examTopics.length}`, color:rdy.color },
-                { label:'Exam Ready',  value:`${rPct}%`,                                                          color:rdy.color },
-                { label:'Practised',   value:`${practiceAttempts.length}q`,                                       color:'#3b82f6' },
+                { label:'Readiness',   value:`${rPct}%`,                                                          color:rdy.color },
+                { label:'Questions',   value:`${practiceAttempts.length}`,                                        color:'#3b82f6' },
               ].map(s => (
-                <div key={s.label} style={{ textAlign:'center', padding:'9px 4px', background:isNova?'rgba(255,255,255,0.04)':'rgba(0,0,0,0.02)', borderRadius:10 }}>
-                  <div style={{ fontSize:16, fontWeight:900, color:s.color, fontFamily:'Sora, sans-serif', lineHeight:1 }}>{s.value}</div>
-                  <div style={{ fontSize:8, fontWeight:700, color:bodyColor, textTransform:'uppercase', letterSpacing:0.5, fontFamily:'Nunito, sans-serif', marginTop:4 }}>{s.label}</div>
+                <div key={s.label} style={{ textAlign:'center', padding:'8px 4px', background:isNova?'rgba(255,255,255,0.04)':'rgba(0,0,0,0.025)', borderRadius:12 }}>
+                  <div style={{ fontSize:17, fontWeight:900, color:s.color, fontFamily:'Sora, sans-serif', lineHeight:1 }}>{s.value}</div>
+                  <div style={{ fontSize:8, fontWeight:700, color:bodyColor, textTransform:'uppercase', letterSpacing:0.5, fontFamily:'Nunito, sans-serif', marginTop:3 }}>{s.label}</div>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Continue Learning */}
+          {/* ── CONTINUE LEARNING ── */}
           {nextLesson ? (
             <button onClick={() => router.push(`/learn/lesson/${nextLesson.id}`)} className="el-btn"
-              style={{ width:'100%', border:'none', cursor:'pointer', textAlign:'left', marginBottom:16, padding:0, borderRadius:18, overflow:'hidden', background:`linear-gradient(135deg,${accent},${M.accent2||accent}E8)`, boxShadow:`0 8px 28px ${accent}40`, animation:'elIn 0.3s 0.05s ease both' }}>
-              <div style={{ padding:'18px 20px', display:'flex', alignItems:'center', gap:14 }}>
-                <div style={{ width:48, height:48, borderRadius:14, background:'rgba(255,255,255,0.2)', border:'1.5px solid rgba(255,255,255,0.3)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+              style={{ width:'100%', border:'none', cursor:'pointer', textAlign:'left', marginBottom:16, padding:0, borderRadius:18, overflow:'hidden', background:`linear-gradient(135deg,${accent},${M.accent2||accent}E8)`, boxShadow:`0 8px 28px ${accent}45`, animation:'elIn 0.3s 0.07s ease both' }}>
+              <div style={{ padding:'17px 20px', display:'flex', alignItems:'center', gap:14 }}>
+                <div style={{ width:48, height:48, borderRadius:14, background:'rgba(255,255,255,0.22)', border:'1.5px solid rgba(255,255,255,0.32)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                   <EduIcon id="book" size={22} color="#fff" />
                 </div>
                 <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontSize:9, fontWeight:800, color:'rgba(255,255,255,0.65)', textTransform:'uppercase', letterSpacing:1.8, fontFamily:'Nunito, sans-serif', marginBottom:6 }}>Continue Learning</div>
+                  <div style={{ fontSize:9, fontWeight:800, color:'rgba(255,255,255,0.65)', textTransform:'uppercase', letterSpacing:1.8, fontFamily:'Nunito, sans-serif', marginBottom:5 }}>Continue Learning</div>
                   <div style={{ fontSize:16, fontWeight:900, color:'#fff', fontFamily:'Sora, sans-serif', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{nextLesson.topicTitle||nextLesson.title}</div>
-                  <div style={{ fontSize:11, color:'rgba(255,255,255,0.7)', fontFamily:'Nunito, sans-serif', fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{nextLesson.title}</div>
+                  <div style={{ fontSize:10, color:'rgba(255,255,255,0.7)', fontFamily:'Nunito, sans-serif', fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{nextLesson.title}</div>
                 </div>
-                <div style={{ background:'rgba(255,255,255,0.22)', borderRadius:12, padding:'8px 14px', flexShrink:0 }}>
+                <div style={{ background:'rgba(255,255,255,0.22)', borderRadius:12, padding:'9px 14px', flexShrink:0 }}>
                   <span style={{ fontSize:13, fontWeight:900, color:'#fff', fontFamily:'Nunito, sans-serif' }}>Go →</span>
                 </div>
               </div>
             </button>
           ) : examTopics.length > 0 ? (
-            <div style={{ marginBottom:16, padding:'16px 18px', background:'rgba(34,197,94,0.08)', border:'1.5px solid rgba(34,197,94,0.22)', borderRadius:16, display:'flex', alignItems:'center', gap:12 }}>
-              <div style={{ width:38, height:38, borderRadius:11, background:'rgba(34,197,94,0.14)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                <EduIcon id="star" size={18} color="#22c55e" />
+            <div style={{ marginBottom:16, padding:'15px 18px', background:'rgba(34,197,94,0.09)', border:'1.5px solid rgba(34,197,94,0.25)', borderRadius:16, display:'flex', alignItems:'center', gap:12, animation:'elIn 0.3s 0.07s ease both' }}>
+              <div style={{ width:40, height:40, borderRadius:12, background:'rgba(34,197,94,0.15)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                <EduIcon id="star" size={20} color="#22c55e" />
               </div>
               <div>
-                <div style={{ fontSize:13, fontWeight:900, color:'#22c55e', fontFamily:'Nunito, sans-serif' }}>All lessons complete!</div>
-                <div style={{ fontSize:11, color:bodyColor, fontFamily:'Nunito, sans-serif', fontWeight:600 }}>Focus on practice to stay sharp.</div>
+                <div style={{ fontSize:14, fontWeight:900, color:'#22c55e', fontFamily:'Sora, sans-serif' }}>All lessons complete!</div>
+                <div style={{ fontSize:11, color:bodyColor, fontFamily:'Nunito, sans-serif', fontWeight:600 }}>Keep practising to stay sharp.</div>
               </div>
             </div>
           ) : null}
 
-          {/* Topics list */}
-          <div style={{ animation:'elIn 0.3s 0.09s ease both' }}>
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
-              <div style={{ fontSize:11, fontWeight:900, color:M.textPrimary, textTransform:'uppercase', letterSpacing:1, fontFamily:'Nunito, sans-serif' }}>All Topics</div>
-              <div style={{ fontSize:10, color:bodyColor, fontFamily:'Nunito, sans-serif', fontWeight:600 }}>{examTopics.length} topics</div>
+          {/* ── TOPICS SECTION ── */}
+          <div style={{ animation:'elIn 0.3s 0.1s ease both' }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+              <div style={{ fontSize:12, fontWeight:900, color:M.textPrimary, textTransform:'uppercase', letterSpacing:1, fontFamily:'Nunito, sans-serif' }}>All Topics</div>
+              <button onClick={() => setShowTopicModal(true)} className="el-btn"
+                style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px', background:`${rdy.color}14`, border:`1.5px solid ${rdy.color}30`, borderRadius:99, cursor:'pointer' }}>
+                <EduIcon id="scroll" size={13} color={rdy.color} />
+                <span style={{ fontSize:11, fontWeight:900, color:rdy.color, fontFamily:'Nunito, sans-serif' }}>View all {examTopics.length}</span>
+              </button>
             </div>
 
             {/* Jump dropdown */}
             <div style={{ position:'relative', marginBottom:12 }}>
-              <div style={{ position:'absolute', left:14, top:'50%', transform:'translateY(-50%)', pointerEvents:'none' }}>
+              <div style={{ position:'absolute', left:13, top:'50%', transform:'translateY(-50%)', pointerEvents:'none' }}>
                 <EduIcon id="compass" size={14} color={bodyColor} />
               </div>
-              <select value="" onChange={e => { const topic = examTopics.find(t => t.title === e.target.value); if (topic?.firstNotDone) router.push(`/learn/lesson/${topic.firstNotDone.id}`) }}
-                style={{ width:'100%', padding:'11px 16px 11px 38px', background:isNova?'rgba(255,255,255,0.08)':'#fff', border:`1.5px solid ${isNova?'rgba(255,255,255,0.11)':'rgba(0,0,0,0.09)'}`, borderRadius:13, fontSize:13, fontFamily:'Nunito, sans-serif', color:isNova?'#F0EFFF':M.textPrimary, outline:'none', cursor:'pointer', appearance:'none', WebkitAppearance:'none', boxSizing:'border-box', boxShadow:'0 2px 8px rgba(0,0,0,0.05)' }}>
+              <select value="" onChange={e => { const t = examTopics.find(tp => tp.title === e.target.value); if (t?.firstNotDone) router.push(`/learn/lesson/${t.firstNotDone.id}`) }}
+                style={{ width:'100%', padding:'11px 36px 11px 36px', background:isNova?'rgba(255,255,255,0.08)':'#fff', border:`1.5px solid ${isNova?'rgba(255,255,255,0.11)':'rgba(0,0,0,0.09)'}`, borderRadius:13, fontSize:13, fontFamily:'Nunito, sans-serif', color:isNova?'#F0EFFF':M.textPrimary, outline:'none', cursor:'pointer', appearance:'none', WebkitAppearance:'none', boxSizing:'border-box', boxShadow:'0 2px 8px rgba(0,0,0,0.05)' }}>
                 <option value="" disabled>Jump to a topic…</option>
                 {examTopics.map(t => (<option key={t.id||t.title} value={t.title}>{t.title} — {t.pct}%</option>))}
               </select>
-              <div style={{ position:'absolute', right:14, top:'50%', transform:'translateY(-50%)', pointerEvents:'none', fontSize:10, color:bodyColor }}>▾</div>
+              <div style={{ position:'absolute', right:13, top:'50%', transform:'translateY(-50%)', pointerEvents:'none', fontSize:10, color:bodyColor }}>▾</div>
             </div>
 
+            {/* Topic cards (5 max, rest in modal) */}
             {filteredExamTopics.length === 0 ? (
               <div style={{ textAlign:'center', padding:'40px 0' }}>
-                <div style={{ width:56, height:56, borderRadius:18, background:isNova?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.04)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 12px' }}>
-                  <EduIcon id="book" size={26} color={bodyColor} />
-                </div>
-                <div style={{ fontSize:14, fontWeight:800, color:M.textPrimary, fontFamily:'Nunito, sans-serif', marginBottom:5 }}>No topics yet</div>
-                <div style={{ fontSize:12, color:bodyColor, fontFamily:'Nunito, sans-serif' }}>Topics appear once exam curriculum is uploaded in Admin.</div>
+                <div style={{ fontSize:36, marginBottom:10 }}>📚</div>
+                <div style={{ fontSize:15, fontWeight:800, color:M.textPrimary, fontFamily:'Sora, sans-serif', marginBottom:5 }}>No topics yet</div>
+                <div style={{ fontSize:12, color:bodyColor, fontFamily:'Nunito, sans-serif' }}>Upload exam curriculum in Admin to get started.</div>
               </div>
             ) : (
               <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                {filteredExamTopics.map((topic, i) => {
-                  const rdy = topic.ready
+                {filteredExamTopics.slice(0, 5).map((topic, i) => {
+                  const rdy2 = topic.ready
                   const icon = getTopicIcon(topic.title)
                   return (
                     <button key={topic.id||topic.title} onClick={() => topic.firstNotDone && router.push(`/learn/lesson/${topic.firstNotDone.id}`)} className="el-btn"
-                      style={{ padding:'13px 16px', background:isNova?'rgba(255,255,255,0.055)':'#fff', border:`1px solid ${isNova?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.055)'}`, borderRadius:16, cursor:topic.firstNotDone?'pointer':'default', textAlign:'left', display:'flex', alignItems:'center', gap:14, boxShadow:'0 1px 6px rgba(0,0,0,0.04)', animation:`elIn 0.22s ${Math.min(i*0.025,0.22)}s ease both` }}>
-                      {/* Icon box */}
-                      <div style={{ width:46, height:46, borderRadius:13, background:`${rdy.color}14`, border:`1.5px solid ${rdy.color}28`, boxShadow:`0 3px 10px ${rdy.color}14,inset 0 1px 0 rgba(255,255,255,0.4)`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontFamily:'monospace', fontSize:13, fontWeight:900, color:rdy.color }}>
+                      style={{ padding:'13px 16px', background:isNova?'rgba(255,255,255,0.06)':'#fff', border:`1px solid ${isNova?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.055)'}`, borderRadius:16, cursor:topic.firstNotDone?'pointer':'default', textAlign:'left', display:'flex', alignItems:'center', gap:14, boxShadow:'0 1px 8px rgba(0,0,0,0.04)', animation:`elIn 0.22s ${Math.min(i*0.03,0.2)}s ease both` }}>
+                      <div style={{ width:46, height:46, borderRadius:13, background:`${rdy2.color}14`, border:`1.5px solid ${rdy2.color}30`, boxShadow:`0 3px 10px ${rdy2.color}16,inset 0 1px 0 rgba(255,255,255,0.42)`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontFamily:'monospace', fontSize:13, fontWeight:900, color:rdy2.color }}>
                         {icon}
                       </div>
                       <div style={{ flex:1, minWidth:0 }}>
                         <div style={{ fontSize:14, fontWeight:800, color:isNova?'#F0EFFF':M.textPrimary, fontFamily:'Nunito, sans-serif', marginBottom:6, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{topic.title}</div>
-                        <div style={{ height:4, background:isNova?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.07)', borderRadius:99, overflow:'hidden' }}>
-                          <div style={{ height:'100%', width:`${topic.pct}%`, background:rdy.color, borderRadius:99, transition:'width 0.8s ease' }} />
+                        <div style={{ height:5, background:isNova?'rgba(255,255,255,0.09)':'rgba(0,0,0,0.07)', borderRadius:99, overflow:'hidden' }}>
+                          <div style={{ height:'100%', width:`${topic.pct}%`, background:`linear-gradient(90deg,${rdy2.color},${rdy2.color}CC)`, borderRadius:99, transition:'width 0.8s ease' }} />
                         </div>
                       </div>
                       <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:3, flexShrink:0 }}>
-                        <div style={{ padding:'3px 9px', background:`${rdy.color}16`, border:`1px solid ${rdy.color}25`, borderRadius:99 }}>
-                          <span style={{ fontSize:9, fontWeight:900, color:rdy.color, fontFamily:'Nunito, sans-serif' }}>{rdy.label}</span>
+                        <div style={{ padding:'3px 9px', background:`${rdy2.color}18`, border:`1px solid ${rdy2.color}30`, borderRadius:99 }}>
+                          <span style={{ fontSize:9, fontWeight:900, color:rdy2.color, fontFamily:'Nunito, sans-serif' }}>{rdy2.label}</span>
                         </div>
-                        <span style={{ fontSize:11, fontWeight:800, color:isNova?'rgba(255,255,255,0.5)':M.textSecondary, fontFamily:'Sora, sans-serif' }}>{topic.pct}%</span>
+                        <span style={{ fontSize:11, fontWeight:900, color:rdy2.color, fontFamily:'Sora, sans-serif' }}>{topic.pct}%</span>
+                      </div>
+                    </button>
+                  )
+                })}
+                {filteredExamTopics.length > 5 && (
+                  <button onClick={() => setShowTopicModal(true)} className="el-btn"
+                    style={{ padding:'12px 16px', background:'transparent', border:`1.5px dashed ${rdy.color}40`, borderRadius:16, cursor:'pointer', textAlign:'center', fontSize:13, fontWeight:800, color:rdy.color, fontFamily:'Nunito, sans-serif' }}>
+                    See {filteredExamTopics.length - 5} more topics →
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+        </div>
+      </div>
+
+      {/* ══ TOPIC MODAL ══════════════════════════════════════════════════════ */}
+      {showTopicModal && (
+        <>
+          <div onClick={() => setShowTopicModal(false)}
+            style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', zIndex:100, backdropFilter:'blur(8px)' }} />
+          <div style={{ position:'fixed', bottom:0, left:'50%', transform:'translateX(-50%)', width:'100%', maxWidth:580, zIndex:101, background:isNova?'#1a1040':'#fff', borderRadius:'26px 26px 0 0', maxHeight:'88vh', display:'flex', flexDirection:'column', boxShadow:'0 -16px 60px rgba(0,0,0,0.35)', animation:'modalUp 0.32s cubic-bezier(0.34,1.1,0.64,1) both' }}>
+            {/* Modal header */}
+            <div style={{ flexShrink:0, padding:'14px 20px 0' }}>
+              <div style={{ width:44, height:4, borderRadius:2, background:isNova?'rgba(255,255,255,0.2)':'rgba(0,0,0,0.1)', margin:'0 auto 14px' }} />
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
+                <div>
+                  <div style={{ fontSize:20, fontWeight:900, color:isNova?'#F0EFFF':M.textPrimary, fontFamily:'Sora, sans-serif' }}>Topics</div>
+                  <div style={{ fontSize:11, color:bodyColor, fontFamily:'Nunito, sans-serif', marginTop:2 }}>
+                    {student?.exam_type||'WAEC'} · {examTopics.length} topics
+                  </div>
+                </div>
+                <button onClick={() => setShowTopicModal(false)} className="el-btn"
+                  style={{ width:38, height:38, borderRadius:'50%', background:isNova?'rgba(255,255,255,0.09)':'rgba(0,0,0,0.06)', border:'none', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  <EduIcon id="close" size={16} color={bodyColor} />
+                </button>
+              </div>
+              {/* Search */}
+              <div style={{ position:'relative', marginBottom:12 }}>
+                <div style={{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', pointerEvents:'none' }}>
+                  <EduIcon id="target" size={14} color={bodyColor} />
+                </div>
+                <input type="text" value={topicSearch} onChange={e => setTopicSearch(e.target.value)} placeholder="Search topics…"
+                  style={{ width:'100%', padding:'10px 14px 10px 36px', background:isNova?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.04)', border:`1px solid ${isNova?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.08)'}`, borderRadius:12, fontSize:13, fontFamily:'Nunito, sans-serif', color:isNova?'#F0EFFF':M.textPrimary, outline:'none', boxSizing:'border-box' }} />
+                {topicSearch && <button onClick={() => setTopicSearch('')} style={{ position:'absolute', right:12, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:bodyColor, fontSize:16 }}>×</button>}
+              </div>
+              {/* Readiness legend */}
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap', paddingBottom:14, borderBottom:`1px solid ${isNova?'rgba(255,255,255,0.07)':'rgba(0,0,0,0.06)'}` }}>
+                {[{label:'Needs Work',color:'#EF4444'},{label:'Improving',color:'#F59E0B'},{label:'Good',color:'#3b82f6'},{label:'Exam Ready',color:'#22c55e'}].map(l => (
+                  <div key={l.label} style={{ display:'flex', alignItems:'center', gap:4, padding:'3px 9px', background:`${l.color}12`, border:`1px solid ${l.color}25`, borderRadius:99 }}>
+                    <div style={{ width:5, height:5, borderRadius:'50%', background:l.color }} />
+                    <span style={{ fontSize:9, fontWeight:800, color:l.color, fontFamily:'Nunito, sans-serif' }}>{l.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* Modal list */}
+            <div style={{ flex:1, overflowY:'auto', padding:'12px 16px 48px' }}>
+              <div style={{ display:'flex', flexDirection:'column', gap:7 }}>
+                {(topicSearch.trim()
+                  ? examTopics.filter(t => t.title.toLowerCase().includes(topicSearch.toLowerCase()))
+                  : examTopics
+                ).map((topic, i) => {
+                  const rdy2 = topic.ready
+                  const icon = getTopicIcon(topic.title)
+                  return (
+                    <button key={topic.id||topic.title}
+                      onClick={() => { if (topic.firstNotDone) { router.push(`/learn/lesson/${topic.firstNotDone.id}`); setShowTopicModal(false) } }}
+                      className="el-btn"
+                      style={{ padding:'12px 14px', background:isNova?'rgba(255,255,255,0.06)':'#f8f7f5', border:`1px solid ${isNova?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)'}`, borderRadius:14, cursor:topic.firstNotDone?'pointer':'default', textAlign:'left', display:'flex', alignItems:'center', gap:12 }}>
+                      <div style={{ width:42, height:42, borderRadius:12, background:`${rdy2.color}14`, border:`1.5px solid ${rdy2.color}28`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontFamily:'monospace', fontSize:12, fontWeight:900, color:rdy2.color }}>
+                        {icon}
+                      </div>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:13, fontWeight:800, color:isNova?'#F0EFFF':M.textPrimary, fontFamily:'Nunito, sans-serif', marginBottom:4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{topic.title}</div>
+                        <div style={{ height:3.5, background:isNova?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.07)', borderRadius:99, overflow:'hidden' }}>
+                          <div style={{ height:'100%', width:`${topic.pct}%`, background:rdy2.color, borderRadius:99 }} />
+                        </div>
+                      </div>
+                      <div style={{ flexShrink:0, textAlign:'right' }}>
+                        <div style={{ fontSize:13, fontWeight:900, color:rdy2.color, fontFamily:'Sora, sans-serif' }}>{topic.pct}%</div>
+                        <div style={{ fontSize:8, fontWeight:800, color:rdy2.color, fontFamily:'Nunito, sans-serif', marginTop:1 }}>{rdy2.label}</div>
                       </div>
                     </button>
                   )
                 })}
               </div>
-            )}
+            </div>
           </div>
-        </div>
-      </div>
+        </>
+      )}
     </div>
     )
   })()
 
-  // ── SCHOOL LEARN TAB — unchanged logic, minor style polish ────────────────
+  // ── SCHOOL LEARN TAB ──────────────────────────────────────────────────────
   const SchoolLearnTab = (
     <div style={{
       height: '100%', display: 'flex', flexDirection: 'column', position: 'relative',
       background: isNova ? '#0F0C29' : M.mapBg || '#F4F5FA',
     }}>
       {isNova && <NovaStars />}
-      <div ref={pathScrollRef} onScroll={handlePathScrollFull}
+      <div
+        ref={pathScrollRef}
+        onScroll={handlePathScrollFull}
         style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', position: 'relative', zIndex: 1 }}>
 
         {!currentLevel?.terms?.length && (
@@ -1317,9 +1569,11 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
           </div>
         )}
 
+        {/* ── LEARNING PATH — centred spine ── */}
         <div style={{ maxWidth: 520, margin: '0 auto', padding: `24px 0 ${isMobile ? 'max(170px, calc(140px + env(safe-area-inset-bottom)))' : '80px'}`, position: 'relative' }}>
           {pathItems.map((item, idx) => {
 
+            // ── TERM WORLD BANNER (hidden in exam mode) ──
             if (item.kind === 'term') {
               if (isExamMode) return null
               const { term, termIdx, tAccent, termProg, termDone, termSubs } = item
@@ -1350,6 +1604,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
               )
             }
 
+            // ── TOPIC CHAPTER CARD ──
             if (item.kind === 'topic') {
               if (isExamMode) return null
               const { topic, tAccent, doneCount, allDone } = item
@@ -1373,13 +1628,16 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
               )
             }
 
+            // ── LESSON NODE — centred, label below ──
             if (item.kind === 'lesson') {
               const { sub, tAccent, isDone, isCurrent, isLocked, subIdx, globalIdx, topicTitle } = item
               const isSelected = selectedNode?.sub?.id === sub.id
               const nodeSize = isCurrent ? 64 : isDone ? 52 : isLocked ? 38 : 46
+
               return (
                 <div key={`lesson-${sub.id}`} ref={isCurrent ? currentNodeRef : null} style={{
-                    position: 'relative', zIndex: 2, padding: '18px 0',
+                    position: 'relative', zIndex: 2,
+                    padding: '18px 0',
                     paddingLeft:  globalIdx % 4 === 1 ? '18%' : globalIdx % 4 === 3 ? '10%' : '14%',
                     paddingRight: globalIdx % 4 === 1 ? '10%' : globalIdx % 4 === 3 ? '18%' : '14%',
                   }}>
@@ -1409,6 +1667,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
                             : <span style={{ fontSize: nodeSize * 0.40, opacity: 0.8 }}>{M.emoji}</span>
                       }
                     </button>
+                    {/* Label centered below node */}
                     <div style={{ textAlign: 'center', maxWidth: 140 }}>
                       <div style={{ fontSize: isCurrent ? 13 : 11, fontWeight: isCurrent ? 900 : isDone ? 500 : 700, color: isDone ? bodyColor : isNova ? '#F8F7FF' : M.textPrimary, fontFamily: 'Nunito, sans-serif', lineHeight: 1.35, wordBreak: 'break-word' }}>
                         {sub.title}
@@ -1420,6 +1679,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
               )
             }
 
+            // ── TOPIC REVIEW — slanted diamond, side-by-side layout ──
             if (item.kind === 'topic_review') {
               const { topic, tAccent, reviewUnlocked, reviewDone } = item
               return (
@@ -1431,6 +1691,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
                       display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 12,
                       opacity: reviewUnlocked ? 1 : 0.4,
                     }}>
+                    {/* Slanted star diamond */}
                     <div style={{
                       width: 48, height: 48, borderRadius: 12, flexShrink: 0,
                       background: reviewDone ? 'linear-gradient(135deg,#FFD700,#FF9500)' : reviewUnlocked ? `${tAccent}18` : (isNova ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'),
@@ -1440,8 +1701,11 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
                       boxShadow: reviewDone ? '0 0 0 6px rgba(255,210,0,0.18), 0 4px 16px rgba(255,180,0,0.35)' : reviewUnlocked ? `0 0 0 5px ${tAccent}18` : 'none',
                       transition: 'all 0.2s',
                     }}>
-                      <span style={{ transform: 'rotate(-12deg)', fontSize: 20 }}>⭐</span>
+                      <span style={{ transform: 'rotate(-12deg)', fontSize: 20 }}>
+                        {reviewDone ? '⭐' : '⭐'}
+                      </span>
                     </div>
+                    {/* Label beside */}
                     <div>
                       <div style={{ fontSize: 12, fontWeight: 900, color: reviewDone ? '#A06000' : reviewUnlocked ? tAccent : bodyColor, fontFamily: 'Nunito, sans-serif', lineHeight: 1.2 }}>Topic Review</div>
                       <div style={{ fontSize: 10, color: bodyColor, fontFamily: 'Nunito, sans-serif', fontWeight: 600, marginTop: 2 }}>{reviewDone ? 'Completed ✓' : reviewUnlocked ? 'Tap to review →' : 'Finish more lessons'}</div>
@@ -1451,6 +1715,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
               )
             }
 
+            // ── CHALLENGE BADGE ──
             if (item.kind === 'challenge') {
               return (
                 <div key={`challenge-${item.topicsCompletedCount}`} style={{ display: 'flex', justifyContent: 'center', padding: '24px 0', position: 'relative', zIndex: 2 }}>
@@ -1476,21 +1741,48 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
         </div>
       </div>
 
-      {/* STICKY TOPIC BANNER */}
+      {/* STICKY TOPIC BANNER — big, full-width, Duolingo-style */}
       {stickyTopic && (
-        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10, pointerEvents: 'none' }}>
-          <div style={{ background: isNova ? 'rgba(10,8,32,0.96)' : isBlaze ? '#FFD700' : `${M.hudBg || '#fff'}F5`, backdropFilter: 'blur(20px)', borderBottom: isBlaze ? '2px solid #0d0d0d' : `1px solid ${isNova ? 'rgba(255,255,255,0.1)' : `${accent}20`}`, padding: '10px 20px', display: 'flex', alignItems: 'center', gap: 12, boxShadow: isBlaze ? 'none' : '0 4px 20px rgba(0,0,0,0.12)' }}>
+        <div style={{
+          position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10,
+          pointerEvents: 'none',
+        }}>
+          <div style={{
+            background: isNova ? 'rgba(10,8,32,0.96)' : isBlaze ? '#FFD700' : `${M.hudBg || '#fff'}F5`,
+            backdropFilter: 'blur(20px)',
+            borderBottom: isBlaze ? '2px solid #0d0d0d' : `1px solid ${isNova ? 'rgba(255,255,255,0.1)' : `${accent}20`}`,
+            padding: '10px 20px 10px',
+            display: 'flex', alignItems: 'center', gap: 12,
+            boxShadow: isBlaze ? 'none' : '0 4px 20px rgba(0,0,0,0.12)',
+          }}>
+            {/* Term badge */}
             {(() => {
-              const termEntry = (level?.terms || []).find(t => (t.units || []).some(u => (u.topics || []).some(tp => tp.title === stickyTopic)))
+              // Find which term this topic belongs to
+              const termEntry = (level?.terms || []).find(t =>
+                (t.units || []).some(u =>
+                  (u.topics || []).some(tp => tp.title === stickyTopic)
+                )
+              )
               const termIdx = termEntry ? (level?.terms || []).indexOf(termEntry) : 0
               const tAcc = termAccents[termIdx % termAccents.length]
               return (
                 <>
-                  <div style={{ flexShrink: 0, background: tAcc, borderRadius: isBlaze ? 6 : 10, padding: '4px 10px', fontSize: 9, fontWeight: 900, color: '#fff', fontFamily: 'Nunito, sans-serif', textTransform: 'uppercase', letterSpacing: 1, boxShadow: `0 3px 10px ${tAcc}55` }}>
+                  <div style={{
+                    flexShrink: 0, background: tAcc, borderRadius: isBlaze ? 6 : 10,
+                    padding: '4px 10px', fontSize: 9, fontWeight: 900,
+                    color: '#fff', fontFamily: 'Nunito, sans-serif',
+                    textTransform: 'uppercase', letterSpacing: 1,
+                    boxShadow: `0 3px 10px ${tAcc}55`,
+                  }}>
                     {termEntry ? termEntry.name.split(' ').slice(0, 2).join(' ') : 'Term'}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 15, fontWeight: 900, color: isBlaze ? '#0d0d0d' : isNova ? '#F8F7FF' : M.textPrimary, fontFamily: 'Nunito, sans-serif', lineHeight: 1.1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{
+                      fontSize: 15, fontWeight: 900,
+                      color: isBlaze ? '#0d0d0d' : isNova ? '#F8F7FF' : M.textPrimary,
+                      fontFamily: 'Nunito, sans-serif', lineHeight: 1.1,
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
                       {stickyTopic}
                     </div>
                   </div>
@@ -1501,22 +1793,69 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
         </div>
       )}
 
-      {/* JUMP-TO-CURRENT */}
+      {/* JUMP-TO-CURRENT — smooth fade in/out */}
       {nextLesson && (
-        <div style={{ position: 'absolute', bottom: isMobile ? 90 : 24, right: 16, zIndex: 11, opacity: currentNodeDir ? 1 : 0, transform: currentNodeDir ? 'scale(1) translateY(0)' : 'scale(0.75) translateY(8px)', pointerEvents: currentNodeDir ? 'auto' : 'none', transition: 'opacity 0.45s cubic-bezier(0.4,0,0.2,1), transform 0.45s cubic-bezier(0.34,1.1,0.64,1)' }}>
-          <button onClick={jumpToCurrent} style={{ width: 46, height: 46, borderRadius: '50%', cursor: 'pointer', background: isBlaze ? '#FFD700' : accent, border: isBlaze ? '2px solid #0d0d0d' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 900, boxShadow: isBlaze ? '3px 3px 0 #0d0d0d' : `0 6px 20px ${accent}65`, color: isBlaze ? '#0d0d0d' : '#fff' }}>
+        <div style={{
+          position: 'absolute', bottom: isMobile ? 134 : 24, right: 16, zIndex: 11,
+          opacity: currentNodeDir ? 1 : 0,
+          transform: currentNodeDir ? 'scale(1) translateY(0)' : 'scale(0.75) translateY(8px)',
+          pointerEvents: currentNodeDir ? 'auto' : 'none',
+          transition: 'opacity 0.45s cubic-bezier(0.4,0,0.2,1), transform 0.45s cubic-bezier(0.34,1.1,0.64,1)',
+        }}>
+          <button
+            onClick={jumpToCurrent}
+            style={{
+              width: 46, height: 46, borderRadius: '50%', cursor: 'pointer',
+              background: isBlaze ? '#FFD700' : accent,
+              border: isBlaze ? '2px solid #0d0d0d' : 'none',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 20, fontWeight: 900,
+              boxShadow: isBlaze ? '3px 3px 0 #0d0d0d' : `0 6px 20px ${accent}65`,
+              color: isBlaze ? '#0d0d0d' : '#fff',
+            }}>
             {currentNodeDir === 'up' ? '↑' : '↓'}
           </button>
         </div>
       )}
 
-      {/* Lesson detail sheet */}
+      {/* CONTINUE BANNER — smooth fade, visible when current node is on screen */}
+      {nextLesson && (
+        <div style={{
+          position: 'absolute', bottom: isMobile ? 90 : 24, left: '50%', transform: 'translateX(-50%)',
+          zIndex: 11, width: 'calc(100% - 32px)', maxWidth: 420,
+          opacity: currentNodeDir === null ? 1 : 0,
+          pointerEvents: currentNodeDir === null ? 'auto' : 'none',
+          transition: 'opacity 0.5s cubic-bezier(0.4,0,0.2,1)',
+        }}>
+          <button
+            onClick={() => router.push(`/learn/lesson/${nextLesson.id}`)}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', gap: 14,
+              padding: '14px 18px', cursor: 'pointer',
+              background: isBlaze ? '#FFD700' : isNova ? 'linear-gradient(135deg,#7C3AED,#4C1D95)' : `linear-gradient(135deg,${accent},${M.accent2 || accent}DD)`,
+              border: isBlaze ? '2.5px solid #0d0d0d' : 'none',
+              borderRadius: isBlaze ? 14 : 22,
+              boxShadow: isBlaze ? '4px 4px 0 #0d0d0d' : `0 8px 28px ${accent}55`,
+              fontFamily: 'Nunito, sans-serif',
+            }}>
+            {/* Play circle */}
+            <div style={{ width: 38, height: 38, borderRadius: '50%', flexShrink: 0, background: isBlaze ? 'rgba(0,0,0,0.14)' : 'rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, color: isBlaze ? '#0d0d0d' : '#fff' }}>▶</div>
+            <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
+              <div style={{ fontSize: 9, fontWeight: 800, color: isBlaze ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.7)', textTransform: 'uppercase', letterSpacing: 1, fontFamily: 'Nunito, sans-serif', marginBottom: 2 }}>Continue</div>
+              <div style={{ fontSize: 14, fontWeight: 900, color: isBlaze ? '#0d0d0d' : '#fff', fontFamily: 'Nunito, sans-serif', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nextLesson.title}</div>
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 900, color: isBlaze ? '#fff' : accent, background: isBlaze ? '#0d0d0d' : '#fff', borderRadius: isBlaze ? 8 : 20, padding: '8px 16px', flexShrink: 0, fontFamily: 'Nunito, sans-serif', boxShadow: isBlaze ? '2px 2px 0 rgba(0,0,0,0.2)' : `0 3px 10px ${accent}40` }}>Go →</div>
+          </button>
+        </div>
+      )}
+
+      {/* NODE LAUNCH CARD */}
       {selectedNode && (
         <>
-          <div onClick={() => setSelectedNode(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 30, backdropFilter: 'blur(4px)' }} />
-          <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 520, zIndex: 31, background: isNova ? '#1a1040' : '#fff', borderRadius: isBlaze ? '14px 14px 0 0' : '24px 24px 0 0', padding: '20px 20px 40px', boxShadow: '0 -12px 40px rgba(0,0,0,0.2)', animation: 'sheetUp 0.28s cubic-bezier(0.34,1.1,0.64,1)', fontFamily: 'Nunito, sans-serif' }}>
-            <div style={{ display: 'flex', justifyContent: 'center', paddingBottom: 18 }}>
-              <div style={{ width: 40, height: 4, borderRadius: 2, background: isNova ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }} />
+          <div style={{ position: 'fixed', inset: 0, zIndex: 30, background: 'rgba(0,0,0,0.32)', backdropFilter: 'blur(4px)' }} onClick={() => setSelectedNode(null)} />
+          <div style={{ position: 'fixed', bottom: 72, left: '50%', transform: 'translateX(-50%)', width: 'calc(100% - 32px)', maxWidth: 490, zIndex: 40, background: isNova ? '#1E1B4B' : '#fff', borderRadius: isBlaze ? 18 : 28, padding: '22px 22px 24px', boxShadow: '0 -6px 50px rgba(0,0,0,0.22), 0 12px 40px rgba(0,0,0,0.16)', border: isBlaze ? '2.5px solid #0d0d0d' : `1.5px solid ${selectedNode.tAccent}28`, animation: 'sheetUp 0.28s cubic-bezier(0.34,1.1,0.64,1)', fontFamily: 'Nunito, sans-serif' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
+              <div style={{ width: 44, height: 5, borderRadius: 3, background: isNova ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }} />
             </div>
             <div style={{ height: 4, borderRadius: 4, marginBottom: 20, background: selectedNode.isDone ? `linear-gradient(90deg,${M.correctColor},${M.correctColor}55)` : `linear-gradient(90deg,${selectedNode.tAccent},${selectedNode.tAccent}55)` }} />
             <div style={{ display: 'flex', alignItems: 'center', gap: 18, marginBottom: 24 }}>
@@ -1548,13 +1887,14 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
     </div>
   )
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // PRACTICE TAB — single entry point, navigates to /learn/practice
+  // ══════════════════════════════════════════════════════════════════════════
+  // Practice greeting rotates daily
+
+  // ── Route to correct tab based on mode ───────────────────────────────────
   const LearnTab = isExamMode ? ExamLearnTab : SchoolLearnTab
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // PRACTICE TAB — redesigned
-  // ══════════════════════════════════════════════════════════════════════════
-  const [practiceTimer, setPracticeTimer] = useState(false)
-  const [practiceType,  setPracticeType]  = useState('mcq')
 
   const practiceGreeting = (() => {
     const msgs = [
@@ -1568,282 +1908,208 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
     return msgs[new Date().getDate() % msgs.length]
   })()
 
+  const [practiceTimer, setPracticeTimer] = useState(false)
+  const [practiceType,  setPracticeType]  = useState('mcq')   // 'mcq' | 'theory'
+
   const PracticeTab = (
-    <div style={{ height:'100%', overflowY:'auto', background: isNova?'#0D0B1E':'#F6F5F2' }}>
+    <div style={{ height:'100%', overflowY:'auto', background: isNova?'#0D0B1E':isBlaze?'#FFFBEA':M.lessonBg }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Sora:wght@700;800;900&family=Nunito:wght@500;600;700;800;900&display=swap');
-        @keyframes ptIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes ptIn { from{opacity:0;transform:translateY(9px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes ptFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
         .pt-btn:active { transform:scale(0.97); }
         .pt-btn { transition:transform 0.12s cubic-bezier(0.34,1.2,0.64,1); }
       `}</style>
 
-      <div style={{ maxWidth:520, margin:'0 auto', padding:`20px 16px ${isMobile?'max(160px,calc(130px + env(safe-area-inset-bottom)))':'60px'}` }}>
+      {isExamMode ? (
+        /* ══ EXAM MODE — 3 cards only ══════════════════════════════════════ */
+        <div style={{ maxWidth:520, margin:'0 auto', padding:`20px 16px ${isMobile?'max(160px,calc(130px + env(safe-area-inset-bottom)))':'60px'}` }}>
 
-        {/* Header */}
-        <div style={{ marginBottom:20, animation:'ptIn 0.3s ease both' }}>
-          <div style={{ fontSize:10, fontWeight:800, color:bodyColor, textTransform:'uppercase', letterSpacing:1.4, fontFamily:'Nunito, sans-serif', marginBottom:5 }}>
-            {isExamMode ? (student?.exam_type?.toUpperCase()||'WAEC')+' Preparation' : 'Sharpen Your Skills'}
+          {/* Header */}
+          <div style={{ marginBottom:20, animation:'ptIn 0.3s ease both' }}>
+            <div style={{ fontSize:10, fontWeight:800, color:bodyColor, textTransform:'uppercase', letterSpacing:1.4, fontFamily:'Nunito, sans-serif', marginBottom:4 }}>
+              {student?.exam_type?.toUpperCase()||'WAEC'} Preparation
+            </div>
+            <div style={{ fontSize:26, fontWeight:900, color:isNova?'#F0EFFF':M.textPrimary, fontFamily:'Sora, sans-serif', lineHeight:1.1 }}>Practice</div>
           </div>
-          <div style={{ fontSize:26, fontWeight:900, color:isNova?'#F0EFFF':M.textPrimary, fontFamily:'Sora, sans-serif', lineHeight:1.1, marginBottom:6 }}>Practice</div>
-          <div style={{ fontSize:12, color:bodyColor, fontFamily:'Nunito, sans-serif', fontWeight:600, fontStyle:'italic' }}>{practiceGreeting}</div>
-        </div>
 
-        {/* Exam mode: readiness strip */}
-        {isExamMode && (() => {
-          const rPct = overallReadinessPct
-          const rdy  = rPct !== null ? readinessLevel(rPct) : null
-          return rPct !== null ? (
-            <div style={{ display:'flex', alignItems:'center', gap:14, padding:'14px 16px', background:isNova?'rgba(255,255,255,0.06)':'#fff', borderRadius:16, marginBottom:20, boxShadow:'0 2px 10px rgba(0,0,0,0.06)', border:`1px solid ${isNova?'rgba(255,255,255,0.07)':'rgba(0,0,0,0.06)'}`, animation:'ptIn 0.3s 0.04s ease both' }}>
-              <div style={{ flex:1 }}>
-                <div style={{ fontSize:11, fontWeight:700, color:bodyColor, fontFamily:'Nunito, sans-serif', marginBottom:6 }}>
-                  You are {rPct}% ready for {student?.exam_type||'WAEC'}
-                </div>
-                <div style={{ height:5, background:isNova?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.07)', borderRadius:99, overflow:'hidden' }}>
-                  <div style={{ height:'100%', width:`${rPct}%`, background:rdy.color, borderRadius:99, transition:'width 1.2s ease' }} />
-                </div>
-              </div>
-              <div style={{ padding:'5px 13px', background:`${rdy.color}16`, border:`1.5px solid ${rdy.color}28`, borderRadius:99, flexShrink:0 }}>
-                <span style={{ fontSize:11, fontWeight:900, color:rdy.color, fontFamily:'Nunito, sans-serif' }}>{rdy.label}</span>
-              </div>
-            </div>
-          ) : null
-        })()}
-
-        {/* Practice by Topic */}
-        <div style={{ marginBottom:20, animation:'ptIn 0.3s 0.06s ease both' }}>
-          <div style={{ fontSize:11, fontWeight:900, color:M.textPrimary, textTransform:'uppercase', letterSpacing:1, fontFamily:'Nunito, sans-serif', marginBottom:12 }}>Practice by Topic</div>
-
-          {(isExamMode ? examTopics : allTopics).length === 0 ? (
-            <div style={{ padding:'24px', background:isNova?'rgba(255,255,255,0.05)':'#fff', borderRadius:16, textAlign:'center', border:`1px solid ${isNova?'rgba(255,255,255,0.07)':'rgba(0,0,0,0.06)'}` }}>
-              <div style={{ fontSize:13, color:bodyColor, fontFamily:'Nunito, sans-serif' }}>No topics available yet.</div>
-            </div>
-          ) : (
-            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-              {(isExamMode ? examTopics : allTopics).map((topic, i) => {
-                const tPct = isExamMode
-                  ? topic.pct
-                  : (() => { const s=topic.subtopics||[]; return s.length>0?Math.round(s.filter(sb=>completedIds.has(sb.id)).length/s.length*100):0 })()
-                const tRdy = isExamMode ? topic.ready : readinessLevel(tPct > 0 ? tPct : null)
-
-                let analyticsMsg = 'Take a quiz to check your level'
-                let analyticsColor = bodyColor
-                if (tPct >= 80)      { analyticsMsg = `${tPct}% — Strong`;         analyticsColor = '#22c55e' }
-                else if (tPct >= 40) { analyticsMsg = `${tPct}% — Needs practice`; analyticsColor = '#d97706' }
-                else if (tPct > 0)   { analyticsMsg = `${tPct}% — Practice more`;  analyticsColor = '#ef4444' }
-
-                const dest = isExamMode
-                  ? `/learn/past-questions?topic=${encodeURIComponent(topic.title)}`
-                  : '/learn/practice'
-                const topicIcon = getTopicIcon(topic.title)
-
-                return (
-                  <button key={topic.id||topic.title} onClick={() => router.push(dest)} className="pt-btn"
-                    style={{ padding:'14px 16px', background:isNova?'rgba(255,255,255,0.06)':'#fff', border:`1px solid ${isNova?'rgba(255,255,255,0.07)':'rgba(0,0,0,0.055)'}`, borderRadius:16, cursor:'pointer', textAlign:'left', display:'flex', alignItems:'center', gap:14, boxShadow:'0 1px 8px rgba(0,0,0,0.045)', animation:`ptIn 0.2s ${Math.min(i*0.025,0.2)}s ease both` }}>
-                    {/* Icon box */}
-                    <div style={{ width:46, height:46, borderRadius:13, background:`${tRdy.color}14`, border:`1.5px solid ${tRdy.color}25`, boxShadow:`0 3px 10px ${tRdy.color}12,inset 0 1px 0 rgba(255,255,255,0.42)`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontFamily:'monospace', fontSize:12, fontWeight:900, color:tRdy.color }}>
-                      {topicIcon}
-                    </div>
-                    <div style={{ flex:1, minWidth:0 }}>
-                      <div style={{ fontSize:14, fontWeight:800, color:isNova?'#F0EFFF':M.textPrimary, fontFamily:'Nunito, sans-serif', marginBottom:5, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{topic.title}</div>
-                      <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                        <div style={{ height:4, flex:1, background:isNova?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.07)', borderRadius:99, overflow:'hidden' }}>
-                          <div style={{ height:'100%', width:`${tPct}%`, background:tRdy.color, borderRadius:99, transition:'width 0.8s ease' }} />
-                        </div>
-                        <span style={{ fontSize:10, fontWeight:800, color:tRdy.color, fontFamily:'Sora, sans-serif', flexShrink:0 }}>{tPct}%</span>
-                      </div>
-                      <div style={{ fontSize:10, fontWeight:700, color:analyticsColor, fontFamily:'Nunito, sans-serif', marginTop:4 }}>{analyticsMsg}</div>
-                    </div>
-                    <EduIcon id="compass" size={12} color={bodyColor} />
-                  </button>
-                )
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Mock Test (exam mode) */}
-        {isExamMode && (
-          <div style={{ marginBottom:20, animation:'ptIn 0.3s 0.1s ease both' }}>
-            <div style={{ fontSize:11, fontWeight:900, color:M.textPrimary, textTransform:'uppercase', letterSpacing:1, fontFamily:'Nunito, sans-serif', marginBottom:12 }}>Mock Test</div>
-            <button onClick={() => router.push('/learn/mock-test')} className="pt-btn"
-              style={{ width:'100%', padding:'20px', border:'none', borderRadius:18, cursor:'pointer', textAlign:'left', background:`linear-gradient(140deg,#4f46e5,#7c3aed)`, boxShadow:'0 8px 28px rgba(79,70,229,0.40)', position:'relative', overflow:'hidden' }}>
-              <div style={{ position:'absolute', right:-20, top:-20, width:100, height:100, borderRadius:'50%', background:'rgba(255,255,255,0.08)', pointerEvents:'none' }} />
-              <div style={{ display:'flex', alignItems:'center', gap:16, position:'relative', zIndex:1 }}>
-                <div style={{ width:52, height:52, borderRadius:16, background:'rgba(255,255,255,0.2)', border:'1.5px solid rgba(255,255,255,0.28)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                  <EduIcon id="shield" size={25} color="#fff" />
-                </div>
+          {/* Readiness strip */}
+          {overallReadinessPct !== null && (() => {
+            const rdy = readinessLevel(overallReadinessPct)
+            return (
+              <div style={{ display:'flex', alignItems:'center', gap:12, padding:'14px 16px', background:isNova?'rgba(255,255,255,0.06)':M.lessonCard||'#fff', borderRadius:16, marginBottom:20, border:`1.5px solid ${rdy.color}25`, animation:'ptIn 0.3s 0.04s ease both', boxShadow:M.cardShadow }}>
                 <div style={{ flex:1 }}>
-                  <div style={{ fontSize:18, fontWeight:900, color:'#fff', fontFamily:'Sora, sans-serif', marginBottom:3 }}>Mock Test</div>
-                  <div style={{ fontSize:11, color:'rgba(255,255,255,0.78)', fontFamily:'Nunito, sans-serif', fontWeight:600 }}>Full timed exam · All topics · Real {student?.exam_type||'WAEC'} format</div>
+                  <div style={{ fontSize:11, fontWeight:700, color:bodyColor, fontFamily:'Nunito, sans-serif', marginBottom:6 }}>
+                    You are <strong style={{ color:rdy.color }}>{overallReadinessPct}%</strong> ready for {student?.exam_type||'WAEC'}
+                  </div>
+                  <div style={{ height:5, background:isNova?'rgba(255,255,255,0.08)':M.progressTrack||'rgba(0,0,0,0.07)', borderRadius:99, overflow:'hidden' }}>
+                    <div style={{ height:'100%', width:`${overallReadinessPct}%`, background:rdy.color, borderRadius:99, transition:'width 1.2s ease' }} />
+                  </div>
                 </div>
-                <div style={{ background:'rgba(255,255,255,0.22)', borderRadius:12, padding:'9px 16px', flexShrink:0 }}>
-                  <span style={{ fontSize:13, fontWeight:900, color:'#fff', fontFamily:'Nunito, sans-serif' }}>Start →</span>
+                <div style={{ padding:'5px 12px', background:`${rdy.color}16`, border:`1.5px solid ${rdy.color}28`, borderRadius:99, flexShrink:0 }}>
+                  <span style={{ fontSize:11, fontWeight:900, color:rdy.color, fontFamily:'Nunito, sans-serif' }}>{rdy.label}</span>
+                </div>
+              </div>
+            )
+          })()}
+
+          {/* CARD 1 — Practice by Topic */}
+          <div style={{ marginBottom:12, animation:'ptIn 0.3s 0.06s ease both' }}>
+            <button onClick={() => router.push('/learn/past-questions')} className="pt-btn"
+              style={{ width:'100%', border:'none', borderRadius:20, cursor:'pointer', textAlign:'left', padding:'20px', background:isNova?`linear-gradient(140deg,${accent}28,${accent}12)`:`linear-gradient(140deg,${accent},${M.accent2||accent}E0)`, boxShadow:`0 8px 28px ${accent}40`, position:'relative', overflow:'hidden' }}>
+              <div style={{ position:'absolute', right:-18, top:-18, width:90, height:90, borderRadius:'50%', background:'rgba(255,255,255,0.1)', pointerEvents:'none' }} />
+              <div style={{ display:'flex', alignItems:'center', gap:14, position:'relative', zIndex:1 }}>
+                <div style={{ width:54, height:54, borderRadius:16, background:'rgba(255,255,255,0.22)', border:'1.5px solid rgba(255,255,255,0.3)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:24 }}>✏️</div>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:9, fontWeight:800, color:'rgba(255,255,255,0.65)', textTransform:'uppercase', letterSpacing:1.6, fontFamily:'Nunito, sans-serif', marginBottom:4 }}>Mode 1</div>
+                  <div style={{ fontSize:18, fontWeight:900, color:'#fff', fontFamily:'Sora, sans-serif', marginBottom:2 }}>Practice by Topic</div>
+                  <div style={{ fontSize:11, color:'rgba(255,255,255,0.78)', fontFamily:'Nunito, sans-serif', fontWeight:600 }}>Pick a topic · Work through questions · See solutions</div>
+                </div>
+                <div style={{ background:'rgba(255,255,255,0.22)', borderRadius:12, padding:'9px 14px', flexShrink:0 }}>
+                  <span style={{ fontSize:15, fontWeight:900, color:'#fff' }}>→</span>
                 </div>
               </div>
             </button>
-            <div style={{ marginTop:8, fontSize:11, color:bodyColor, fontFamily:'Nunito, sans-serif', fontWeight:600, textAlign:'center' }}>
-              Select exam year, then choose question type and timing inside the test
+          </div>
+
+          {/* CARD 2 — Past Questions (CBT by year) */}
+          <div style={{ marginBottom:12, animation:'ptIn 0.3s 0.1s ease both' }}>
+            <button onClick={() => router.push('/learn/mock-test?mode=year')} className="pt-btn"
+              style={{ width:'100%', border:`1.5px solid rgba(245,158,11,0.3)`, borderRadius:20, cursor:'pointer', textAlign:'left', padding:'20px', background:isNova?'rgba(255,255,255,0.07)':M.lessonCard||'#fff', boxShadow:M.cardShadow||'0 4px 20px rgba(0,0,0,0.08)', position:'relative', overflow:'hidden' }}>
+              <div style={{ position:'absolute', right:-18, top:-18, width:90, height:90, borderRadius:'50%', background:'rgba(245,158,11,0.06)', pointerEvents:'none' }} />
+              <div style={{ display:'flex', alignItems:'center', gap:14, position:'relative', zIndex:1 }}>
+                <div style={{ width:54, height:54, borderRadius:16, background:'linear-gradient(145deg,rgba(245,158,11,0.2),rgba(245,158,11,0.08))', border:'1.5px solid rgba(245,158,11,0.35)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:24 }}>📋</div>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:9, fontWeight:800, color:bodyColor, textTransform:'uppercase', letterSpacing:1.6, fontFamily:'Nunito, sans-serif', marginBottom:4 }}>Mode 2</div>
+                  <div style={{ fontSize:18, fontWeight:900, color:isNova?'#F0EFFF':M.textPrimary, fontFamily:'Sora, sans-serif', marginBottom:2 }}>Past Questions</div>
+                  <div style={{ fontSize:11, color:bodyColor, fontFamily:'Nunito, sans-serif', fontWeight:600 }}>Select a year · CBT format · Question navigator</div>
+                </div>
+                <div style={{ background:'rgba(245,158,11,0.14)', border:'1.5px solid rgba(245,158,11,0.3)', borderRadius:12, padding:'9px 14px', flexShrink:0 }}>
+                  <span style={{ fontSize:15, fontWeight:900, color:'#d97706' }}>→</span>
+                </div>
+              </div>
+            </button>
+          </div>
+
+          {/* CARD 3 — Mock Exam (random 50 from all years) */}
+          <div style={{ marginBottom:20, animation:'ptIn 0.3s 0.14s ease both' }}>
+            <button onClick={() => router.push('/learn/mock-test?mode=random')} className="pt-btn"
+              style={{ width:'100%', border:'none', borderRadius:20, cursor:'pointer', textAlign:'left', padding:'20px', background:`linear-gradient(140deg,#4338ca,#7c3aed)`, boxShadow:'0 8px 30px rgba(67,56,202,0.45)', position:'relative', overflow:'hidden' }}>
+              <div style={{ position:'absolute', right:-18, top:-18, width:90, height:90, borderRadius:'50%', background:'rgba(255,255,255,0.09)', pointerEvents:'none' }} />
+              <div style={{ display:'flex', alignItems:'center', gap:14, position:'relative', zIndex:1 }}>
+                <div style={{ width:54, height:54, borderRadius:16, background:'rgba(255,255,255,0.22)', border:'1.5px solid rgba(255,255,255,0.3)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:24 }}>🏆</div>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:9, fontWeight:800, color:'rgba(255,255,255,0.65)', textTransform:'uppercase', letterSpacing:1.6, fontFamily:'Nunito, sans-serif', marginBottom:4 }}>Mode 3 · CBT</div>
+                  <div style={{ fontSize:18, fontWeight:900, color:'#fff', fontFamily:'Sora, sans-serif', marginBottom:2 }}>Mock Exam</div>
+                  <div style={{ fontSize:11, color:'rgba(255,255,255,0.78)', fontFamily:'Nunito, sans-serif', fontWeight:600 }}>50 random questions · 60 minutes · All years mixed</div>
+                </div>
+                <div style={{ background:'rgba(255,255,255,0.22)', borderRadius:12, padding:'9px 14px', flexShrink:0 }}>
+                  <span style={{ fontSize:15, fontWeight:900, color:'#fff' }}>→</span>
+                </div>
+              </div>
+            </button>
+          </div>
+
+        </div>
+      ) : (
+        /* ══ SCHOOL MODE — 3 cards only ════════════════════════════════════ */
+        <div style={{ maxWidth:520, margin:'0 auto', padding:`20px 16px ${isMobile?'max(160px,calc(130px + env(safe-area-inset-bottom)))':'60px'}` }}>
+
+          {/* Mascot header */}
+          <div style={{ display:'flex', alignItems:'flex-end', gap:14, marginBottom:20, padding:'18px 20px', borderRadius:22, background:isNova?`linear-gradient(135deg,${accent}22,${accent}0C)`:`linear-gradient(135deg,${accent}14,${accent}05)`, border:`1.5px solid ${accent}20`, animation:'ptIn 0.3s ease both', overflow:'hidden', position:'relative', isolation:'isolate' }}>
+            <div style={{ position:'absolute', right:-14, top:-14, width:80, height:80, borderRadius:'50%', background:`${accent}09`, pointerEvents:'none' }} />
+            <div style={{ flexShrink:0, animation:'ptFloat 3s ease-in-out infinite' }}>
+              <BicPencil pose="happy" size={62} />
+            </div>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:18, fontWeight:900, color:isNova?'#F0EFFF':M.textPrimary, fontFamily:'Sora, sans-serif', lineHeight:1.2, marginBottom:4 }}>Sharpen Your Skills!</div>
+              <div style={{ fontSize:12, color:bodyColor, fontFamily:'Nunito, sans-serif', fontWeight:600, lineHeight:1.5 }}>
+                Practice makes permanent. Let&apos;s work on what matters most today.
+              </div>
             </div>
           </div>
-        )}
 
-        {/* School mode stats + CTA */}
-        {!isExamMode && (
-          <>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, marginBottom:20, animation:'ptIn 0.3s 0.1s ease both' }}>
-              {[
-                { label:'Done',   value:doneLessons,        color:'#22c55e', icon:'star'  },
-                { label:'Streak', value:`${streak}d`,        color:accent,    icon:'flame' },
-                { label:'XP',     value:xp.toLocaleString(), color:'#f59e0b', icon:'bolt'  },
-              ].map(s => (
-                <div key={s.label} style={{ padding:'16px 10px', background:isNova?'rgba(255,255,255,0.07)':'#fff', borderRadius:16, textAlign:'center', boxShadow:'0 2px 10px rgba(0,0,0,0.06)', border:`1px solid ${isNova?'rgba(255,255,255,0.07)':'rgba(0,0,0,0.055)'}` }}>
-                  <EduIcon id={s.icon} size={18} color={s.color} style={{ margin:'0 auto 8px' }} />
-                  <div style={{ fontSize:20, fontWeight:900, color:s.color, fontFamily:'Sora, sans-serif', lineHeight:1 }}>{s.value}</div>
-                  <div style={{ fontSize:9, fontWeight:700, color:bodyColor, textTransform:'uppercase', letterSpacing:0.8, fontFamily:'Nunito, sans-serif', marginTop:4 }}>{s.label}</div>
-                </div>
-              ))}
-            </div>
+          {/* CARD 1 — Open Practice (school curriculum questions) */}
+          <div style={{ marginBottom:12, animation:'ptIn 0.3s 0.06s ease both' }}>
             <button onClick={() => router.push('/learn/practice')} className="pt-btn"
-              style={{ width:'100%', padding:'18px 20px', background:`linear-gradient(135deg,${accent},${M.accent2||accent}CC)`, border:'none', borderRadius:18, cursor:'pointer', display:'flex', alignItems:'center', gap:14, marginBottom:20, boxShadow:`0 8px 26px ${accent}40`, textAlign:'left', animation:'ptIn 0.3s 0.14s ease both' }}>
-              <div style={{ width:48, height:48, borderRadius:15, background:'rgba(255,255,255,0.22)', border:'1.5px solid rgba(255,255,255,0.3)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                <EduIcon id="pencil" size={23} color="#fff" />
-              </div>
+              style={{ width:'100%', padding:'20px', background:`linear-gradient(140deg,${accent},${M.accent2||accent}E0)`, border:'none', borderRadius:20, cursor:'pointer', display:'flex', alignItems:'center', gap:16, boxShadow:`0 10px 30px ${accent}45`, textAlign:'left' }}>
+              <div style={{ width:54, height:54, borderRadius:16, background:'rgba(255,255,255,0.22)', border:'1.5px solid rgba(255,255,255,0.32)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:24 }}>✏️</div>
               <div style={{ flex:1 }}>
-                <div style={{ fontSize:16, fontWeight:900, color:'#fff', fontFamily:'Sora, sans-serif', marginBottom:3 }}>Open Practice</div>
-                <div style={{ fontSize:11, color:'rgba(255,255,255,0.8)', fontFamily:'Nunito, sans-serif', fontWeight:600 }}>Questions from your {student?.class_level||'class'} topics</div>
+                <div style={{ fontSize:9, fontWeight:800, color:'rgba(255,255,255,0.65)', textTransform:'uppercase', letterSpacing:1.6, fontFamily:'Nunito, sans-serif', marginBottom:4 }}>Mode 1</div>
+                <div style={{ fontSize:18, fontWeight:900, color:'#fff', fontFamily:'Sora, sans-serif', marginBottom:3 }}>Open Practice</div>
+                <div style={{ fontSize:11, color:'rgba(255,255,255,0.82)', fontFamily:'Nunito, sans-serif', fontWeight:600 }}>
+                  Questions from your {student?.class_level||'class'} curriculum
+                </div>
               </div>
-              <span style={{ fontSize:20, color:'rgba(255,255,255,0.8)', fontWeight:900 }}>→</span>
+              <div style={{ background:'rgba(255,255,255,0.22)', borderRadius:12, padding:'9px 14px', flexShrink:0 }}>
+                <span style={{ fontSize:15, fontWeight:900, color:'#fff' }}>→</span>
+              </div>
             </button>
-          </>
-        )}
-      </div>
-    </div>
-  )
+          </div>
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // CHALLENGE TAB — unchanged
-  const ChallengeTab = (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <PuzzleMode
-        questions={[]}
-        topicTitle={nextLesson?.topicTitle || allSubtopics[0]?.topicTitle || 'Maths Puzzle'}
-        student={student}
-        onComplete={(pts) => setActiveTab('home')}
-      />
-    </div>
-  )
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // LEADERBOARD TAB — unchanged (exam mode only)
-  const LeaderboardTab = (
-    <div style={{ height:'100%', overflowY:'auto', background: isNova?'#0D0B1E':'#F2F1EE' }}>
-      <style>{`@keyframes lbFade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}`}</style>
-
-      <div style={{ background: isNova?`linear-gradient(160deg,${accent}28,transparent)`:`linear-gradient(160deg,${accent},${accent}CC)`, padding:'28px 20px 22px', position:'relative', overflow:'hidden' }}>
-        <div style={{ position:'absolute', right:-24, top:-24, width:130, height:130, borderRadius:'50%', background:'rgba(255,255,255,0.08)', pointerEvents:'none' }} />
-        <div style={{ fontSize:10, fontWeight:700, color:isNova?accent+'CC':'rgba(255,255,255,0.75)', fontFamily:'Nunito, sans-serif', marginBottom:3 }}>Exam Leaderboard</div>
-        <div style={{ fontSize:26, fontWeight:900, color:isNova?'#F0EFFF':'#fff', fontFamily:'Sora, sans-serif', lineHeight:1.1, marginBottom:6 }}>
-          {student?.exam_type?.toUpperCase()||'WAEC'} Rankings
-        </div>
-        {(() => {
-          const lb = boards[leaderboardType] || []
-          const myPos = lb.findIndex(e => e.id === student?.id)
-          return myPos >= 0 ? (
-            <div style={{ display:'inline-flex', alignItems:'center', gap:6, background:'rgba(255,255,255,0.22)', borderRadius:99, padding:'5px 14px' }}>
-              <span style={{ fontSize:12, fontWeight:900, color:'#fff', fontFamily:'Nunito, sans-serif' }}>
-                You are #{myPos+1} · {monthlyXp} XP this month
-              </span>
-            </div>
-          ) : null
-        })()}
-      </div>
-
-      <div style={{ maxWidth:520, margin:'0 auto', padding:`16px 16px ${isMobile?'max(160px,calc(130px + env(safe-area-inset-bottom)))':'60px'}` }}>
-        <div style={{ display:'flex', background:isNova?'rgba(255,255,255,0.07)':'rgba(0,0,0,0.05)', borderRadius:14, padding:4, gap:4, marginBottom:18, animation:'lbFade 0.3s ease both' }}>
-          {[{id:'class',label:student?.class_level||'My Class'},{id:'school',label:'School'},{id:'overall',label:'Overall'}].map(t => (
-            <button key={t.id} onClick={() => setLeaderboardType(t.id)} style={{ flex:1, padding:'9px 6px', borderRadius:10, border:'none', cursor:'pointer', fontFamily:'Nunito, sans-serif', fontSize:11, fontWeight:800, transition:'all 0.15s', background:leaderboardType===t.id?accent:'transparent', color:leaderboardType===t.id?'#fff':bodyColor, boxShadow:leaderboardType===t.id?`0 3px 10px ${accent}40`:'none' }}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        {!boardsLoaded ? (
-          <div style={{ background:isNova?'rgba(255,255,255,0.06)':'#fff', borderRadius:18, overflow:'hidden', boxShadow:'0 2px 12px rgba(0,0,0,0.06)' }}>
-            {[1,2,3,4,5].map(i => (
-              <div key={i} style={{ display:'flex', alignItems:'center', gap:12, padding:'14px 16px', borderBottom:`1px solid ${isNova?'rgba(255,255,255,0.05)':'rgba(0,0,0,0.05)'}` }}>
-                <div style={{ width:24, height:24, borderRadius:'50%', background:'rgba(0,0,0,0.08)', flexShrink:0 }} />
-                <div style={{ width:38, height:38, borderRadius:'50%', background:'rgba(0,0,0,0.07)', flexShrink:0 }} />
+          {/* CARD 2 — Past Questions */}
+          <div style={{ marginBottom:12, animation:'ptIn 0.3s 0.1s ease both' }}>
+            <button onClick={() => router.push('/learn/mock-test?mode=year')} className="pt-btn"
+              style={{ width:'100%', border:`1.5px solid rgba(245,158,11,0.3)`, borderRadius:20, cursor:'pointer', textAlign:'left', padding:'20px', background:isNova?'rgba(255,255,255,0.07)':M.lessonCard||'#fff', boxShadow:M.cardShadow||'0 4px 20px rgba(0,0,0,0.08)', position:'relative', overflow:'hidden' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:14 }}>
+                <div style={{ width:54, height:54, borderRadius:16, background:'linear-gradient(145deg,rgba(245,158,11,0.2),rgba(245,158,11,0.08))', border:'1.5px solid rgba(245,158,11,0.35)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:24 }}>📋</div>
                 <div style={{ flex:1 }}>
-                  <div style={{ width:'55%', height:12, borderRadius:6, background:'rgba(0,0,0,0.07)', marginBottom:6 }} />
-                  <div style={{ width:'35%', height:9, borderRadius:5, background:'rgba(0,0,0,0.05)' }} />
+                  <div style={{ fontSize:9, fontWeight:800, color:bodyColor, textTransform:'uppercase', letterSpacing:1.6, fontFamily:'Nunito, sans-serif', marginBottom:4 }}>Mode 2</div>
+                  <div style={{ fontSize:18, fontWeight:900, color:isNova?'#F0EFFF':M.textPrimary, fontFamily:'Sora, sans-serif', marginBottom:2 }}>Past Questions</div>
+                  <div style={{ fontSize:11, color:bodyColor, fontFamily:'Nunito, sans-serif', fontWeight:600 }}>Select a year · CBT format · Question navigator</div>
+                </div>
+                <div style={{ background:'rgba(245,158,11,0.14)', border:'1.5px solid rgba(245,158,11,0.3)', borderRadius:12, padding:'9px 14px', flexShrink:0 }}>
+                  <span style={{ fontSize:15, fontWeight:900, color:'#d97706' }}>→</span>
                 </div>
               </div>
-            ))}
+            </button>
           </div>
-        ) : (boards[leaderboardType]||[]).length === 0 ? (
-          <div style={{ textAlign:'center', padding:'52px 20px', animation:'lbFade 0.3s ease both' }}>
-            <div style={{ width:64, height:64, borderRadius:20, background:`${accent}14`, border:`2px solid ${accent}25`, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 14px' }}>
-              <EduIcon id="trophy" size={30} color={accent} />
-            </div>
-            <div style={{ fontWeight:900, fontSize:16, color:M.textPrimary, fontFamily:'Nunito, sans-serif', marginBottom:6 }}>No rankings yet</div>
-            <div style={{ fontSize:13, color:bodyColor, fontFamily:'Nunito, sans-serif' }}>Complete lessons and practice to appear here!</div>
-          </div>
-        ) : (
-          <div style={{ background:isNova?'rgba(255,255,255,0.06)':'#fff', borderRadius:20, overflow:'hidden', boxShadow:'0 3px 16px rgba(0,0,0,0.07)', animation:'lbFade 0.3s 0.05s ease both' }}>
-            {(boards[leaderboardType]||[]).map((entry, idx) => {
-              const isMe = entry.id === student?.id
-              const eXp  = entry.monthly_xp || 0
-              const medals = [
-                { bg:'linear-gradient(145deg,#FFD700,#FFA500)', text:'#7A5800', shadow:'rgba(255,165,0,0.5)' },
-                { bg:'linear-gradient(145deg,#E0E0E0,#A0A0A0)', text:'#555',    shadow:'rgba(160,160,160,0.4)' },
-                { bg:'linear-gradient(145deg,#CD7F32,#A0522D)', text:'#fff',    shadow:'rgba(160,82,45,0.4)'  },
-              ]
-              return (
-                <div key={entry.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'13px 16px', background:isMe?(isNova?`${accent}14`:`${accent}08`):'transparent', borderLeft:`3px solid ${isMe?accent:'transparent'}`, borderBottom:`1px solid ${isNova?'rgba(255,255,255,0.05)':'rgba(0,0,0,0.04)'}` }}>
-                  <div style={{ width:30, flexShrink:0, display:'flex', justifyContent:'center' }}>
-                    {idx < 3 ? (
-                      <div style={{ width:28, height:28, borderRadius:'50%', background:medals[idx].bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:900, color:medals[idx].text, boxShadow:`0 3px 8px ${medals[idx].shadow}` }}>{idx+1}</div>
-                    ) : (
-                      <span style={{ fontSize:12, fontWeight:700, color:bodyColor, fontFamily:'Nunito, sans-serif' }}>#{idx+1}</span>
-                    )}
-                  </div>
-                  <div style={{ width:38, height:38, borderRadius:'50%', background:`linear-gradient(145deg,${accent}28,${accent}14)`, border:`1.5px solid ${accent}35`, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:900, fontSize:15, color:accent, flexShrink:0, boxShadow:`0 2px 8px ${accent}20` }}>
-                    {entry.display_name?.[0]?.toUpperCase()||'?'}
-                  </div>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontWeight:isMe?900:700, fontSize:13, color:isMe?accent:(isNova?'#F8F7FF':M.textPrimary), fontFamily:'Nunito, sans-serif', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:5 }}>
-                      {entry.display_name}
-                      {isMe && <span style={{ fontSize:9, fontWeight:900, color:accent, background:`${accent}18`, borderRadius:20, padding:'1px 6px', flexShrink:0 }}>YOU</span>}
-                    </div>
-                    <div style={{ fontSize:10, color:bodyColor, fontFamily:'Nunito, sans-serif', fontWeight:500 }}>{entry.class_level}{entry.school?` · ${entry.school}`:''}</div>
-                  </div>
-                  <div style={{ textAlign:'right', flexShrink:0 }}>
-                    <div style={{ fontWeight:900, color:isMe?accent:M.textPrimary, fontFamily:'Sora, sans-serif', fontSize:15 }}>{eXp.toLocaleString()}</div>
-                    <div style={{ fontSize:9, color:bodyColor, fontFamily:'Nunito, sans-serif', fontWeight:500 }}>XP</div>
-                  </div>
+
+          {/* CARD 3 — Mock Exam */}
+          <div style={{ marginBottom:20, animation:'ptIn 0.3s 0.14s ease both' }}>
+            <button onClick={() => router.push('/learn/mock-test?mode=random')} className="pt-btn"
+              style={{ width:'100%', border:'none', borderRadius:20, cursor:'pointer', textAlign:'left', padding:'20px', background:`linear-gradient(140deg,#4338ca,#7c3aed)`, boxShadow:'0 8px 30px rgba(67,56,202,0.45)', position:'relative', overflow:'hidden' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:14, position:'relative', zIndex:1 }}>
+                <div style={{ width:54, height:54, borderRadius:16, background:'rgba(255,255,255,0.22)', border:'1.5px solid rgba(255,255,255,0.3)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:24 }}>🏆</div>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:9, fontWeight:800, color:'rgba(255,255,255,0.65)', textTransform:'uppercase', letterSpacing:1.6, fontFamily:'Nunito, sans-serif', marginBottom:4 }}>Mode 3 · CBT</div>
+                  <div style={{ fontSize:18, fontWeight:900, color:'#fff', fontFamily:'Sora, sans-serif', marginBottom:2 }}>Mock Exam</div>
+                  <div style={{ fontSize:11, color:'rgba(255,255,255,0.78)', fontFamily:'Nunito, sans-serif', fontWeight:600 }}>50 random questions · 60 minutes · All years</div>
                 </div>
-              )
-            })}
+                <div style={{ background:'rgba(255,255,255,0.22)', borderRadius:12, padding:'9px 14px', flexShrink:0 }}>
+                  <span style={{ fontSize:15, fontWeight:900, color:'#fff' }}>→</span>
+                </div>
+              </div>
+            </button>
           </div>
-        )}
-        <div style={{ textAlign:'center', marginTop:14, fontSize:10, color:bodyColor, fontFamily:'Nunito, sans-serif', fontWeight:600 }}>
-          Rankings reset on the 1st of each month
+
+          {/* View Your Strengths — school only, links to past-questions performance view */}
+          <div style={{ animation:'ptIn 0.3s 0.18s ease both' }}>
+            <button onClick={() => router.push('/learn/past-questions')} className="pt-btn"
+              style={{ width:'100%', padding:'15px 18px', background:'transparent', border:`1.5px solid ${accent}30`, borderRadius:16, cursor:'pointer', display:'flex', alignItems:'center', gap:12, fontFamily:'Nunito, sans-serif' }}>
+              <div style={{ fontSize:20 }}>📊</div>
+              <div style={{ flex:1, textAlign:'left' }}>
+                <div style={{ fontSize:14, fontWeight:900, color:isNova?'#F0EFFF':M.textPrimary, fontFamily:'Sora, sans-serif' }}>View Your Strengths</div>
+                <div style={{ fontSize:11, color:bodyColor, fontWeight:600 }}>Topic by topic performance & progress</div>
+              </div>
+              <div style={{ fontSize:13, color:accent, fontWeight:900 }}>→</div>
+            </button>
+          </div>
+
         </div>
-      </div>
+      )}
     </div>
   )
 
   // ══════════════════════════════════════════════════════════════════════════
-  // RANK TAB — redesigned
+  // RANK TAB — Journey-based rank progression system
+  // Shows: current rank, journey visualization, position in tier, school rank
   // ══════════════════════════════════════════════════════════════════════════
-  const LB_TABS = [
-    { id: 'class',   label: student?.class_level || 'My Class' },
-    { id: 'school',  label: 'My School' },
-    { id: 'overall', label: 'Overall'   },
-  ]
 
-  const [rankView, setRankView] = useState('global')
+  // ── Rank tab view state ───────────────────────────────────────────────────
+  const [rankView, setRankView] = useState('global') // 'global' | 'school'
 
+  // People near me in this rank (2 above + me + up to 5 below)
   const sameRankPeople = (() => {
     const src = rankView === 'school' ? boards.school : boards.class
     const sameRank = src.filter(e => {
@@ -1857,100 +2123,218 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
     return sameRank.slice(start, end)
   })()
 
-  const RankTab = (
-    <div style={{ height:'100%', overflowY:'auto', background:isNova?'#0D0B1E':'#F6F5F2' }}>
+  const RankTab = (() => {
+    // ── palette helpers ───────────────────────────────────────────────────
+    const rc     = masteryRank.color          // rank colour
+    const rBg    = isNova ? '#0D0B1E' : isBlaze ? '#FFFBEA' : '#F6F5F2'
+    const cardBg = isNova ? 'rgba(255,255,255,0.06)' : isBlaze ? '#fff' : '#fff'
+    const cardBorder = isNova ? '1px solid rgba(255,255,255,0.08)' : isBlaze ? '2px solid #0d0d0d' : `1px solid rgba(0,0,0,0.06)`
+
+    // XP to next rank as a percentage within the current band
+    const xpInBand    = xp - masteryRank.minXp
+    const bandSize    = nextRank ? nextRank.minXp - masteryRank.minXp : 1
+    const bandPct     = nextRank ? Math.min(100, Math.round((xpInBand / bandSize) * 100)) : 100
+
+    return (
+    <div style={{ height:'100%', overflowY:'auto', background: rBg }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Sora:wght@700;800;900&family=Nunito:wght@500;600;700;800;900&display=swap');
-        @keyframes rFadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes rBar    { from{width:0} }
-        @keyframes rPulse  { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.6;transform:scale(1.06)} }
+        @keyframes rkSlide  { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes rkPop    { 0%{transform:scale(0.88)} 60%{transform:scale(1.06)} 100%{transform:scale(1)} }
+        @keyframes rkGlow   { 0%,100%{box-shadow:0 0 0 0 ${rc}40} 50%{box-shadow:0 0 0 10px ${rc}00} }
+        @keyframes rkBar    { from{width:0} }
+        @keyframes rkFloat  { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
       `}</style>
-      <div style={{ maxWidth:480, margin:'0 auto', paddingBottom:'max(90px, calc(70px + env(safe-area-inset-bottom)))' }}>
 
-        {/* Hero banner */}
-        <div style={{ background:isNova?`linear-gradient(160deg,${masteryRank.color}30 0%,transparent 65%)`:`linear-gradient(160deg,${masteryRank.color}18 0%,${masteryRank.color}06 100%)`, padding:'28px 20px 24px', position:'relative', overflow:'hidden' }}>
-          <div style={{ position:'absolute', right:-30, top:-30, width:160, height:160, borderRadius:'50%', background:`${masteryRank.color}10`, pointerEvents:'none' }} />
-          <div style={{ fontSize:10, fontWeight:900, color:masteryRank.color, textTransform:'uppercase', letterSpacing:1.6, fontFamily:'Nunito, sans-serif', marginBottom:16, position:'relative', zIndex:1 }}>Your Rank Journey</div>
+      <div style={{ maxWidth:480, margin:'0 auto', paddingBottom:'max(100px,calc(80px + env(safe-area-inset-bottom)))' }}>
 
-          {/* Rank card */}
-          <div style={{ display:'flex', gap:16, alignItems:'center', marginBottom:20, position:'relative', zIndex:1, animation:'rFadeUp 0.35s ease both' }}>
-            <div style={{ width:72, height:72, borderRadius:20, background:`linear-gradient(145deg,${masteryRank.color}30,${masteryRank.color}10)`, border:`2.5px solid ${masteryRank.color}55`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, boxShadow:`0 8px 28px ${masteryRank.color}30` }}>
-              <EduIcon id={RANK_ICONS[masteryRank.title]||'star'} size={34} color={masteryRank.color} />
+        {/* ═══════════════════════════════════════════════════════
+            HERO SECTION — full-bleed rank card
+        ═══════════════════════════════════════════════════════ */}
+        <div style={{
+          position:'relative', overflow:'hidden',
+          background: isNova
+            ? `linear-gradient(150deg,${rc}22 0%,rgba(13,11,30,0) 70%)`
+            : isBlaze
+            ? `linear-gradient(150deg,#FFD700 0%,#FFA500 100%)`
+            : `linear-gradient(150deg,${rc}20 0%,${rc}06 100%)`,
+          padding:'32px 20px 28px',
+          borderBottom: isNova ? `1px solid rgba(255,255,255,0.07)` : `1px solid ${rc}18`,
+        }}>
+
+          {/* Decorative rings */}
+          <div style={{ position:'absolute', right:-60, top:-60, width:220, height:220, borderRadius:'50%', border:`2px solid ${rc}14`, pointerEvents:'none' }} />
+          <div style={{ position:'absolute', right:-30, top:-30, width:140, height:140, borderRadius:'50%', border:`2px solid ${rc}20`, pointerEvents:'none' }} />
+
+          {/* "YOUR RANK" eyebrow */}
+          <div style={{ fontSize:9, fontWeight:900, color: isBlaze?'#555':rc, textTransform:'uppercase', letterSpacing:2.5, fontFamily:'Nunito, sans-serif', marginBottom:20, opacity: isBlaze?0.7:1, animation:'rkSlide 0.3s ease both' }}>
+            Your Rank
+          </div>
+
+          {/* Big rank badge + name row */}
+          <div style={{ display:'flex', alignItems:'center', gap:18, marginBottom:24, animation:'rkSlide 0.32s 0.04s ease both' }}>
+
+            {/* Hexagonal-style badge */}
+            <div style={{
+              width:80, height:80, borderRadius:24, flexShrink:0,
+              background: isBlaze ? '#fff' : isNova ? `${rc}18` : `linear-gradient(145deg,${rc}28,${rc}0C)`,
+              border: isBlaze ? '3px solid #0d0d0d' : `3px solid ${rc}`,
+              display:'flex', alignItems:'center', justifyContent:'center',
+              boxShadow: isBlaze ? '4px 4px 0 #0d0d0d' : `0 0 0 6px ${rc}14, 0 10px 32px ${rc}35`,
+              animation:'rkPop 0.55s 0.1s ease both',
+            }}>
+              <EduIcon id={RANK_ICONS[masteryRank.title]||'star'} size={38} color={isBlaze?'#0d0d0d':rc} />
             </div>
+
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:28, fontWeight:900, color:masteryRank.color, fontFamily:'Sora, sans-serif', lineHeight:1.05, marginBottom:3 }}>{masteryRank.title}</div>
-              <div style={{ fontSize:12, color:bodyColor, fontFamily:'Nunito, sans-serif', fontStyle:'italic', fontWeight:600 }}>{masteryRank.flavor}</div>
+              {/* Rank title */}
+              <div style={{ fontSize:34, fontWeight:900, fontFamily:'Sora, sans-serif', lineHeight:1.0, marginBottom:5,
+                color: isBlaze?'#0d0d0d': isNova?'#F0EFFF':rc,
+                letterSpacing:-0.5,
+              }}>
+                {masteryRank.title}
+              </div>
+              {/* Flavor */}
+              <div style={{ fontSize:12, fontWeight:600, fontStyle:'italic', fontFamily:'Nunito, sans-serif',
+                color: isBlaze?'#555':bodyColor, lineHeight:1.45,
+              }}>
+                {masteryRank.flavor}
+              </div>
             </div>
           </div>
 
-          {/* XP Progress */}
-          {nextRank ? (
-            <div style={{ position:'relative', zIndex:1, animation:'rFadeUp 0.35s 0.06s ease both' }}>
-              <div style={{ display:'flex', justifyContent:'space-between', marginBottom:8 }}>
-                <span style={{ fontSize:12, fontWeight:700, color:bodyColor, fontFamily:'Nunito, sans-serif' }}>{xp.toLocaleString()} XP</span>
-                <span style={{ fontSize:12, fontWeight:900, color:masteryRank.color, fontFamily:'Nunito, sans-serif' }}>{nextRank.minXp - xp} XP to go</span>
+          {/* XP progress bar */}
+          <div style={{ animation:'rkSlide 0.32s 0.08s ease both' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:8 }}>
+              <div>
+                <span style={{ fontSize:22, fontWeight:900, fontFamily:'Sora, sans-serif', color: isBlaze?'#0d0d0d':M.textPrimary }}>
+                  {xp.toLocaleString()}
+                </span>
+                <span style={{ fontSize:11, fontWeight:700, fontFamily:'Nunito, sans-serif', color:bodyColor, marginLeft:5 }}>XP total</span>
               </div>
-              <div style={{ height:10, background:isNova?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.09)', borderRadius:99, overflow:'hidden', marginBottom:6 }}>
-                <div style={{ height:'100%', width:`${rankProgress}%`, background:`linear-gradient(90deg,${masteryRank.color},${nextRank.color})`, borderRadius:99, transition:'width 1.2s ease', animation:'rBar 1.2s ease' }} />
-              </div>
-              <div style={{ fontSize:11, color:bodyColor, fontFamily:'Nunito, sans-serif', fontWeight:600 }}>
-                Next: <span style={{ color:nextRank.color, fontWeight:900 }}>{nextRank.title}</span> at {nextRank.minXp.toLocaleString()} XP
-              </div>
+              {nextRank && (
+                <div style={{ fontSize:11, fontWeight:900, fontFamily:'Nunito, sans-serif', color:rc }}>
+                  {(nextRank.minXp - xp).toLocaleString()} to {nextRank.title}
+                </div>
+              )}
             </div>
-          ) : (
-            <div style={{ padding:'12px 16px', background:`${masteryRank.color}14`, borderRadius:12, textAlign:'center', position:'relative', zIndex:1 }}>
-              <span style={{ fontSize:13, fontWeight:900, color:masteryRank.color, fontFamily:'Nunito, sans-serif' }}>Maximum rank — you are a legend</span>
-            </div>
-          )}
 
-          {/* 2-col stat strip */}
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginTop:16, position:'relative', zIndex:1, animation:'rFadeUp 0.35s 0.1s ease both' }}>
-            <div style={{ padding:'12px 14px', background:isNova?'rgba(255,255,255,0.08)':'rgba(255,255,255,0.72)', borderRadius:14, backdropFilter:'blur(8px)' }}>
-              <div style={{ fontSize:10, fontWeight:900, color:bodyColor, textTransform:'uppercase', letterSpacing:0.9, fontFamily:'Nunito, sans-serif', marginBottom:3 }}>Position in Rank</div>
-              <div style={{ fontSize:22, fontWeight:900, color:masteryRank.color, fontFamily:'Sora, sans-serif', lineHeight:1 }}>
-                #{myPosInRank} <span style={{ fontSize:12, color:bodyColor, fontWeight:600 }}>of {totalInRank}</span>
+            {/* Bar track */}
+            <div style={{ height:12, background: isNova?'rgba(255,255,255,0.1)':isBlaze?'rgba(0,0,0,0.12)':'rgba(0,0,0,0.08)', borderRadius:99, overflow:'hidden', marginBottom:10, boxShadow:'inset 0 2px 4px rgba(0,0,0,0.1)' }}>
+              <div style={{
+                height:'100%', width:bandPct+'%',
+                background: nextRank
+                  ? `linear-gradient(90deg,${rc},${nextRank.color})`
+                  : rc,
+                borderRadius:99, transition:'width 1.4s cubic-bezier(0.16,1,0.3,1)',
+                animation:'rkBar 1.4s cubic-bezier(0.16,1,0.3,1)',
+                boxShadow:`0 0 12px ${rc}80`,
+              }} />
+            </div>
+
+            {/* Next rank label */}
+            {nextRank ? (
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                  <div style={{ width:8, height:8, borderRadius:'50%', background:rc }} />
+                  <span style={{ fontSize:10, fontWeight:700, color:bodyColor, fontFamily:'Nunito, sans-serif' }}>{masteryRank.title}</span>
+                </div>
+                <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                  <span style={{ fontSize:10, fontWeight:700, color:bodyColor, fontFamily:'Nunito, sans-serif' }}>{nextRank.title}</span>
+                  <div style={{ width:8, height:8, borderRadius:'50%', background:nextRank.color, opacity:0.5 }} />
+                </div>
               </div>
-            </div>
-            <div style={{ padding:'12px 14px', background:isNova?'rgba(255,255,255,0.08)':'rgba(255,255,255,0.72)', borderRadius:14, backdropFilter:'blur(8px)' }}>
-              <div style={{ fontSize:10, fontWeight:900, color:bodyColor, textTransform:'uppercase', letterSpacing:0.9, fontFamily:'Nunito, sans-serif', marginBottom:3 }}>Monthly XP</div>
-              <div style={{ fontSize:22, fontWeight:900, color:accent, fontFamily:'Sora, sans-serif', lineHeight:1 }}>{monthlyXp.toLocaleString()}</div>
-            </div>
+            ) : (
+              <div style={{ textAlign:'center', padding:'8px 14px', background:`${rc}14`, borderRadius:10 }}>
+                <span style={{ fontSize:12, fontWeight:900, color:rc, fontFamily:'Nunito, sans-serif' }}>🏆 Maximum rank — you are a legend</span>
+              </div>
+            )}
+          </div>
+
+          {/* ── 3-stat strip ── */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, marginTop:20, animation:'rkSlide 0.32s 0.12s ease both' }}>
+            {[
+              { label:'Position',    value: `#${myPosInRank}`, sub:`of ${totalInRank} in rank`   },
+              { label:'Monthly XP',  value: monthlyXp >= 1000 ? (monthlyXp/1000).toFixed(1)+'k' : monthlyXp, sub:'this month' },
+              { label:'Lessons',     value: doneLessons, sub:'completed' },
+            ].map(stat => (
+              <div key={stat.label} style={{
+                padding:'12px 10px', borderRadius:16, textAlign:'center',
+                background: isNova?'rgba(255,255,255,0.07)':isBlaze?'rgba(0,0,0,0.06)':'rgba(255,255,255,0.65)',
+                border: isNova?'1px solid rgba(255,255,255,0.09)':isBlaze?'1.5px solid rgba(0,0,0,0.1)':'1px solid rgba(0,0,0,0.05)',
+                backdropFilter:'blur(8px)',
+              }}>
+                <div style={{ fontSize:22, fontWeight:900, fontFamily:'Sora, sans-serif', lineHeight:1, color: isBlaze?'#0d0d0d':rc, marginBottom:4 }}>{stat.value}</div>
+                <div style={{ fontSize:9, fontWeight:800, color:bodyColor, textTransform:'uppercase', letterSpacing:0.6, fontFamily:'Nunito, sans-serif', marginBottom:1 }}>{stat.label}</div>
+                <div style={{ fontSize:9, color:bodyColor, fontFamily:'Nunito, sans-serif', opacity:0.7 }}>{stat.sub}</div>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Rank Journey horizontal track */}
-        <div style={{ padding:'22px 20px 0', animation:'rFadeUp 0.35s 0.14s ease both' }}>
-          <div style={{ fontSize:11, fontWeight:900, color:bodyColor, textTransform:'uppercase', letterSpacing:1.2, fontFamily:'Nunito, sans-serif', marginBottom:16 }}>Rank Journey</div>
-          <div style={{ overflowX:'auto', paddingBottom:12 }}>
-            <div style={{ display:'flex', alignItems:'flex-start', minWidth:`${MASTERY_RANKS.length * 80}px` }}>
+        {/* ═══════════════════════════════════════════════════════
+            RANK JOURNEY — compact vertical timeline
+        ═══════════════════════════════════════════════════════ */}
+        <div style={{ padding:'24px 20px 0', animation:'rkSlide 0.32s 0.16s ease both' }}>
+          <div style={{ fontSize:11, fontWeight:900, color:bodyColor, textTransform:'uppercase', letterSpacing:1.4, fontFamily:'Nunito, sans-serif', marginBottom:16 }}>
+            Rank Journey
+          </div>
+
+          {/* Horizontal scrolling rank track */}
+          <div style={{
+            background: cardBg, border: cardBorder, borderRadius:20,
+            padding:'18px 16px',
+            boxShadow: isBlaze?'4px 4px 0 #0d0d0d':'0 2px 12px rgba(0,0,0,0.06)',
+            overflowX:'auto',
+          }}>
+            <div style={{ display:'flex', alignItems:'flex-start', minWidth: MASTERY_RANKS.length * 72 + 'px', paddingBottom:4 }}>
               {MASTERY_RANKS.map((rank, idx) => {
                 const isCur  = rank.title === masteryRank.title
                 const isPast = idx < myRankIdx
                 const isFut  = idx > myRankIdx
                 return (
-                  <div key={rank.title} style={{ display:'flex', flexDirection:'column', alignItems:'center', width:80, flexShrink:0 }}>
+                  <div key={rank.title} style={{ display:'flex', flexDirection:'column', alignItems:'center', width:72, flexShrink:0 }}>
+                    {/* Track row */}
                     <div style={{ display:'flex', alignItems:'center', width:'100%' }}>
-                      <div style={{ flex:1, height:3, background:idx===0?'transparent':isPast||isCur?rank.color:isNova?'rgba(255,255,255,0.12)':'rgba(0,0,0,0.1)', borderRadius:1.5 }} />
+                      <div style={{ flex:1, height: isCur?4:3, background: idx===0?'transparent': isPast||isCur?rank.color:isNova?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.09)', borderRadius:2, transition:'background 0.4s' }} />
+                      {/* Node */}
                       <div style={{
-                        width:isCur?48:36, height:isCur?48:36, borderRadius:isCur?15:11, flexShrink:0,
-                        background:isCur?`linear-gradient(145deg,${rank.color}35,${rank.color}12)`:isPast?`${rank.color}16`:isNova?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.05)',
-                        border:isCur?`2.5px solid ${rank.color}`:isPast?`1.5px solid ${rank.color}40`:`1.5px solid ${isNova?'rgba(255,255,255,0.12)':'rgba(0,0,0,0.1)'}`,
+                        width: isCur?46:32, height:isCur?46:32,
+                        borderRadius: isCur?14:10, flexShrink:0,
+                        background: isCur
+                          ? `linear-gradient(145deg,${rank.color}30,${rank.color}12)`
+                          : isPast ? `${rank.color}18`
+                          : isNova?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.04)',
+                        border: isCur
+                          ? `2.5px solid ${rank.color}`
+                          : isPast?`1.5px solid ${rank.color}55`
+                          : `1.5px solid ${isNova?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.1)'}`,
                         display:'flex', alignItems:'center', justifyContent:'center',
-                        boxShadow:isCur?`0 4px 18px ${rank.color}40`:'none',
-                        animation:isCur?'rPulse 2.5s ease-in-out infinite':'none',
+                        boxShadow: isCur?`0 0 0 4px ${rank.color}20, 0 4px 16px ${rank.color}35`:'none',
+                        animation: isCur?'rkGlow 2.5s ease-in-out infinite':'none',
+                        transition:'all 0.3s',
                       }}>
-                        {isPast ? <EduIcon id="star" size={13} color={rank.color+'88'} />
-                          : <EduIcon id={RANK_ICONS[rank.title]||'star'} size={isCur?22:14} color={isCur?rank.color:bodyColor} />}
+                        {isPast
+                          ? <span style={{ fontSize:isCur?18:12, color:rank.color, opacity:0.7 }}>✓</span>
+                          : <EduIcon id={RANK_ICONS[rank.title]||'star'} size={isCur?22:13} color={isCur?rank.color:isNova?'rgba(255,255,255,0.3)':'rgba(0,0,0,0.25)'} />
+                        }
                       </div>
-                      <div style={{ flex:1, height:3, background:idx===MASTERY_RANKS.length-1?'transparent':isPast?MASTERY_RANKS[idx+1]?.color||rank.color:isNova?'rgba(255,255,255,0.12)':'rgba(0,0,0,0.1)', borderRadius:1.5 }} />
+                      <div style={{ flex:1, height:isCur?4:3, background: idx===MASTERY_RANKS.length-1?'transparent': isPast?MASTERY_RANKS[idx+1]?.color||rank.color:isNova?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.09)', borderRadius:2 }} />
                     </div>
-                    <div style={{ marginTop:9, textAlign:'center', padding:'0 3px' }}>
-                      <div style={{ fontSize:isCur?10:9, fontWeight:isCur?900:600, color:isCur?rank.color:isPast?M.textPrimary:bodyColor, fontFamily:'Nunito, sans-serif', lineHeight:1.3, wordBreak:'break-word' }}>
+
+                    {/* Label */}
+                    <div style={{ marginTop:8, textAlign:'center', padding:'0 2px' }}>
+                      <div style={{ fontSize: isCur?9.5:8, fontWeight: isCur?900:600, color: isCur?rank.color:isPast?(isNova?'rgba(255,255,255,0.55)':M.textSecondary):bodyColor, fontFamily:'Nunito, sans-serif', lineHeight:1.3 }}>
                         {rank.title}
                       </div>
-                      {isCur && <div style={{ fontSize:8, fontWeight:900, color:rank.color, fontFamily:'Nunito, sans-serif', marginTop:2, background:`${rank.color}18`, borderRadius:99, padding:'1px 6px' }}>YOU</div>}
-                      {isPast && <div style={{ fontSize:10, color:rank.color, marginTop:1 }}>✓</div>}
-                      {isFut  && <div style={{ fontSize:8, color:bodyColor, marginTop:2, opacity:0.5, fontFamily:'Nunito, sans-serif' }}>{rank.minXp>=1000?(rank.minXp/1000).toFixed(rank.minXp%1000===0?0:1)+'k':rank.minXp} XP</div>}
+                      {isCur && (
+                        <div style={{ marginTop:3, fontSize:7, fontWeight:900, color:rank.color, background:`${rank.color}18`, borderRadius:99, padding:'1px 5px', display:'inline-block' }}>YOU</div>
+                      )}
+                      {isFut && (
+                        <div style={{ marginTop:2, fontSize:7.5, color:bodyColor, opacity:0.55, fontFamily:'Nunito, sans-serif' }}>
+                          {rank.minXp>=1000?(rank.minXp/1000).toFixed(rank.minXp%1000===0?0:1)+'k':rank.minXp}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )
@@ -1959,52 +2343,104 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
           </div>
         </div>
 
-        {/* People in Your Rank */}
-        <div style={{ padding:'22px 20px 0', animation:'rFadeUp 0.35s 0.18s ease both' }}>
+        {/* ═══════════════════════════════════════════════════════
+            PEOPLE IN YOUR RANK
+        ═══════════════════════════════════════════════════════ */}
+        <div style={{ padding:'24px 20px 0', animation:'rkSlide 0.32s 0.2s ease both' }}>
+
+          {/* Header row */}
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
             <div>
-              <div style={{ fontSize:11, fontWeight:900, color:bodyColor, textTransform:'uppercase', letterSpacing:1.2, fontFamily:'Nunito, sans-serif' }}>People in Your Rank</div>
+              <div style={{ fontSize:11, fontWeight:900, color:bodyColor, textTransform:'uppercase', letterSpacing:1.4, fontFamily:'Nunito, sans-serif' }}>
+                People in Your Rank
+              </div>
               {myPosInRank > 0 && (
-                <div style={{ fontSize:10, color:masteryRank.color, fontFamily:'Nunito, sans-serif', fontWeight:700, marginTop:2 }}>You are #{myPosInRank} — keep climbing</div>
+                <div style={{ fontSize:10, color:rc, fontFamily:'Nunito, sans-serif', fontWeight:800, marginTop:2 }}>
+                  You are #{myPosInRank} — keep climbing 🔥
+                </div>
               )}
             </div>
             {boards.school.length > 0 && (
-              <div style={{ display:'flex', background:isNova?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)', borderRadius:99, padding:3, gap:2 }}>
-                {['global','school'].map(v => (
-                  <button key={v} onClick={() => setRankView(v)} style={{ padding:'4px 12px', borderRadius:99, border:'none', cursor:'pointer', fontSize:10, fontWeight:800, fontFamily:'Nunito, sans-serif', background:rankView===v?accent:'transparent', color:rankView===v?'#fff':bodyColor, transition:'all 0.15s' }}>
-                    {v==='global'?'Class':'School'}
-                  </button>
+              <div style={{ display:'flex', background: isNova?'rgba(255,255,255,0.07)':isBlaze?'rgba(0,0,0,0.06)':'rgba(0,0,0,0.05)', borderRadius:99, padding:3, gap:2 }}>
+                {[{v:'global',l:'Class'},{v:'school',l:'School'}].map(({v,l}) => (
+                  <button key={v} onClick={() => setRankView(v)} style={{
+                    padding:'4px 12px', borderRadius:99, border:'none', cursor:'pointer',
+                    fontSize:10, fontWeight:800, fontFamily:'Nunito, sans-serif',
+                    background: rankView===v ? (isBlaze?'#0d0d0d':accent) : 'transparent',
+                    color: rankView===v ? '#fff' : bodyColor,
+                    transition:'all 0.15s',
+                  }}>{l}</button>
                 ))}
               </div>
             )}
           </div>
 
+          {/* People list */}
           {sameRankPeople.length === 0 ? (
-            <div style={{ textAlign:'center', padding:'28px 0', color:bodyColor, fontFamily:'Nunito, sans-serif', fontSize:13 }}>
-              Complete more lessons to see people around you
+            <div style={{ textAlign:'center', padding:'32px 20px', background:cardBg, border:cardBorder, borderRadius:18 }}>
+              <div style={{ fontSize:30, marginBottom:10 }}>🏅</div>
+              <div style={{ fontSize:14, fontWeight:800, color:M.textPrimary, fontFamily:'Nunito, sans-serif', marginBottom:4 }}>No classmates here yet</div>
+              <div style={{ fontSize:12, color:bodyColor, fontFamily:'Nunito, sans-serif' }}>Complete more lessons to see people around your rank</div>
             </div>
           ) : (
-            <div style={{ background:isNova?'rgba(255,255,255,0.06)':'#fff', borderRadius:18, overflow:'hidden', border:`1px solid ${isNova?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.07)'}` }}>
+            <div style={{ background:cardBg, border:cardBorder, borderRadius:20, overflow:'hidden', boxShadow: isBlaze?'4px 4px 0 #0d0d0d':'0 2px 14px rgba(0,0,0,0.07)' }}>
               {sameRankPeople.map((entry, idx) => {
-                const isMe  = entry.id === student?.id
-                const eRank = MASTERY_RANKS.slice().reverse().find(r=>(entry.xp||0)>=r.minXp)||MASTERY_RANKS[0]
-                const eXp   = entry.monthly_xp || 0
-                const movement = (entry.xp_today||0)>0 ? '↑' : (entry.xp_dropped||0)>0 ? '↓' : '—'
-                const mvColor  = movement==='↑'?'#22c55e':movement==='↓'?'#EF4444':bodyColor
+                const isMe   = entry.id === student?.id
+                const eRank  = MASTERY_RANKS.slice().reverse().find(r=>(entry.xp||0)>=r.minXp)||MASTERY_RANKS[0]
+                const eXp    = entry.monthly_xp || 0
+                const pos    = idx + 1
                 return (
-                  <div key={entry.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'13px 16px', background:isMe?`${accent}07`:'transparent', borderLeft:`3px solid ${isMe?accent:'transparent'}`, borderBottom:idx<sameRankPeople.length-1?`1px solid ${isNova?'rgba(255,255,255,0.07)':'rgba(0,0,0,0.06)'}`:'none' }}>
-                    <div style={{ width:36, height:36, borderRadius:'50%', background:`${eRank.color}20`, border:`1.5px solid ${eRank.color}35`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontWeight:900, fontSize:14, color:eRank.color, fontFamily:'Nunito, sans-serif' }}>
+                  <div key={entry.id} style={{
+                    display:'flex', alignItems:'center', gap:12, padding:'13px 16px',
+                    background: isMe
+                      ? isNova?`${accent}18`:`${accent}08`
+                      : 'transparent',
+                    borderLeft:`3.5px solid ${isMe?accent:'transparent'}`,
+                    borderBottom: idx<sameRankPeople.length-1
+                      ? `1px solid ${isNova?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.05)'}`
+                      : 'none',
+                  }}>
+
+                    {/* Position number */}
+                    <div style={{ width:24, flexShrink:0, textAlign:'center' }}>
+                      {pos <= 3 ? (
+                        <div style={{ fontSize:15 }}>{pos===1?'🥇':pos===2?'🥈':'🥉'}</div>
+                      ) : (
+                        <div style={{ fontSize:11, fontWeight:700, color:bodyColor, fontFamily:'Nunito, sans-serif' }}>#{pos}</div>
+                      )}
+                    </div>
+
+                    {/* Avatar */}
+                    <div style={{
+                      width:38, height:38, borderRadius:'50%', flexShrink:0,
+                      background:`linear-gradient(145deg,${eRank.color}28,${eRank.color}10)`,
+                      border:`2px solid ${eRank.color}40`,
+                      display:'flex', alignItems:'center', justifyContent:'center',
+                      fontSize:15, fontWeight:900, color:eRank.color,
+                      fontFamily:'Sora, sans-serif',
+                    }}>
                       {entry.display_name?.[0]?.toUpperCase()||'?'}
                     </div>
+
+                    {/* Name + rank */}
                     <div style={{ flex:1, minWidth:0 }}>
-                      <div style={{ fontSize:13, fontWeight:isMe?900:700, color:isMe?accent:(isNova?'#F8F7FF':M.textPrimary), fontFamily:'Nunito, sans-serif', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                        {entry.display_name}{isMe?' (You)':''}
+                      <div style={{ fontSize:13, fontWeight:isMe?900:700, color:isMe?accent:(isNova?'#F0EFFF':M.textPrimary), fontFamily:'Nunito, sans-serif', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:5 }}>
+                        {entry.display_name}
+                        {isMe && (
+                          <span style={{ fontSize:8, fontWeight:900, color:accent, background:`${accent}18`, borderRadius:99, padding:'1px 6px', flexShrink:0 }}>YOU</span>
+                        )}
                       </div>
-                      <div style={{ fontSize:10, color:eRank.color, fontFamily:'Nunito, sans-serif', fontWeight:700 }}>{eRank.title}</div>
+                      <div style={{ fontSize:10, color:eRank.color, fontFamily:'Nunito, sans-serif', fontWeight:700, marginTop:1 }}>
+                        {eRank.title}
+                      </div>
                     </div>
+
+                    {/* XP */}
                     <div style={{ textAlign:'right', flexShrink:0 }}>
-                      <div style={{ fontSize:13, fontWeight:900, color:accent, fontFamily:'Sora, sans-serif' }}>{eXp.toLocaleString()}</div>
-                      <div style={{ fontSize:12, fontWeight:800, color:mvColor, fontFamily:'Nunito, sans-serif' }}>{movement}</div>
+                      <div style={{ fontSize:14, fontWeight:900, color:isMe?accent:M.textPrimary, fontFamily:'Sora, sans-serif', lineHeight:1 }}>
+                        {eXp >= 1000 ? (eXp/1000).toFixed(1)+'k' : eXp}
+                      </div>
+                      <div style={{ fontSize:9, fontWeight:700, color:bodyColor, fontFamily:'Nunito, sans-serif', marginTop:2 }}>XP / mo</div>
                     </div>
                   </div>
                 )
@@ -2013,29 +2449,41 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
           )}
         </div>
 
-        {/* How to earn XP */}
-        <div style={{ margin:'20px 20px 0', padding:'18px', background:isNova?'rgba(255,255,255,0.05)':'rgba(255,255,255,0.8)', borderRadius:16, border:`1px solid ${isNova?'rgba(255,255,255,0.09)':'rgba(0,0,0,0.07)'}`, animation:'rFadeUp 0.35s 0.22s ease both' }}>
-          <div style={{ fontSize:11, fontWeight:900, color:bodyColor, textTransform:'uppercase', letterSpacing:1.2, fontFamily:'Nunito, sans-serif', marginBottom:12 }}>How to earn XP</div>
-          {[
-            { icon:'book',   label:'Complete a lesson',   pts:'+1–10 XP' },
-            { icon:'pencil', label:'Practice questions',  pts:'+3 XP'    },
-            { icon:'puzzle', label:'Solve a puzzle cell', pts:'+3 XP'    },
-          ].map((item, i) => (
-            <div key={item.label} style={{ display:'flex', alignItems:'center', gap:12, padding:'9px 0', borderBottom:i<2?`1px solid ${isNova?'rgba(255,255,255,0.07)':'rgba(0,0,0,0.06)'}`:'none' }}>
-              <div style={{ width:30, height:30, borderRadius:9, background:`${accent}10`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                <EduIcon id={item.icon} size={14} color={accent} />
-              </div>
-              <span style={{ flex:1, fontSize:13, fontWeight:600, color:isNova?'#F8F7FF':M.textPrimary, fontFamily:'Nunito, sans-serif' }}>{item.label}</span>
-              <span style={{ fontSize:12, fontWeight:900, color:accent, fontFamily:'Sora, sans-serif' }}>{item.pts}</span>
+        {/* ═══════════════════════════════════════════════════════
+            HOW TO EARN XP — clean card
+        ═══════════════════════════════════════════════════════ */}
+        <div style={{ padding:'24px 20px 0', animation:'rkSlide 0.32s 0.24s ease both' }}>
+          <div style={{ background:cardBg, border:cardBorder, borderRadius:20, padding:'18px 20px', boxShadow: isBlaze?'4px 4px 0 #0d0d0d':'0 2px 12px rgba(0,0,0,0.06)' }}>
+            <div style={{ fontSize:11, fontWeight:900, color:bodyColor, textTransform:'uppercase', letterSpacing:1.4, fontFamily:'Nunito, sans-serif', marginBottom:14 }}>
+              How to Earn XP
             </div>
-          ))}
+            <div style={{ display:'flex', flexDirection:'column', gap:0 }}>
+              {[
+                { icon:'book',   label:'Complete a lesson',    pts:'+1–10 XP', color:'#22c55e' },
+                { icon:'pencil', label:'Practice questions',   pts:'+3 XP',    color:'#3b82f6' },
+                { icon:'puzzle', label:'Solve a puzzle',       pts:'+3 XP',    color:'#f59e0b' },
+                { icon:'flame',  label:'Daily login streak',   pts:'+1 XP/day', color:'#ef4444' },
+              ].map((item, i, arr) => (
+                <div key={item.label} style={{ display:'flex', alignItems:'center', gap:14, padding:'11px 0', borderBottom: i<arr.length-1?`1px solid ${isNova?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.05)'}`:'none' }}>
+                  <div style={{ width:36, height:36, borderRadius:11, background:`${item.color}14`, border:`1.5px solid ${item.color}28`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                    <EduIcon id={item.icon} size={16} color={item.color} />
+                  </div>
+                  <div style={{ flex:1, fontSize:13, fontWeight:700, color:isNova?'#F0EFFF':M.textPrimary, fontFamily:'Nunito, sans-serif' }}>{item.label}</div>
+                  <div style={{ fontSize:12, fontWeight:900, color:item.color, fontFamily:'Sora, sans-serif', flexShrink:0 }}>{item.pts}</div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
+
       </div>
     </div>
-  )
+    )
+  })()
+
 
   // ══════════════════════════════════════════════════════════════════════════
-  // PROFILE TAB — redesigned
+  // PROFILE TAB
   // ══════════════════════════════════════════════════════════════════════════
   const heroBg = isNova   ? 'linear-gradient(160deg,#1E1B4B,#0F0C29)'
     : isRoots  ? 'linear-gradient(160deg,#C0392B,#8B1A1A)'
@@ -2046,38 +2494,34 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
 
   // Badge definitions
   const BADGES = [
-    { label:'7-Day Streak',  icon:'flame',  color:'#ef4444', earned: streak >= 7          },
-    { label:'First Lesson',  icon:'book',   color:'#22c55e', earned: doneLessons >= 1      },
+    { label:'7-Day Streak',  icon:'flame',  color:'#ef4444', earned: streak >= 7 },
+    { label:'First Lesson',  icon:'book',   color:'#22c55e', earned: doneLessons >= 1 },
     { label:'Top 5 Class',   icon:'trophy', color:'#f59e0b', earned: myClassRank >= 0 && myClassRank < 5 },
     { label:'100 Questions', icon:'pencil', color:'#3b82f6', earned: practiceAttempts.length >= 100 },
-    { label:'20 Lessons',    icon:'star',   color:'#a855f7', earned: doneLessons >= 20      },
+    { label:'20 Lessons',    icon:'star',   color:'#a855f7', earned: doneLessons >= 20 },
   ]
 
   const ProfileTab = (
-    <div style={{ minHeight:'100%', background:isNova?'#0D0B1E':'#F6F5F2', paddingBottom:120, fontFamily:'Nunito, sans-serif' }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@700;800;900&family=Nunito:wght@500;600;700;800;900&display=swap');
-        @keyframes pfSlide { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes pfBarIn { from{width:0} }
-      `}</style>
+    <div style={{ minHeight:'100%', background: isNova?'#0D0B1E':'#F4F3F0', paddingBottom:120, fontFamily:'Nunito, sans-serif' }}>
+      <style>{`@keyframes pfSlide{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}`}</style>
 
       {/* ── HERO BANNER ── */}
-      <div style={{ background:heroBg, padding:'28px 20px 28px', position:'relative', overflow:'hidden' }}>
+      <div style={{ background: heroBg, padding:'28px 20px 28px', position:'relative', overflow:'hidden' }}>
         {isRoots && <AnkaraStripe />}
         <div style={{ position:'absolute', right:-36, top:-36, width:180, height:180, borderRadius:'50%', background:'rgba(255,255,255,0.07)', pointerEvents:'none' }} />
         <div style={{ maxWidth:520, margin:'0 auto', position:'relative', zIndex:1 }}>
-          {/* Avatar + name row */}
+          {/* Avatar + name */}
           <div style={{ display:'flex', alignItems:'center', gap:16, marginBottom:18 }}>
-            <div style={{ width:72, height:72, borderRadius:'50%', flexShrink:0, background:'rgba(255,255,255,0.22)', border:'3px solid rgba(255,255,255,0.4)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:30, fontWeight:900, color:'#fff', fontFamily:'Sora, sans-serif', boxShadow:'0 6px 22px rgba(0,0,0,0.18)' }}>
+            <div style={{ width:72, height:72, borderRadius:'50%', flexShrink:0, background:'rgba(255,255,255,0.22)', border:'3px solid rgba(255,255,255,0.4)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:30, fontWeight:900, color:'#fff', fontFamily:'Nunito, sans-serif', boxShadow:'0 6px 22px rgba(0,0,0,0.18)' }}>
               {student?.display_name?.[0]?.toUpperCase()||'?'}
             </div>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:22, fontWeight:900, color:'#fff', fontFamily:'Sora, sans-serif', lineHeight:1.1, marginBottom:3 }}>{student?.display_name||'Student'}</div>
+              <div style={{ fontSize:22, fontWeight:900, color:'#fff', fontFamily:'Nunito, sans-serif', lineHeight:1.1, marginBottom:3 }}>{student?.display_name||'Student'}</div>
               <div style={{ fontSize:12, color:'rgba(255,255,255,0.7)', fontFamily:'Nunito, sans-serif', fontWeight:500 }}>
                 {isExamMode ? `${student?.exam_type||'WAEC'} Exam Prep` : `${student?.class_level||''}${student?.school ? ` · ${student.school}` : ''}`}
               </div>
               <div style={{ marginTop:6, display:'inline-flex', alignItems:'center', gap:5, background:'rgba(255,255,255,0.18)', borderRadius:99, padding:'3px 10px' }}>
-                <div style={{ width:6, height:6, borderRadius:'50%', background:isExamMode?'#C8F135':'#60a5fa' }} />
+                <div style={{ width:6, height:6, borderRadius:'50%', background: isExamMode?'#C8F135':'#60a5fa' }} />
                 <span style={{ fontSize:10, fontWeight:800, color:'#fff', fontFamily:'Nunito, sans-serif' }}>{isExamMode ? 'Exam Mode' : 'School Mode'}</span>
               </div>
             </div>
@@ -2085,16 +2529,16 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
               {editOpen ? 'Done' : 'Edit'}
             </button>
           </div>
-          {/* Stats chips */}
+          {/* Stats */}
           <div style={{ display:'flex', gap:8 }}>
             {[
               { v:xp.toLocaleString(), label:'Total XP',  c:'#FFD700' },
-              { v:monthlyXp,           label:'Monthly',    c:'#fff'    },
-              { v:`${streak}d`,        label:'Streak',     c:'#fff'    },
-              { v:completedIds.size,   label:'Lessons',    c:'#fff'    },
+              { v:monthlyXp,           label:'Monthly',    c:'#fff' },
+              { v:`${streak}d`,        label:'Streak',     c:'#fff' },
+              { v:completedIds.size,   label:'Lessons',    c:'#fff' },
             ].map((s,i) => (
               <div key={i} style={{ flex:1, textAlign:'center', padding:'10px 4px', background:'rgba(255,255,255,0.12)', border:'1.5px solid rgba(255,255,255,0.18)', borderRadius:13 }}>
-                <div style={{ fontSize:16, fontWeight:900, color:s.c, fontFamily:'Sora, sans-serif', lineHeight:1 }}>{s.v}</div>
+                <div style={{ fontSize:16, fontWeight:900, color:s.c, fontFamily:'Nunito, sans-serif', lineHeight:1 }}>{s.v}</div>
                 <div style={{ fontSize:8, fontWeight:700, color:'rgba(255,255,255,0.55)', textTransform:'uppercase', letterSpacing:0.5, fontFamily:'Nunito, sans-serif', marginTop:3 }}>{s.label}</div>
               </div>
             ))}
@@ -2104,15 +2548,19 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
 
       <div style={{ maxWidth:520, margin:'0 auto', padding:'16px 16px 0', display:'flex', flexDirection:'column', gap:12 }}>
 
-        {/* Edit Profile (collapsed by default) */}
+        {/* ── EDIT PROFILE (collapsed by default) ── */}
         {editOpen && (
-          <div style={{ background:isNova?'rgba(255,255,255,0.07)':'#fff', border:`1.5px solid ${accent}28`, borderRadius:18, padding:'18px', boxShadow:`0 4px 20px ${accent}14`, animation:'pfSlide 0.22s ease' }}>
+          <div style={{ background: isNova?'rgba(255,255,255,0.07)':'#fff', border:`1.5px solid ${accent}28`, borderRadius:18, padding:'18px', boxShadow:`0 4px 20px ${accent}14`, animation:'pfSlide 0.22s ease' }}>
             <div style={{ fontSize:11, fontWeight:900, color:accent, textTransform:'uppercase', letterSpacing:1.2, fontFamily:'Nunito, sans-serif', marginBottom:16 }}>Edit Profile</div>
+
             <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+              {/* Display Name */}
               <div>
                 <label style={{ fontSize:11, fontWeight:700, color:bodyColor, fontFamily:'Nunito, sans-serif', display:'block', marginBottom:5 }}>Display Name</label>
                 <input value={editName} onChange={e => setEditName(e.target.value)} placeholder="Your name" style={inputStyle} />
               </div>
+
+              {/* Learning Mode — must go through edit */}
               <div>
                 <label style={{ fontSize:11, fontWeight:700, color:bodyColor, fontFamily:'Nunito, sans-serif', display:'block', marginBottom:8 }}>Learning Mode</label>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
@@ -2128,6 +2576,8 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
                   ))}
                 </div>
               </div>
+
+              {/* Exam Mode fields — only shown when exam selected */}
               {editMode === 'exam' && (
                 <div style={{ background:`${accent}06`, border:`1px solid ${accent}18`, borderRadius:13, padding:'14px', display:'flex', flexDirection:'column', gap:10, animation:'pfSlide 0.2s ease' }}>
                   <div style={{ fontSize:10, fontWeight:900, color:accent, textTransform:'uppercase', letterSpacing:1, fontFamily:'Nunito, sans-serif' }}>Exam Details</div>
@@ -2153,6 +2603,8 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
                   </div>
                 </div>
               )}
+
+              {/* School mode fields */}
               {editMode === 'school' && (
                 <div style={{ animation:'pfSlide 0.2s ease' }}>
                   <div>
@@ -2171,6 +2623,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
                   </div>
                 </div>
               )}
+
               <button onClick={() => { saveProfile(); setEditOpen(false) }} disabled={saving}
                 style={{ ...M.primaryBtn, width:'100%', marginTop:4, opacity:saving?0.7:1, fontSize:14 }}>
                 {saving ? 'Saving…' : saveMsg ? `✓ ${saveMsg}` : 'Save Changes'}
@@ -2179,38 +2632,14 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
           </div>
         )}
 
-        {/* Mastery Rank card */}
-        <div style={{ background:isNova?'rgba(255,255,255,0.06)':'#fff', borderRadius:18, padding:'18px', boxShadow:'0 2px 12px rgba(0,0,0,0.06)', border:`1.5px solid ${masteryRank.color}22` }}>
-          <div style={{ display:'flex', alignItems:'center', gap:14, marginBottom:14 }}>
-            <div style={{ width:48, height:48, borderRadius:14, background:`${masteryRank.color}18`, border:`1.5px solid ${masteryRank.color}35`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-              <EduIcon id={RANK_ICONS[masteryRank.title]||'star'} size={24} color={masteryRank.color} />
-            </div>
-            <div style={{ flex:1 }}>
-              <div style={{ fontSize:16, fontWeight:900, color:masteryRank.color, fontFamily:'Sora, sans-serif', lineHeight:1.1 }}>{masteryRank.title}</div>
-              <div style={{ fontSize:11, color:bodyColor, fontFamily:'Nunito, sans-serif', fontStyle:'italic', fontWeight:600, marginTop:2 }}>{masteryRank.flavor}</div>
-            </div>
-          </div>
-          {nextRank && (
-            <>
-              <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
-                <span style={{ fontSize:11, color:bodyColor, fontFamily:'Nunito, sans-serif', fontWeight:600 }}>{xp.toLocaleString()} XP</span>
-                <span style={{ fontSize:11, fontWeight:900, color:nextRank.color, fontFamily:'Nunito, sans-serif' }}>{nextRank.title} · {nextRank.minXp - xp} to go</span>
-              </div>
-              <div style={{ height:8, background:isNova?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.07)', borderRadius:99, overflow:'hidden' }}>
-                <div style={{ height:'100%', width:`${rankProgress}%`, background:`linear-gradient(90deg,${masteryRank.color},${nextRank.color})`, borderRadius:99, transition:'width 1.2s ease', animation:'pfBarIn 1.2s ease' }} />
-              </div>
-            </>
-          )}
-        </div>
-
         {/* Achievement badges */}
         <div style={{ background:isNova?'rgba(255,255,255,0.06)':'#fff', borderRadius:18, padding:'18px', boxShadow:'0 2px 12px rgba(0,0,0,0.06)', border:`1px solid ${isNova?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)'}` }}>
           <div style={{ fontSize:11, fontWeight:900, color:bodyColor, textTransform:'uppercase', letterSpacing:1.1, fontFamily:'Nunito, sans-serif', marginBottom:14 }}>Achievements</div>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:10 }}>
             {BADGES.map((badge, i) => (
-              <div key={badge.label} style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:6, opacity:badge.earned?1:0.35 }}>
-                <div style={{ width:46, height:46, borderRadius:14, background:badge.earned?`linear-gradient(145deg,${badge.color}25,${badge.color}12)`:'rgba(0,0,0,0.05)', border:`2px solid ${badge.earned?badge.color+'45':'rgba(0,0,0,0.1)'}`, display:'flex', alignItems:'center', justifyContent:'center', boxShadow:badge.earned?`0 4px 14px ${badge.color}28`:'none', transition:'all 0.3s' }}>
-                  <EduIcon id={badge.icon} size={20} color={badge.earned?badge.color:'rgba(0,0,0,0.25)'} />
+              <div key={badge.label} style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:6, opacity:badge.earned?1:0.32 }}>
+                <div style={{ width:46, height:46, borderRadius:14, background:badge.earned?`linear-gradient(145deg,${badge.color}25,${badge.color}10)`:'rgba(0,0,0,0.04)', border:`2px solid ${badge.earned?badge.color+'40':'rgba(0,0,0,0.09)'}`, display:'flex', alignItems:'center', justifyContent:'center', boxShadow:badge.earned?`0 4px 14px ${badge.color}25`:'none', transition:'all 0.3s' }}>
+                  <EduIcon id={badge.icon} size={20} color={badge.earned?badge.color:'rgba(0,0,0,0.2)'} />
                 </div>
                 <div style={{ fontSize:8, fontWeight:700, color:badge.earned?M.textPrimary:bodyColor, fontFamily:'Nunito, sans-serif', textAlign:'center', lineHeight:1.3 }}>{badge.label}</div>
               </div>
@@ -2218,15 +2647,15 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
           </div>
         </div>
 
-        {/* Active profile card */}
-        <div style={{ background:isNova?'rgba(255,255,255,0.06)':'#fff', borderRadius:18, padding:'16px', boxShadow:'0 2px 12px rgba(0,0,0,0.06)', border:`1px solid ${isNova?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)'}` }}>
+        {/* ── ACTIVE PROFILE ── */}
+        <div style={{ background: isNova?'rgba(255,255,255,0.06)':'#fff', borderRadius:18, padding:'16px', boxShadow:'0 2px 12px rgba(0,0,0,0.06)', border:`1px solid ${isNova?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)'}` }}>
           <div style={{ fontSize:11, fontWeight:900, color:bodyColor, textTransform:'uppercase', letterSpacing:1.1, fontFamily:'Nunito, sans-serif', marginBottom:12 }}>Active Profile</div>
-          <div style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 14px', background:isNova?'rgba(255,255,255,0.06)':`${accent}07`, border:`1.5px solid ${accent}28`, borderRadius:14 }}>
-            <div style={{ width:40, height:40, borderRadius:'50%', background:`${accent}20`, border:`1.5px solid ${accent}40`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, fontWeight:900, color:accent, flexShrink:0 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 14px', background: isNova?'rgba(255,255,255,0.06)':accent+'07', border:`1.5px solid ${accent}28`, borderRadius:14 }}>
+            <div style={{ width:40, height:40, borderRadius:'50%', background:accent+'20', border:`1.5px solid ${accent}40`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, fontWeight:900, color:accent, flexShrink:0 }}>
               {student?.display_name?.[0]?.toUpperCase()||'?'}
             </div>
             <div style={{ flex:1 }}>
-              <div style={{ fontSize:13, fontWeight:800, color:isNova?'#F0EFFF':M.textPrimary, fontFamily:'Nunito, sans-serif' }}>{student?.display_name}</div>
+              <div style={{ fontSize:13, fontWeight:800, color: isNova?'#F0EFFF':M.textPrimary, fontFamily:'Nunito, sans-serif' }}>{student?.display_name}</div>
               <div style={{ fontSize:10, color:bodyColor, fontFamily:'Nunito, sans-serif', marginTop:2 }}>
                 {isExamMode ? `${student?.exam_type||'WAEC'} · Exam Prep` : `${student?.class_level||''} · School Mode`}
               </div>
@@ -2235,9 +2664,9 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
           </div>
         </div>
 
-        {/* Other profiles */}
+        {/* ── OTHER PROFILES / SWITCH ── */}
         {allStudents.length > 1 && (
-          <div style={{ background:isNova?'rgba(255,255,255,0.06)':'#fff', borderRadius:18, padding:'16px', boxShadow:'0 2px 12px rgba(0,0,0,0.06)', border:`1px solid ${isNova?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)'}` }}>
+          <div style={{ background: isNova?'rgba(255,255,255,0.06)':'#fff', borderRadius:18, padding:'16px', boxShadow:'0 2px 12px rgba(0,0,0,0.06)', border:`1px solid ${isNova?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)'}` }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
               <div style={{ fontSize:11, fontWeight:900, color:bodyColor, textTransform:'uppercase', letterSpacing:1.1, fontFamily:'Nunito, sans-serif' }}>Profiles</div>
               <span style={{ fontSize:10, color:bodyColor, fontFamily:'Nunito, sans-serif', fontWeight:600 }}>{allStudents.length} total</span>
@@ -2247,12 +2676,12 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
                 const isActive = s.id === student?.id
                 const avatarColor = PROFILE_AVATAR_COLORS[i % PROFILE_AVATAR_COLORS.length]
                 return (
-                  <div key={s.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'11px 13px', borderRadius:13, background:isActive?(isNova?'rgba(124,58,237,0.12)':`${accent}08`):(isNova?'rgba(255,255,255,0.03)':'rgba(0,0,0,0.02)'), border:`1.5px solid ${isActive?accent+'35':(isNova?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.06)')}` }}>
+                  <div key={s.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'11px 13px', borderRadius:13, background: isActive?(isNova?'rgba(124,58,237,0.12)':accent+'08'):(isNova?'rgba(255,255,255,0.03)':'rgba(0,0,0,0.02)'), border:`1.5px solid ${isActive?accent+'35':(isNova?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.06)')}` }}>
                     <div style={{ width:36, height:36, borderRadius:'50%', flexShrink:0, background:avatarColor, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:900, color:'#fff' }}>
                       {s.display_name?.[0]?.toUpperCase()||'?'}
                     </div>
                     <div style={{ flex:1, minWidth:0 }}>
-                      <div style={{ fontSize:13, fontWeight:800, color:isNova?'#F8F7FF':M.textPrimary, fontFamily:'Nunito, sans-serif', display:'flex', alignItems:'center', gap:5 }}>
+                      <div style={{ fontSize:13, fontWeight:800, color: isNova?'#F8F7FF':M.textPrimary, fontFamily:'Nunito, sans-serif', display:'flex', alignItems:'center', gap:5 }}>
                         {s.display_name}
                         {isActive && <span style={{ fontSize:8, fontWeight:900, color:accent, background:`${accent}18`, borderRadius:20, padding:'2px 6px' }}>YOU</span>}
                       </div>
@@ -2271,17 +2700,17 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
           </div>
         )}
 
-        {/* Theme / Mascot */}
-        <button onClick={() => setShowModePicker(true)} style={{ display:'flex', alignItems:'center', gap:14, padding:'16px', borderRadius:18, cursor:'pointer', textAlign:'left', width:'100%', background:isNova?'linear-gradient(135deg,rgba(124,58,237,0.2),rgba(76,29,149,0.12))':isBlaze?'linear-gradient(135deg,#FFD700,#FFA500)':`linear-gradient(135deg,${accent}18,${accent}09)`, border:isNova?'1px solid rgba(124,58,237,0.35)':isBlaze?'2px solid #0d0d0d':`1.5px solid ${accent}28`, boxShadow:isBlaze?'3px 3px 0 #0d0d0d':'none', fontFamily:'Nunito, sans-serif' }}>
-          <div style={{ width:50, height:50, borderRadius:'50%', flexShrink:0, background:isNova?'rgba(124,58,237,0.2)':isBlaze?'#fff':`${accent}14`, border:`2px solid ${accent}35`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:24, boxShadow:isBlaze?'2px 2px 0 #0d0d0d':'none' }}>{M.emoji}</div>
+        {/* ── THEME / MASCOT ── */}
+        <button onClick={() => setShowModePicker(true)} style={{ display:'flex', alignItems:'center', gap:14, padding:'16px', borderRadius:18, cursor:'pointer', textAlign:'left', width:'100%', background: isNova?'linear-gradient(135deg,rgba(124,58,237,0.2),rgba(76,29,149,0.12))':isBlaze?'linear-gradient(135deg,#FFD700,#FFA500)':`linear-gradient(135deg,${accent}18,${accent}09)`, border: isNova?'1px solid rgba(124,58,237,0.35)':isBlaze?'2px solid #0d0d0d':`1.5px solid ${accent}28`, boxShadow: isBlaze?'3px 3px 0 #0d0d0d':'none', fontFamily:'Nunito, sans-serif' }}>
+          <div style={{ width:50, height:50, borderRadius:'50%', flexShrink:0, background: isNova?'rgba(124,58,237,0.2)':isBlaze?'#fff':`${accent}14`, border:`2px solid ${accent}35`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:24, boxShadow: isBlaze?'2px 2px 0 #0d0d0d':'none' }}>{M.emoji}</div>
           <div style={{ flex:1 }}>
-            <div style={{ fontSize:14, fontWeight:800, color:isBlaze?'#0d0d0d':isNova?'#F0EFFF':M.textPrimary, fontFamily:'Nunito, sans-serif', marginBottom:2 }}>{M.name}</div>
-            <div style={{ fontSize:11, color:isBlaze?'#555':bodyColor, fontFamily:'Nunito, sans-serif', fontWeight:500 }}>{M.tagline||'Tap to change learning style'}</div>
+            <div style={{ fontSize:14, fontWeight:800, color: isBlaze?'#0d0d0d':isNova?'#F0EFFF':M.textPrimary, fontFamily:'Nunito, sans-serif', marginBottom:2 }}>{M.name}</div>
+            <div style={{ fontSize:11, color: isBlaze?'#555':bodyColor, fontFamily:'Nunito, sans-serif', fontWeight:500 }}>{M.tagline||'Tap to change learning style'}</div>
           </div>
-          <div style={{ fontSize:10, fontWeight:800, color:isBlaze?'#0d0d0d':'#fff', background:isBlaze?'#0d0d0d':isNova?'#7C3AED':accent, borderRadius:99, padding:'4px 12px', fontFamily:'Nunito, sans-serif', flexShrink:0 }}>Change</div>
+          <div style={{ fontSize:10, fontWeight:800, color: isBlaze?'#0d0d0d':'#fff', background: isBlaze?'#0d0d0d':isNova?'#7C3AED':accent, borderRadius:99, padding:'4px 12px', fontFamily:'Nunito, sans-serif', flexShrink:0 }}>Change</div>
         </button>
 
-        {/* Sign out */}
+        {/* ── SIGN OUT ── */}
         <button onClick={handleSignOut} style={{ width:'100%', padding:'13px', cursor:'pointer', background:'transparent', border:'1.5px solid rgba(239,68,68,0.25)', borderRadius:12, fontFamily:'Nunito, sans-serif', fontSize:13, fontWeight:800, color:'#ef4444' }}>
           Sign Out
         </button>
@@ -2291,21 +2720,35 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
     </div>
   )
 
-  // ── Right Stats Panel (desktop only) ────────────────────────────────────
-  const RightPanel = isDesktop ? (
+  // ── Root ──────────────────────────────────────────────────────────────────
+const RightPanel = isDesktop ? (
     <div style={{
-      width: 300, flexShrink: 0, height: '100vh', overflowY: 'auto',
+      width: 300,
+      flexShrink: 0,
+      height: '100vh',
+      overflowY: 'auto',
       borderLeft: isBlaze ? '2px solid #0d0d0d' : `1px solid ${M.navBorder}`,
       background: isNova ? 'rgba(15,12,41,0.6)' : (isBlaze ? '#F5F0D0' : M.mapBg),
-      padding: '28px 20px', display: 'flex', flexDirection: 'column', gap: 20,
+      padding: '28px 20px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 20,
     }}>
-      <div style={{ background: isNova ? 'rgba(124,58,237,0.15)' : isBlaze ? '#FFD700' : `${accent}10`, border: isBlaze ? '2px solid #0d0d0d' : `1.5px solid ${accent}25`, borderRadius: isBlaze ? 10 : 18, padding: '16px 18px', boxShadow: isBlaze ? '3px 3px 0 #0d0d0d' : 'none' }}>
+      {/* Student card */}
+      <div style={{
+        background: isNova ? 'rgba(124,58,237,0.15)' : isBlaze ? '#FFD700' : `${accent}10`,
+        border: isBlaze ? '2px solid #0d0d0d' : `1.5px solid ${accent}25`,
+        borderRadius: isBlaze ? 10 : 18,
+        padding: '16px 18px',
+        boxShadow: isBlaze ? '3px 3px 0 #0d0d0d' : 'none',
+      }}>
         <div style={{ fontSize: 10, fontWeight: 800, color: isBlaze ? 'rgba(0,0,0,0.5)' : accent, textTransform: 'uppercase', letterSpacing: 1, fontFamily: 'Nunito, sans-serif', marginBottom: 6 }}>
           {student?.class_level} · {activeSubject === 'further_maths' ? 'Further Maths' : 'Mathematics'}
         </div>
         <div style={{ fontSize: 18, fontWeight: 900, color: isBlaze ? '#0d0d0d' : M.textPrimary, fontFamily: M.headingFont, lineHeight: 1.2, marginBottom: 12 }}>
           {student?.display_name}
         </div>
+        {/* Stats */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           {[
             { label: 'XP',       value: xp.toLocaleString(), iconId: 'xp',       color: accent },
@@ -2324,6 +2767,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
         </div>
       </div>
 
+      {/* Progress bar */}
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
           <span style={{ fontSize: 11, fontWeight: 800, color: M.textSecondary, fontFamily: 'Nunito, sans-serif', textTransform: 'uppercase', letterSpacing: 0.5 }}>Overall Progress</span>
@@ -2334,11 +2778,21 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
         </div>
       </div>
 
+      {/* Next lesson */}
       {nextLesson && (
         <div>
           <div style={{ fontSize: 11, fontWeight: 800, color: M.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, fontFamily: 'Nunito, sans-serif', marginBottom: 10 }}>Up Next</div>
-          <button onClick={() => window.location.href = `/learn/lesson/${nextLesson.id}`}
-            style={{ width: '100%', padding: '14px 16px', cursor: 'pointer', textAlign: 'left', background: isBlaze ? '#FFD700' : isNova ? 'rgba(124,58,237,0.2)' : `linear-gradient(135deg,${accent},${M.accent2 || accent}DD)`, border: isBlaze ? '2px solid #0d0d0d' : 'none', borderRadius: isBlaze ? 10 : 16, boxShadow: isBlaze ? '3px 3px 0 #0d0d0d' : `0 6px 20px ${accent}40`, fontFamily: 'Nunito, sans-serif', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button
+            onClick={() => window.location.href = `/learn/lesson/${nextLesson.id}`}
+            style={{
+              width: '100%', padding: '14px 16px', cursor: 'pointer', textAlign: 'left',
+              background: isBlaze ? '#FFD700' : isNova ? 'rgba(124,58,237,0.2)' : `linear-gradient(135deg,${accent},${M.accent2 || accent}DD)`,
+              border: isBlaze ? '2px solid #0d0d0d' : 'none',
+              borderRadius: isBlaze ? 10 : 16,
+              boxShadow: isBlaze ? '3px 3px 0 #0d0d0d' : `0 6px 20px ${accent}40`,
+              fontFamily: 'Nunito, sans-serif',
+              display: 'flex', alignItems: 'center', gap: 12,
+            }}>
             <div style={{ width: 36, height: 36, borderRadius: '50%', background: isBlaze ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>▶</div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 9, fontWeight: 800, color: isBlaze ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.7)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>Continue Learning</div>
@@ -2348,16 +2802,24 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
         </div>
       )}
 
+      {/* Quick actions */}
       <div>
         <div style={{ fontSize: 11, fontWeight: 800, color: M.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, fontFamily: 'Nunito, sans-serif', marginBottom: 10 }}>Quick Actions</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {[
-            { iconId: 'practice',  label: 'Practice Questions', tab: 'practice',  color: accent    },
-            { iconId: 'challenge', label: 'Daily Challenge',    tab: 'challenge', color: '#FF9500' },
-            { iconId: 'shield',    label: 'Rank Journey',       tab: 'rank',      color: accent    },
+            { iconId: 'practice',    label: 'Practice Questions', tab: 'practice',    color: accent },
+            { iconId: 'challenge',   label: 'Daily Challenge',    tab: 'challenge',   color: '#FF9500' },
+            { iconId: 'shield',      label: 'Rank Journey',       tab: 'rank',        color: accent    },
           ].map(a => (
             <button key={a.tab} onClick={() => setActiveTab(a.tab)}
-              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', cursor: 'pointer', width: '100%', textAlign: 'left', background: isNova ? 'rgba(255,255,255,0.05)' : isBlaze ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.8)', border: isBlaze ? '1.5px solid rgba(0,0,0,0.1)' : `1px solid ${isNova ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)'}`, borderRadius: isBlaze ? 8 : 12, fontFamily: 'Nunito, sans-serif' }}>
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '11px 14px', cursor: 'pointer', width: '100%', textAlign: 'left',
+                background: isNova ? 'rgba(255,255,255,0.05)' : isBlaze ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.8)',
+                border: isBlaze ? '1.5px solid rgba(0,0,0,0.1)' : `1px solid ${isNova ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)'}`,
+                borderRadius: isBlaze ? 8 : 12,
+                fontFamily: 'Nunito, sans-serif',
+              }}>
               <span style={{ color: a.color }}><TabIcon id={a.iconId} size={16} color={a.color} /></span>
               <span style={{ fontSize: 12, fontWeight: 700, color: M.textPrimary }}>{a.label}</span>
             </button>
@@ -2365,9 +2827,16 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
         </div>
       </div>
 
+      {/* Profile switcher if multiple */}
       {allStudents.length > 1 && (
         <button onClick={() => setShowSwitcher(true)}
-          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', cursor: 'pointer', width: '100%', background: 'transparent', border: `1.5px solid ${accent}30`, borderRadius: isBlaze ? 8 : 12, fontFamily: 'Nunito, sans-serif', color: accent, fontSize: 12, fontWeight: 800 }}>
+          style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '11px 14px', cursor: 'pointer', width: '100%',
+            background: 'transparent', border: `1.5px solid ${accent}30`,
+            borderRadius: isBlaze ? 8 : 12, fontFamily: 'Nunito, sans-serif',
+            color: accent, fontSize: 12, fontWeight: 800,
+          }}>
           <TabIcon id="users" size={16} color={accent} /> Switch Profile
         </button>
       )}
@@ -2380,16 +2849,20 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
         @keyframes shimmer { 0%,100%{opacity:0.55} 50%{opacity:1} }
         @keyframes slideDown { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
         @keyframes sheetUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes ankaraScroll { from{background-position:0 0} to{background-position:128px 0} }
-        @keyframes twinkle { 0%,100%{opacity:0.15} 50%{opacity:0.5} }
-        @keyframes pulse-glow { 0%,100%{opacity:0.4} 50%{opacity:0.15} }
       `}</style>
 
+      {/* Mobile: HUD on top. Tablet/Desktop: SideNav on left */}
       {isMobile ? HUD : SideNav}
 
+      {/* Main content area */}
       <div style={{ flex: 1, overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column' }}>
+        {/* Tablet/Desktop: compact top bar with just subject pill + mode */}
         {!isMobile && (
-          <div style={{ flexShrink: 0, padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: isBlaze ? '2px solid #0d0d0d' : `1px solid ${M.navBorder}`, background: isNova ? 'rgba(15,12,41,0.8)' : M.hudBg }}>
+          <div style={{
+            flexShrink: 0, padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            borderBottom: isBlaze ? '2px solid #0d0d0d' : `1px solid ${M.navBorder}`,
+            background: isNova ? 'rgba(15,12,41,0.8)' : M.hudBg,
+          }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: M.textSecondary, fontFamily: 'Nunito, sans-serif' }}>
               {TABS.find(t => t.id === activeTab)?.label || 'Home'}
             </div>
@@ -2416,8 +2889,8 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
         </div>
       </div>
 
+      {/* Desktop: right panel. Mobile: bottom nav */}
       {isMobile ? BottomNav : RightPanel}
-
       <BottomSheet open={showModePicker} onClose={() => setShowModePicker(false)} M={M}>
         <ModePicker onClose={() => setShowModePicker(false)} />
       </BottomSheet>
@@ -2436,7 +2909,10 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
                 const isActive = activeSubject === subj
                 const label    = subj === 'further_maths' ? 'Further Mathematics' : 'Mathematics'
                 const subjXp   = subj === 'further_maths' ? (student?.fm_xp || 0) : (student?.xp || 0)
-                return (
+              
+  // ── Right Stats Panel (desktop only) ────────────────────────────────────
+  
+  return (
                   <button key={subj} onClick={async () => {
                     if (!isActive) {
                       await supabase.from('students').update({ active_subject: subj }).eq('id', student.id)

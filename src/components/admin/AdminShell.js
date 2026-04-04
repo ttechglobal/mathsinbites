@@ -33,7 +33,8 @@ const NAV = [
   { href:'/admin/students',   icon:'◉',  emoji:'👥', label:'Students',   color: A.teal    },
   { href:'/admin/analytics',  icon:'↗',  emoji:'📈', label:'Analytics',  color:'#A3E635'  },
   { href:'/admin/flags',      icon:'⚑',  emoji:'🚩', label:'Flagged',    color: A.coral   },
-  { href:'/admin/daily-challenge', icon:'⚡', emoji:'⚡', label:'Daily Q',   color: A.gold    },
+  { href:'/admin/daily-challenge', icon:'⚡', emoji:'⚡', label:'Daily Q',      color: A.gold    },
+  { href:'/admin/past-questions',  icon:'📋', emoji:'📋', label:'Past Questions', color: A.coral   },
 ]
 
 export default function AdminShell({ children }) {

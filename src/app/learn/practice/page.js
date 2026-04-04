@@ -682,36 +682,55 @@ export default function PracticePage() {
                 <div style={{ fontSize: 11, fontWeight: 900, color: isBlaze ? '#0d0d0d' : '#fff', background: isBlaze ? '#0d0d0d' : accent, borderRadius: isBlaze ? 6 : 20, padding: '6px 13px', fontFamily: 'Nunito, sans-serif' }}>GO →</div>
               </button>
 
-              <div style={{ fontSize: 10, fontWeight: 800, color: bodyColor, textTransform: 'uppercase', letterSpacing: 1.2, fontFamily: 'Nunito, sans-serif', marginTop: 4 }}>By Topic</div>
+              {/* Jump to Topic — shows up to 5 topics in a clean modal-style selector */}
+              {allTopics.length > 0 && (
+                <div style={{ marginTop: 4 }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: bodyColor, textTransform: 'uppercase', letterSpacing: 1.2, fontFamily: 'Nunito, sans-serif', marginBottom: 10 }}>Jump to a Topic</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                    {allTopics.slice(0, 5).map(topic => (
+                      <button
+                        key={topic.id}
+                        onClick={() => setSheet({ topicId: topic.id, title: topic.title, icon: '📚' })}
+                        style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: M.lessonCard, border: M.lessonBorder, borderRadius: isBlaze ? 8 : 14, boxShadow: M.cardShadow, cursor: 'pointer', textAlign: 'left', width: '100%', fontFamily: 'Nunito, sans-serif', transition: 'all 0.12s' }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = accent; e.currentTarget.style.background = `${accent}08` }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = ''; e.currentTarget.style.background = '' }}
+                      >
+                        <div style={{ width: 36, height: 36, borderRadius: isBlaze ? 8 : 11, flexShrink: 0, background: `${accent}15`, border: `1.5px solid ${accent}28`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15 }}>✏️</div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: M.textPrimary, marginBottom: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{topic.title}</div>
+                          <div style={{ fontSize: 10, color: bodyColor, fontWeight: 500 }}>{topic.questionCount} question{topic.questionCount !== 1 ? 's' : ''}</div>
+                        </div>
+                        <span style={{ fontSize: 10, fontWeight: 800, color: accent, background: `${accent}12`, borderRadius: 20, padding: '3px 10px', flexShrink: 0 }}>Start →</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-              {allTopics.length === 0 ? (
+              {/* View all topic performance */}
+              <button
+                onClick={() => router.push('/learn/past-questions')}
+                style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px 18px', cursor: 'pointer', textAlign: 'left', width: '100%', borderRadius: isBlaze ? 10 : 16, background: isBlaze ? '#FFD700' : isNova ? 'rgba(255,255,255,0.06)' : `${accent}0C`, border: isBlaze ? '2px solid #0d0d0d' : `1.5px solid ${accent}25`, fontFamily: 'Nunito, sans-serif', marginTop: 6 }}
+                onMouseEnter={e => { if (!isBlaze) { e.currentTarget.style.background = `${accent}16`; e.currentTarget.style.borderColor = `${accent}45` } }}
+                onMouseLeave={e => { if (!isBlaze) { e.currentTarget.style.background = `${accent}0C`; e.currentTarget.style.borderColor = `${accent}25` } }}
+              >
+                <div style={{ width: 44, height: 44, borderRadius: isBlaze ? 10 : 13, flexShrink: 0, background: isBlaze ? 'rgba(0,0,0,0.1)' : `${accent}18`, border: isBlaze ? '2px solid rgba(0,0,0,0.12)' : `1.5px solid ${accent}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>📊</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 900, color: isBlaze ? '#0d0d0d' : M.textPrimary, marginBottom: 2 }}>View Topic by Topic Performance</div>
+                  <div style={{ fontSize: 11, color: isBlaze ? '#555' : bodyColor, fontWeight: 600 }}>See your strengths and weak areas</div>
+                </div>
+                <span style={{ fontSize: 13, color: isBlaze ? '#0d0d0d' : accent, fontWeight: 900 }}>→</span>
+              </button>
+
+              {allTopics.length === 0 && (
                 <div style={{ textAlign: 'center', padding: '40px 20px', color: bodyColor, fontFamily: 'Nunito, sans-serif' }}>
-                  <BicPencil pose="think" size={90} style={{ display: 'inline-block', marginBottom: 14 }} />
+                  <BicPencil pose="think" size={80} style={{ display: 'inline-block', marginBottom: 14 }} />
                   <div style={{ fontSize: 15, fontWeight: 900, color: M.textPrimary, marginBottom: 6, fontFamily: M.headingFont }}>Practice questions coming soon!</div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: bodyColor, lineHeight: 1.6, maxWidth: 240, margin: '0 auto' }}>
                     {activeSubject === 'further_maths'
                       ? 'Further Maths practice questions will appear here once generated.'
                       : 'Practice questions for your class will appear here. Check back soon!'}
                   </div>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {allTopics.map(topic => (
-                    <button
-                      key={topic.id}
-                      onClick={() => setSheet({ topicId: topic.id, title: topic.title, icon: '📚' })}
-                      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 14px', background: M.lessonCard, border: M.lessonBorder, borderRadius: isBlaze ? 8 : 14, boxShadow: M.cardShadow, cursor: 'pointer', textAlign: 'left', width: '100%', fontFamily: 'Nunito, sans-serif', transition: 'all 0.12s' }}
-                      onMouseEnter={e => { e.currentTarget.style.borderColor = accent; e.currentTarget.style.background = `${accent}08` }}
-                      onMouseLeave={e => { e.currentTarget.style.borderColor = ''; e.currentTarget.style.background = '' }}
-                    >
-                      <div style={{ width: 38, height: 38, borderRadius: isBlaze ? 8 : '50%', flexShrink: 0, background: `${accent}15`, border: `1.5px solid ${accent}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>✏️</div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: M.textPrimary, marginBottom: 2 }}>{topic.title}</div>
-                        <div style={{ fontSize: 10, color: bodyColor, fontWeight: 500 }}>{topic.questionCount} question{topic.questionCount !== 1 ? 's' : ''}</div>
-                      </div>
-                      <span style={{ fontSize: 10, fontWeight: 800, color: accent, background: `${accent}12`, borderRadius: 20, padding: '3px 10px' }}>Practice</span>
-                    </button>
-                  ))}
                 </div>
               )}
             </div>
