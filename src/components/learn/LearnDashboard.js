@@ -1075,7 +1075,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
                         return (
                           <div key={m} style={{ textAlign:'center', flex: i === 0 || i === milestones.length-1 ? '0 0 auto' : 1 }}>
                             <div style={{ width:10, height:10, borderRadius:'50%', background:reached?(readinessLevel(pct).color):'rgba(0,0,0,0.1)', border:`2px solid ${reached?readinessLevel(pct).color:'rgba(0,0,0,0.12)'}`, margin:'0 auto 3px', transition:'all 0.6s' }} />
-                            <div style={{ fontSize:8, fontWeight:700, color:reached?readinessLevel(pct).color:bodyColor, fontFamily:'Nunito, sans-serif' }}>{label}</div>
+                            <div style={{ fontSize:8, fontWeight:700, color:reached?readinessLevel(pct).color:bodyColor, fontFamily:'Nunito, sans-serif' }}>{labels[i]}</div>
                           </div>
                         )
                       })}

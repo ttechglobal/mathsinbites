@@ -46,8 +46,8 @@ export async function GET(request) {
   // Select only the columns that definitely exist for the active subject
   // This avoids errors if FM columns haven't been migrated yet
   const selectCols = isFM
-    ? 'id, display_name, class_level, school, fm_xp, fm_monthly_xp'
-    : 'id, display_name, class_level, school, xp, monthly_xp'
+    ? 'id, display_name, class_level, school, exam_type, fm_xp, fm_monthly_xp'
+    : 'id, display_name, class_level, school, exam_type, xp, monthly_xp'
 
   let query = supabase
     .from('students')
@@ -89,6 +89,7 @@ export async function GET(request) {
     display_name: row.display_name,
     class_level:  row.class_level,
     school:       row.school,
+    exam_type:    row.exam_type || null,
     xp:           row.xp         || row.fm_xp         || 0,
     monthly_xp:   row.monthly_xp || row.fm_monthly_xp || 0,
   }))
