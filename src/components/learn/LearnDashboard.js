@@ -138,7 +138,6 @@ function EduIcon({ id, size = 20, color = 'currentColor', style: extraStyle }) {
 // Alias for backwards compat
 const TabIcon = EduIcon
 
-
 function MathFloats({ M }) {
   const syms = M?.floatSyms || ['x²', '∑', 'π', '√', '∫', 'θ', '∞', '±', 'Δ']
   const color = M?.floatColor || 'rgba(0,0,0,0.035)'
@@ -257,6 +256,9 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
   // ── Leaderboard: all 3 boards pre-fetched in parallel for instant switching ──
   const [boards,          setBoards]          = useState({ class: [], school: [], overall: [] })
   const [leaderboardType,  setLeaderboardType]  = useState('class')
+  const [lbScope,          setLbScope]          = useState('class')   // school leaderboard scope
+  const [lbPeriod,         setLbPeriod]         = useState('monthly') // 'weekly'|'monthly'
+  const [lbExamPeriod,     setLbExamPeriod]     = useState('monthly') // exam leaderboard period
   const [practiceAttempts, setPracticeAttempts] = useState([])
   const [boardsLoaded,    setBoardsLoaded]    = useState(false)
   // Rotating rank display: cycles class → school → overall every 3s
@@ -341,6 +343,8 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
           overallRes.ok ? overallRes.json() : [],
         ])
         setBoards({ class: classData || [], school: schoolData || [], overall: overallData || [] })
+        // Note: exam-type filtering is done client-side in LeaderboardTab
+        // by checking entry.exam_type field (if present) or relying on exam-scoped query.
         setBoardsLoaded(true)
       } catch (e) { console.error('[leaderboard] fetch:', e.message) }
 
@@ -628,7 +632,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
     { id: 'learn',    icon: 'learn',    label: 'Learn'   },
     { id: 'practice', icon: 'practice', label: 'Practice'},
     { id: 'challenge',icon: 'challenge',label: 'Puzzles' },
-    { id: 'rank',     icon: 'shield',   label: 'Ranks'   },
+    { id: 'rank',     icon: 'leaderboard', label: 'Leaderboard' },
     { id: 'profile',  icon: 'profile',  label: 'Profile' },
   ]
 
@@ -1071,7 +1075,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
                         return (
                           <div key={m} style={{ textAlign:'center', flex: i === 0 || i === milestones.length-1 ? '0 0 auto' : 1 }}>
                             <div style={{ width:10, height:10, borderRadius:'50%', background:reached?(readinessLevel(pct).color):'rgba(0,0,0,0.1)', border:`2px solid ${reached?readinessLevel(pct).color:'rgba(0,0,0,0.12)'}`, margin:'0 auto 3px', transition:'all 0.6s' }} />
-                            <div style={{ fontSize:8, fontWeight:700, color:reached?readinessLevel(pct).color:bodyColor, fontFamily:'Nunito, sans-serif' }}>{labels[i]}</div>
+                            <div style={{ fontSize:8, fontWeight:700, color:reached?readinessLevel(pct).color:bodyColor, fontFamily:'Nunito, sans-serif' }}>{label}</div>
                           </div>
                         )
                       })}
@@ -1177,7 +1181,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
                 {[
                   { tab:'practice',  icon:'pencil', color:'#3b82f6', label:'Practice',  desc:'Sharpen your skills' },
                   { tab:'challenge', icon:'puzzle',  color:'#f59e0b', label:'Puzzles',   desc:'Daily brain boost'  },
-                  { tab:'rank',      icon:'shield',  color:'#a855f7', label:'My Ranks',  desc:'Your rank journey'  },
+                  { tab:'rank',      icon:'leaderboard', color:'#a855f7', label:'Leaderboard', desc:'See how you rank'   },
                   { tab:'learn',     icon:'book',    color:accent,    label:'Lessons',   desc:'Continue learning'  },
                 ].map(card => (
                   <button key={card.tab} onClick={() => setActiveTab(card.tab)} className="mib-press"
@@ -1892,6 +1896,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
   // ══════════════════════════════════════════════════════════════════════════
   // Practice greeting rotates daily
 
+
   // ── Route to correct tab based on mode ───────────────────────────────────
   const LearnTab = isExamMode ? ExamLearnTab : SchoolLearnTab
 
@@ -1925,12 +1930,19 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
         /* ══ EXAM MODE — 3 cards only ══════════════════════════════════════ */
         <div style={{ maxWidth:520, margin:'0 auto', padding:`20px 16px ${isMobile?'max(160px,calc(130px + env(safe-area-inset-bottom)))':'60px'}` }}>
 
-          {/* Header */}
-          <div style={{ marginBottom:20, animation:'ptIn 0.3s ease both' }}>
-            <div style={{ fontSize:10, fontWeight:800, color:bodyColor, textTransform:'uppercase', letterSpacing:1.4, fontFamily:'Nunito, sans-serif', marginBottom:4 }}>
-              {student?.exam_type?.toUpperCase()||'WAEC'} Preparation
+          {/* Header with mascot */}
+          <div style={{ display:'flex', alignItems:'flex-end', gap:14, marginBottom:20, padding:'18px 20px', borderRadius:22, background:isNova?`linear-gradient(135deg,${accent}22,${accent}0C)`:`linear-gradient(135deg,${accent}14,${accent}05)`, border:`1.5px solid ${accent}20`, animation:'ptIn 0.3s ease both', overflow:'hidden', position:'relative', isolation:'isolate' }}>
+            <div style={{ position:'absolute', right:-14, top:-14, width:80, height:80, borderRadius:'50%', background:`${accent}09`, pointerEvents:'none' }} />
+            <div style={{ flexShrink:0, animation:'ptFloat 3s ease-in-out infinite' }}>
+              <BicPencil pose="excited" size={62} />
             </div>
-            <div style={{ fontSize:26, fontWeight:900, color:isNova?'#F0EFFF':M.textPrimary, fontFamily:'Sora, sans-serif', lineHeight:1.1 }}>Practice</div>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:10, fontWeight:800, color:bodyColor, textTransform:'uppercase', letterSpacing:1.4, fontFamily:'Nunito, sans-serif', marginBottom:4 }}>
+                {student?.exam_type?.toUpperCase()||'WAEC'} Preparation
+              </div>
+              <div style={{ fontSize:22, fontWeight:900, color:isNova?'#F0EFFF':M.textPrimary, fontFamily:'Sora, sans-serif', lineHeight:1.1 }}>Practice</div>
+              <div style={{ fontSize:11, color:bodyColor, fontFamily:'Nunito, sans-serif', fontWeight:600, marginTop:3 }}>Choose how you want to practise today</div>
+            </div>
           </div>
 
           {/* Readiness strip */}
@@ -2012,87 +2024,41 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
 
         </div>
       ) : (
-        /* ══ SCHOOL MODE — 3 cards only ════════════════════════════════════ */
+        /* ══ SCHOOL MODE — Practice by Topic only ══════════════════════════ */
         <div style={{ maxWidth:520, margin:'0 auto', padding:`20px 16px ${isMobile?'max(160px,calc(130px + env(safe-area-inset-bottom)))':'60px'}` }}>
 
           {/* Mascot header */}
-          <div style={{ display:'flex', alignItems:'flex-end', gap:14, marginBottom:20, padding:'18px 20px', borderRadius:22, background:isNova?`linear-gradient(135deg,${accent}22,${accent}0C)`:`linear-gradient(135deg,${accent}14,${accent}05)`, border:`1.5px solid ${accent}20`, animation:'ptIn 0.3s ease both', overflow:'hidden', position:'relative', isolation:'isolate' }}>
+          <div style={{ display:'flex', alignItems:'flex-end', gap:14, marginBottom:24, padding:'18px 20px', borderRadius:22, background:isNova?`linear-gradient(135deg,${accent}22,${accent}0C)`:`linear-gradient(135deg,${accent}14,${accent}05)`, border:`1.5px solid ${accent}20`, animation:'ptIn 0.3s ease both', overflow:'hidden', position:'relative', isolation:'isolate' }}>
             <div style={{ position:'absolute', right:-14, top:-14, width:80, height:80, borderRadius:'50%', background:`${accent}09`, pointerEvents:'none' }} />
             <div style={{ flexShrink:0, animation:'ptFloat 3s ease-in-out infinite' }}>
               <BicPencil pose="happy" size={62} />
             </div>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:18, fontWeight:900, color:isNova?'#F0EFFF':M.textPrimary, fontFamily:'Sora, sans-serif', lineHeight:1.2, marginBottom:4 }}>Sharpen Your Skills!</div>
+              <div style={{ fontSize:18, fontWeight:900, color:isNova?'#F0EFFF':M.textPrimary, fontFamily:'Sora, sans-serif', lineHeight:1.2, marginBottom:4 }}>Let&apos;s Practise!</div>
               <div style={{ fontSize:12, color:bodyColor, fontFamily:'Nunito, sans-serif', fontWeight:600, lineHeight:1.5 }}>
-                Practice makes permanent. Let&apos;s work on what matters most today.
+                Pick a topic from your {student?.class_level||'class'} curriculum and get started.
               </div>
             </div>
           </div>
 
-          {/* CARD 1 — Open Practice (school curriculum questions) */}
-          <div style={{ marginBottom:12, animation:'ptIn 0.3s 0.06s ease both' }}>
+          {/* ONLY CARD — Practice by Topic (school curriculum) */}
+          <div style={{ animation:'ptIn 0.3s 0.06s ease both' }}>
             <button onClick={() => router.push('/learn/practice')} className="pt-btn"
-              style={{ width:'100%', padding:'20px', background:`linear-gradient(140deg,${accent},${M.accent2||accent}E0)`, border:'none', borderRadius:20, cursor:'pointer', display:'flex', alignItems:'center', gap:16, boxShadow:`0 10px 30px ${accent}45`, textAlign:'left' }}>
-              <div style={{ width:54, height:54, borderRadius:16, background:'rgba(255,255,255,0.22)', border:'1.5px solid rgba(255,255,255,0.32)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:24 }}>✏️</div>
-              <div style={{ flex:1 }}>
-                <div style={{ fontSize:9, fontWeight:800, color:'rgba(255,255,255,0.65)', textTransform:'uppercase', letterSpacing:1.6, fontFamily:'Nunito, sans-serif', marginBottom:4 }}>Mode 1</div>
-                <div style={{ fontSize:18, fontWeight:900, color:'#fff', fontFamily:'Sora, sans-serif', marginBottom:3 }}>Open Practice</div>
-                <div style={{ fontSize:11, color:'rgba(255,255,255,0.82)', fontFamily:'Nunito, sans-serif', fontWeight:600 }}>
-                  Questions from your {student?.class_level||'class'} curriculum
+              style={{ width:'100%', padding:'22px', background:`linear-gradient(140deg,${accent},${M.accent2||accent}E0)`, border:'none', borderRadius:22, cursor:'pointer', display:'flex', alignItems:'center', gap:18, boxShadow:`0 12px 36px ${accent}45`, textAlign:'left', position:'relative', overflow:'hidden' }}>
+              {/* Decorative circles */}
+              <div style={{ position:'absolute', right:-20, top:-20, width:100, height:100, borderRadius:'50%', background:'rgba(255,255,255,0.1)', pointerEvents:'none' }} />
+              <div style={{ position:'absolute', right:30, bottom:-30, width:70, height:70, borderRadius:'50%', background:'rgba(255,255,255,0.06)', pointerEvents:'none' }} />
+              <div style={{ width:60, height:60, borderRadius:18, background:'rgba(255,255,255,0.22)', border:'2px solid rgba(255,255,255,0.32)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:28, position:'relative', zIndex:1 }}>✏️</div>
+              <div style={{ flex:1, position:'relative', zIndex:1 }}>
+                <div style={{ fontSize:10, fontWeight:800, color:'rgba(255,255,255,0.65)', textTransform:'uppercase', letterSpacing:1.8, fontFamily:'Nunito, sans-serif', marginBottom:5 }}>School Practice</div>
+                <div style={{ fontSize:22, fontWeight:900, color:'#fff', fontFamily:'Sora, sans-serif', marginBottom:4 }}>Practice by Topic</div>
+                <div style={{ fontSize:12, color:'rgba(255,255,255,0.82)', fontFamily:'Nunito, sans-serif', fontWeight:600 }}>
+                  Questions from your {student?.class_level||'class'} curriculum · Pick any topic
                 </div>
               </div>
-              <div style={{ background:'rgba(255,255,255,0.22)', borderRadius:12, padding:'9px 14px', flexShrink:0 }}>
-                <span style={{ fontSize:15, fontWeight:900, color:'#fff' }}>→</span>
+              <div style={{ background:'rgba(255,255,255,0.22)', borderRadius:14, padding:'11px 16px', flexShrink:0, position:'relative', zIndex:1 }}>
+                <span style={{ fontSize:18, fontWeight:900, color:'#fff' }}>→</span>
               </div>
-            </button>
-          </div>
-
-          {/* CARD 2 — Past Questions */}
-          <div style={{ marginBottom:12, animation:'ptIn 0.3s 0.1s ease both' }}>
-            <button onClick={() => router.push('/learn/mock-test?mode=year')} className="pt-btn"
-              style={{ width:'100%', border:`1.5px solid rgba(245,158,11,0.3)`, borderRadius:20, cursor:'pointer', textAlign:'left', padding:'20px', background:isNova?'rgba(255,255,255,0.07)':M.lessonCard||'#fff', boxShadow:M.cardShadow||'0 4px 20px rgba(0,0,0,0.08)', position:'relative', overflow:'hidden' }}>
-              <div style={{ display:'flex', alignItems:'center', gap:14 }}>
-                <div style={{ width:54, height:54, borderRadius:16, background:'linear-gradient(145deg,rgba(245,158,11,0.2),rgba(245,158,11,0.08))', border:'1.5px solid rgba(245,158,11,0.35)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:24 }}>📋</div>
-                <div style={{ flex:1 }}>
-                  <div style={{ fontSize:9, fontWeight:800, color:bodyColor, textTransform:'uppercase', letterSpacing:1.6, fontFamily:'Nunito, sans-serif', marginBottom:4 }}>Mode 2</div>
-                  <div style={{ fontSize:18, fontWeight:900, color:isNova?'#F0EFFF':M.textPrimary, fontFamily:'Sora, sans-serif', marginBottom:2 }}>Past Questions</div>
-                  <div style={{ fontSize:11, color:bodyColor, fontFamily:'Nunito, sans-serif', fontWeight:600 }}>Select a year · CBT format · Question navigator</div>
-                </div>
-                <div style={{ background:'rgba(245,158,11,0.14)', border:'1.5px solid rgba(245,158,11,0.3)', borderRadius:12, padding:'9px 14px', flexShrink:0 }}>
-                  <span style={{ fontSize:15, fontWeight:900, color:'#d97706' }}>→</span>
-                </div>
-              </div>
-            </button>
-          </div>
-
-          {/* CARD 3 — Mock Exam */}
-          <div style={{ marginBottom:20, animation:'ptIn 0.3s 0.14s ease both' }}>
-            <button onClick={() => router.push('/learn/mock-test?mode=random')} className="pt-btn"
-              style={{ width:'100%', border:'none', borderRadius:20, cursor:'pointer', textAlign:'left', padding:'20px', background:`linear-gradient(140deg,#4338ca,#7c3aed)`, boxShadow:'0 8px 30px rgba(67,56,202,0.45)', position:'relative', overflow:'hidden' }}>
-              <div style={{ display:'flex', alignItems:'center', gap:14, position:'relative', zIndex:1 }}>
-                <div style={{ width:54, height:54, borderRadius:16, background:'rgba(255,255,255,0.22)', border:'1.5px solid rgba(255,255,255,0.3)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:24 }}>🏆</div>
-                <div style={{ flex:1 }}>
-                  <div style={{ fontSize:9, fontWeight:800, color:'rgba(255,255,255,0.65)', textTransform:'uppercase', letterSpacing:1.6, fontFamily:'Nunito, sans-serif', marginBottom:4 }}>Mode 3 · CBT</div>
-                  <div style={{ fontSize:18, fontWeight:900, color:'#fff', fontFamily:'Sora, sans-serif', marginBottom:2 }}>Mock Exam</div>
-                  <div style={{ fontSize:11, color:'rgba(255,255,255,0.78)', fontFamily:'Nunito, sans-serif', fontWeight:600 }}>50 random questions · 60 minutes · All years</div>
-                </div>
-                <div style={{ background:'rgba(255,255,255,0.22)', borderRadius:12, padding:'9px 14px', flexShrink:0 }}>
-                  <span style={{ fontSize:15, fontWeight:900, color:'#fff' }}>→</span>
-                </div>
-              </div>
-            </button>
-          </div>
-
-          {/* View Your Strengths — school only, links to past-questions performance view */}
-          <div style={{ animation:'ptIn 0.3s 0.18s ease both' }}>
-            <button onClick={() => router.push('/learn/past-questions')} className="pt-btn"
-              style={{ width:'100%', padding:'15px 18px', background:'transparent', border:`1.5px solid ${accent}30`, borderRadius:16, cursor:'pointer', display:'flex', alignItems:'center', gap:12, fontFamily:'Nunito, sans-serif' }}>
-              <div style={{ fontSize:20 }}>📊</div>
-              <div style={{ flex:1, textAlign:'left' }}>
-                <div style={{ fontSize:14, fontWeight:900, color:isNova?'#F0EFFF':M.textPrimary, fontFamily:'Sora, sans-serif' }}>View Your Strengths</div>
-                <div style={{ fontSize:11, color:bodyColor, fontWeight:600 }}>Topic by topic performance & progress</div>
-              </div>
-              <div style={{ fontSize:13, color:accent, fontWeight:900 }}>→</div>
             </button>
           </div>
 
@@ -2124,323 +2090,207 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
   })()
 
   const RankTab = (() => {
-    // ── palette helpers ───────────────────────────────────────────────────
-    const rc     = masteryRank.color          // rank colour
-    const rBg    = isNova ? '#0D0B1E' : isBlaze ? '#FFFBEA' : '#F6F5F2'
-    const cardBg = isNova ? 'rgba(255,255,255,0.06)' : isBlaze ? '#fff' : '#fff'
-    const cardBorder = isNova ? '1px solid rgba(255,255,255,0.08)' : isBlaze ? '2px solid #0d0d0d' : `1px solid rgba(0,0,0,0.06)`
+    // ── palette ────────────────────────────────────────────────────────────
+    const rc         = masteryRank.color
+    const rBg        = isNova ? '#0D0B1E' : isBlaze ? '#FFFBEA' : M.lessonBg || '#F6F5F2'
+    const cardBg     = isNova ? 'rgba(255,255,255,0.06)' : '#fff'
+    const cardBorder = isNova ? '1px solid rgba(255,255,255,0.08)' : isBlaze ? '2px solid #0d0d0d' : '1px solid rgba(0,0,0,0.06)'
 
-    // XP to next rank as a percentage within the current band
-    const xpInBand    = xp - masteryRank.minXp
-    const bandSize    = nextRank ? nextRank.minXp - masteryRank.minXp : 1
-    const bandPct     = nextRank ? Math.min(100, Math.round((xpInBand / bandSize) * 100)) : 100
+    // ── Which board to show based on lbScope ───────────────────────────────
+    const boardMap   = { class: boards.class, school: boards.school, all: boards.overall }
+    const activeBoard = boardMap[lbScope] || boards.class
+
+    // ── Period filter (weekly uses xp as proxy, monthly uses monthly_xp) ──
+    const sortedBoard = [...activeBoard].sort((a, b) =>
+      lbPeriod === 'weekly'
+        ? (b.xp || 0) - (a.xp || 0)          // xp as proxy for weekly activity
+        : (b.monthly_xp || 0) - (a.monthly_xp || 0)
+    ).slice(0, 50)
+
+    const top3       = sortedBoard.slice(0, 3)
+    const restList   = sortedBoard.slice(3)
+    const myBoardIdx = sortedBoard.findIndex(e => e.id === student?.id)
+
+    // Podium order: 2nd | 1st | 3rd
+    const podiumOrder   = [top3[1], top3[0], top3[2]]
+    const podiumHeights = [80, 112, 60]
+    const podiumLabels  = [2, 1, 3]
+
+    // Pill toggle helper
+    function PillToggle({ options, value, onChange }) {
+      return (
+        <div style={{ display:'flex', background: isNova?'rgba(255,255,255,0.07)':isBlaze?'rgba(0,0,0,0.06)':'rgba(0,0,0,0.05)', borderRadius:99, padding:3, gap:2 }}>
+          {options.map(o => (
+            <button key={o.v} onClick={() => onChange(o.v)} style={{ padding:'5px 13px', borderRadius:99, border:'none', cursor:'pointer', fontSize:11, fontWeight:800, fontFamily:'Nunito, sans-serif', background: value===o.v?(isBlaze?'#0d0d0d':accent):'transparent', color: value===o.v?'#fff':bodyColor, transition:'all 0.15s', whiteSpace:'nowrap' }}>{o.l}</button>
+          ))}
+        </div>
+      )
+    }
 
     return (
     <div style={{ height:'100%', overflowY:'auto', background: rBg }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@700;800;900&family=Nunito:wght@500;600;700;800;900&display=swap');
-        @keyframes rkSlide  { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes rkPop    { 0%{transform:scale(0.88)} 60%{transform:scale(1.06)} 100%{transform:scale(1)} }
-        @keyframes rkGlow   { 0%,100%{box-shadow:0 0 0 0 ${rc}40} 50%{box-shadow:0 0 0 10px ${rc}00} }
-        @keyframes rkBar    { from{width:0} }
-        @keyframes rkFloat  { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
+        @keyframes rkSlide { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes rkPop   { 0%{transform:scale(0.85)} 60%{transform:scale(1.07)} 100%{transform:scale(1)} }
+        @keyframes rkBar   { from{width:0} }
+        @keyframes rkGlow  { 0%,100%{box-shadow:0 0 0 0 ${rc}40} 50%{box-shadow:0 0 0 10px ${rc}00} }
       `}</style>
 
       <div style={{ maxWidth:480, margin:'0 auto', paddingBottom:'max(100px,calc(80px + env(safe-area-inset-bottom)))' }}>
 
-        {/* ═══════════════════════════════════════════════════════
-            HERO SECTION — full-bleed rank card
-        ═══════════════════════════════════════════════════════ */}
+        {/* ── HEADER GRADIENT ── */}
         <div style={{
-          position:'relative', overflow:'hidden',
-          background: isNova
-            ? `linear-gradient(150deg,${rc}22 0%,rgba(13,11,30,0) 70%)`
-            : isBlaze
-            ? `linear-gradient(150deg,#FFD700 0%,#FFA500 100%)`
-            : `linear-gradient(150deg,${rc}20 0%,${rc}06 100%)`,
-          padding:'32px 20px 28px',
-          borderBottom: isNova ? `1px solid rgba(255,255,255,0.07)` : `1px solid ${rc}18`,
+          background: isNova ? `linear-gradient(150deg,${accent}26 0%,rgba(13,11,30,0) 70%)` : isBlaze ? 'linear-gradient(150deg,#FFD700,#FFA500)' : `linear-gradient(150deg,${accent}22,${accent}08)`,
+          padding:'28px 20px 22px', position:'relative', overflow:'hidden',
+          borderBottom: isNova ? '1px solid rgba(255,255,255,0.07)' : `1px solid ${accent}18`,
         }}>
+          <div style={{ position:'absolute', right:-50, top:-50, width:200, height:200, borderRadius:'50%', border:`2px solid ${accent}12`, pointerEvents:'none' }} />
+          <div style={{ position:'absolute', right:-20, top:-20, width:120, height:120, borderRadius:'50%', border:`2px solid ${accent}18`, pointerEvents:'none' }} />
 
-          {/* Decorative rings */}
-          <div style={{ position:'absolute', right:-60, top:-60, width:220, height:220, borderRadius:'50%', border:`2px solid ${rc}14`, pointerEvents:'none' }} />
-          <div style={{ position:'absolute', right:-30, top:-30, width:140, height:140, borderRadius:'50%', border:`2px solid ${rc}20`, pointerEvents:'none' }} />
-
-          {/* "YOUR RANK" eyebrow */}
-          <div style={{ fontSize:9, fontWeight:900, color: isBlaze?'#555':rc, textTransform:'uppercase', letterSpacing:2.5, fontFamily:'Nunito, sans-serif', marginBottom:20, opacity: isBlaze?0.7:1, animation:'rkSlide 0.3s ease both' }}>
-            Your Rank
-          </div>
-
-          {/* Big rank badge + name row */}
-          <div style={{ display:'flex', alignItems:'center', gap:18, marginBottom:24, animation:'rkSlide 0.32s 0.04s ease both' }}>
-
-            {/* Hexagonal-style badge */}
-            <div style={{
-              width:80, height:80, borderRadius:24, flexShrink:0,
-              background: isBlaze ? '#fff' : isNova ? `${rc}18` : `linear-gradient(145deg,${rc}28,${rc}0C)`,
-              border: isBlaze ? '3px solid #0d0d0d' : `3px solid ${rc}`,
-              display:'flex', alignItems:'center', justifyContent:'center',
-              boxShadow: isBlaze ? '4px 4px 0 #0d0d0d' : `0 0 0 6px ${rc}14, 0 10px 32px ${rc}35`,
-              animation:'rkPop 0.55s 0.1s ease both',
-            }}>
-              <EduIcon id={RANK_ICONS[masteryRank.title]||'star'} size={38} color={isBlaze?'#0d0d0d':rc} />
-            </div>
-
-            <div style={{ flex:1, minWidth:0 }}>
-              {/* Rank title */}
-              <div style={{ fontSize:34, fontWeight:900, fontFamily:'Sora, sans-serif', lineHeight:1.0, marginBottom:5,
-                color: isBlaze?'#0d0d0d': isNova?'#F0EFFF':rc,
-                letterSpacing:-0.5,
-              }}>
-                {masteryRank.title}
-              </div>
-              {/* Flavor */}
-              <div style={{ fontSize:12, fontWeight:600, fontStyle:'italic', fontFamily:'Nunito, sans-serif',
-                color: isBlaze?'#555':bodyColor, lineHeight:1.45,
-              }}>
-                {masteryRank.flavor}
-              </div>
-            </div>
-          </div>
-
-          {/* XP progress bar */}
-          <div style={{ animation:'rkSlide 0.32s 0.08s ease both' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:8 }}>
-              <div>
-                <span style={{ fontSize:22, fontWeight:900, fontFamily:'Sora, sans-serif', color: isBlaze?'#0d0d0d':M.textPrimary }}>
-                  {xp.toLocaleString()}
-                </span>
-                <span style={{ fontSize:11, fontWeight:700, fontFamily:'Nunito, sans-serif', color:bodyColor, marginLeft:5 }}>XP total</span>
-              </div>
-              {nextRank && (
-                <div style={{ fontSize:11, fontWeight:900, fontFamily:'Nunito, sans-serif', color:rc }}>
-                  {(nextRank.minXp - xp).toLocaleString()} to {nextRank.title}
-                </div>
-              )}
-            </div>
-
-            {/* Bar track */}
-            <div style={{ height:12, background: isNova?'rgba(255,255,255,0.1)':isBlaze?'rgba(0,0,0,0.12)':'rgba(0,0,0,0.08)', borderRadius:99, overflow:'hidden', marginBottom:10, boxShadow:'inset 0 2px 4px rgba(0,0,0,0.1)' }}>
-              <div style={{
-                height:'100%', width:bandPct+'%',
-                background: nextRank
-                  ? `linear-gradient(90deg,${rc},${nextRank.color})`
-                  : rc,
-                borderRadius:99, transition:'width 1.4s cubic-bezier(0.16,1,0.3,1)',
-                animation:'rkBar 1.4s cubic-bezier(0.16,1,0.3,1)',
-                boxShadow:`0 0 12px ${rc}80`,
-              }} />
-            </div>
-
-            {/* Next rank label */}
-            {nextRank ? (
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                  <div style={{ width:8, height:8, borderRadius:'50%', background:rc }} />
-                  <span style={{ fontSize:10, fontWeight:700, color:bodyColor, fontFamily:'Nunito, sans-serif' }}>{masteryRank.title}</span>
-                </div>
-                <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                  <span style={{ fontSize:10, fontWeight:700, color:bodyColor, fontFamily:'Nunito, sans-serif' }}>{nextRank.title}</span>
-                  <div style={{ width:8, height:8, borderRadius:'50%', background:nextRank.color, opacity:0.5 }} />
-                </div>
-              </div>
-            ) : (
-              <div style={{ textAlign:'center', padding:'8px 14px', background:`${rc}14`, borderRadius:10 }}>
-                <span style={{ fontSize:12, fontWeight:900, color:rc, fontFamily:'Nunito, sans-serif' }}>🏆 Maximum rank — you are a legend</span>
-              </div>
-            )}
-          </div>
-
-          {/* ── 3-stat strip ── */}
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, marginTop:20, animation:'rkSlide 0.32s 0.12s ease both' }}>
-            {[
-              { label:'Position',    value: `#${myPosInRank}`, sub:`of ${totalInRank} in rank`   },
-              { label:'Monthly XP',  value: monthlyXp >= 1000 ? (monthlyXp/1000).toFixed(1)+'k' : monthlyXp, sub:'this month' },
-              { label:'Lessons',     value: doneLessons, sub:'completed' },
-            ].map(stat => (
-              <div key={stat.label} style={{
-                padding:'12px 10px', borderRadius:16, textAlign:'center',
-                background: isNova?'rgba(255,255,255,0.07)':isBlaze?'rgba(0,0,0,0.06)':'rgba(255,255,255,0.65)',
-                border: isNova?'1px solid rgba(255,255,255,0.09)':isBlaze?'1.5px solid rgba(0,0,0,0.1)':'1px solid rgba(0,0,0,0.05)',
-                backdropFilter:'blur(8px)',
-              }}>
-                <div style={{ fontSize:22, fontWeight:900, fontFamily:'Sora, sans-serif', lineHeight:1, color: isBlaze?'#0d0d0d':rc, marginBottom:4 }}>{stat.value}</div>
-                <div style={{ fontSize:9, fontWeight:800, color:bodyColor, textTransform:'uppercase', letterSpacing:0.6, fontFamily:'Nunito, sans-serif', marginBottom:1 }}>{stat.label}</div>
-                <div style={{ fontSize:9, color:bodyColor, fontFamily:'Nunito, sans-serif', opacity:0.7 }}>{stat.sub}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* ═══════════════════════════════════════════════════════
-            RANK JOURNEY — compact vertical timeline
-        ═══════════════════════════════════════════════════════ */}
-        <div style={{ padding:'24px 20px 0', animation:'rkSlide 0.32s 0.16s ease both' }}>
-          <div style={{ fontSize:11, fontWeight:900, color:bodyColor, textTransform:'uppercase', letterSpacing:1.4, fontFamily:'Nunito, sans-serif', marginBottom:16 }}>
-            Rank Journey
-          </div>
-
-          {/* Horizontal scrolling rank track */}
-          <div style={{
-            background: cardBg, border: cardBorder, borderRadius:20,
-            padding:'18px 16px',
-            boxShadow: isBlaze?'4px 4px 0 #0d0d0d':'0 2px 12px rgba(0,0,0,0.06)',
-            overflowX:'auto',
-          }}>
-            <div style={{ display:'flex', alignItems:'flex-start', minWidth: MASTERY_RANKS.length * 72 + 'px', paddingBottom:4 }}>
-              {MASTERY_RANKS.map((rank, idx) => {
-                const isCur  = rank.title === masteryRank.title
-                const isPast = idx < myRankIdx
-                const isFut  = idx > myRankIdx
-                return (
-                  <div key={rank.title} style={{ display:'flex', flexDirection:'column', alignItems:'center', width:72, flexShrink:0 }}>
-                    {/* Track row */}
-                    <div style={{ display:'flex', alignItems:'center', width:'100%' }}>
-                      <div style={{ flex:1, height: isCur?4:3, background: idx===0?'transparent': isPast||isCur?rank.color:isNova?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.09)', borderRadius:2, transition:'background 0.4s' }} />
-                      {/* Node */}
-                      <div style={{
-                        width: isCur?46:32, height:isCur?46:32,
-                        borderRadius: isCur?14:10, flexShrink:0,
-                        background: isCur
-                          ? `linear-gradient(145deg,${rank.color}30,${rank.color}12)`
-                          : isPast ? `${rank.color}18`
-                          : isNova?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.04)',
-                        border: isCur
-                          ? `2.5px solid ${rank.color}`
-                          : isPast?`1.5px solid ${rank.color}55`
-                          : `1.5px solid ${isNova?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.1)'}`,
-                        display:'flex', alignItems:'center', justifyContent:'center',
-                        boxShadow: isCur?`0 0 0 4px ${rank.color}20, 0 4px 16px ${rank.color}35`:'none',
-                        animation: isCur?'rkGlow 2.5s ease-in-out infinite':'none',
-                        transition:'all 0.3s',
-                      }}>
-                        {isPast
-                          ? <span style={{ fontSize:isCur?18:12, color:rank.color, opacity:0.7 }}>✓</span>
-                          : <EduIcon id={RANK_ICONS[rank.title]||'star'} size={isCur?22:13} color={isCur?rank.color:isNova?'rgba(255,255,255,0.3)':'rgba(0,0,0,0.25)'} />
-                        }
-                      </div>
-                      <div style={{ flex:1, height:isCur?4:3, background: idx===MASTERY_RANKS.length-1?'transparent': isPast?MASTERY_RANKS[idx+1]?.color||rank.color:isNova?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.09)', borderRadius:2 }} />
-                    </div>
-
-                    {/* Label */}
-                    <div style={{ marginTop:8, textAlign:'center', padding:'0 2px' }}>
-                      <div style={{ fontSize: isCur?9.5:8, fontWeight: isCur?900:600, color: isCur?rank.color:isPast?(isNova?'rgba(255,255,255,0.55)':M.textSecondary):bodyColor, fontFamily:'Nunito, sans-serif', lineHeight:1.3 }}>
-                        {rank.title}
-                      </div>
-                      {isCur && (
-                        <div style={{ marginTop:3, fontSize:7, fontWeight:900, color:rank.color, background:`${rank.color}18`, borderRadius:99, padding:'1px 5px', display:'inline-block' }}>YOU</div>
-                      )}
-                      {isFut && (
-                        <div style={{ marginTop:2, fontSize:7.5, color:bodyColor, opacity:0.55, fontFamily:'Nunito, sans-serif' }}>
-                          {rank.minXp>=1000?(rank.minXp/1000).toFixed(rank.minXp%1000===0?0:1)+'k':rank.minXp}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* ═══════════════════════════════════════════════════════
-            PEOPLE IN YOUR RANK
-        ═══════════════════════════════════════════════════════ */}
-        <div style={{ padding:'24px 20px 0', animation:'rkSlide 0.32s 0.2s ease both' }}>
-
-          {/* Header row */}
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
+          {/* Title row */}
+          <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:18, animation:'rkSlide 0.28s ease both' }}>
             <div>
-              <div style={{ fontSize:11, fontWeight:900, color:bodyColor, textTransform:'uppercase', letterSpacing:1.4, fontFamily:'Nunito, sans-serif' }}>
-                People in Your Rank
-              </div>
-              {myPosInRank > 0 && (
-                <div style={{ fontSize:10, color:rc, fontFamily:'Nunito, sans-serif', fontWeight:800, marginTop:2 }}>
-                  You are #{myPosInRank} — keep climbing 🔥
-                </div>
-              )}
+              <div style={{ fontSize:9, fontWeight:900, color: isBlaze?'#555':accent, textTransform:'uppercase', letterSpacing:2.5, fontFamily:'Nunito, sans-serif', marginBottom:6 }}>School Leaderboard</div>
+              <div style={{ fontSize:26, fontWeight:900, fontFamily:'Sora, sans-serif', color: isBlaze?'#0d0d0d':isNova?'#F0EFFF':M.textPrimary, lineHeight:1.1 }}>Rankings</div>
             </div>
-            {boards.school.length > 0 && (
-              <div style={{ display:'flex', background: isNova?'rgba(255,255,255,0.07)':isBlaze?'rgba(0,0,0,0.06)':'rgba(0,0,0,0.05)', borderRadius:99, padding:3, gap:2 }}>
-                {[{v:'global',l:'Class'},{v:'school',l:'School'}].map(({v,l}) => (
-                  <button key={v} onClick={() => setRankView(v)} style={{
-                    padding:'4px 12px', borderRadius:99, border:'none', cursor:'pointer',
-                    fontSize:10, fontWeight:800, fontFamily:'Nunito, sans-serif',
-                    background: rankView===v ? (isBlaze?'#0d0d0d':accent) : 'transparent',
-                    color: rankView===v ? '#fff' : bodyColor,
-                    transition:'all 0.15s',
-                  }}>{l}</button>
-                ))}
+            {/* My rank chip */}
+            {myBoardIdx >= 0 && (
+              <div style={{ padding:'8px 14px', background: isNova?`${accent}20`:`${accent}12`, border:`1.5px solid ${accent}30`, borderRadius:14, textAlign:'center', flexShrink:0 }}>
+                <div style={{ fontSize:20, fontWeight:900, fontFamily:'Sora, sans-serif', color:accent, lineHeight:1 }}>#{myBoardIdx+1}</div>
+                <div style={{ fontSize:9, fontWeight:800, color:bodyColor, fontFamily:'Nunito, sans-serif', marginTop:2, textTransform:'uppercase', letterSpacing:0.5 }}>Your rank</div>
               </div>
             )}
           </div>
 
-          {/* People list */}
-          {sameRankPeople.length === 0 ? (
-            <div style={{ textAlign:'center', padding:'32px 20px', background:cardBg, border:cardBorder, borderRadius:18 }}>
-              <div style={{ fontSize:30, marginBottom:10 }}>🏅</div>
-              <div style={{ fontSize:14, fontWeight:800, color:M.textPrimary, fontFamily:'Nunito, sans-serif', marginBottom:4 }}>No classmates here yet</div>
-              <div style={{ fontSize:12, color:bodyColor, fontFamily:'Nunito, sans-serif' }}>Complete more lessons to see people around your rank</div>
+          {/* Scope tabs: Class | School | All */}
+          <div style={{ animation:'rkSlide 0.28s 0.04s ease both' }}>
+            <PillToggle
+              options={[
+                { v:'class',   l:'Class'  },
+                { v:'school',  l:'School' },
+                { v:'all',     l:'All'    },
+              ]}
+              value={lbScope}
+              onChange={setLbScope}
+            />
+          </div>
+        </div>
+
+        {/* ── PERIOD TOGGLE + SECTION LABEL ── */}
+        <div style={{ padding:'18px 20px 0', display:'flex', alignItems:'center', justifyContent:'space-between', animation:'rkSlide 0.28s 0.08s ease both' }}>
+          <div style={{ fontSize:11, fontWeight:900, color:bodyColor, textTransform:'uppercase', letterSpacing:1.4, fontFamily:'Nunito, sans-serif' }}>
+            {lbScope === 'class' ? `${student?.class_level || 'Class'} Leaderboard` : lbScope === 'school' ? 'School Leaderboard' : 'Global Leaderboard'}
+          </div>
+          <PillToggle
+            options={[{ v:'monthly', l:'Monthly' }, { v:'weekly', l:'Weekly' }]}
+            value={lbPeriod}
+            onChange={setLbPeriod}
+          />
+        </div>
+
+        {/* ── PODIUM (top 3) ── */}
+        <div style={{ padding:'16px 20px 0', animation:'rkSlide 0.3s 0.12s ease both' }}>
+          {top3.length > 0 ? (
+            <div style={{ background:cardBg, border:cardBorder, borderRadius:22, padding:'22px 16px 0', marginBottom:12, boxShadow: isBlaze?'4px 4px 0 #0d0d0d':'0 2px 14px rgba(0,0,0,0.06)', overflow:'hidden' }}>
+              <div style={{ display:'flex', alignItems:'flex-end', justifyContent:'center', gap:8 }}>
+                {podiumOrder.map((entry, pi) => {
+                  if (!entry) return <div key={pi} style={{ flex:1 }} />
+                  const label    = podiumLabels[pi]
+                  const isFirst  = label === 1
+                  const isMe     = entry.id === student?.id
+                  const eRank    = MASTERY_RANKS.slice().reverse().find(r => (entry.xp||0) >= r.minXp) || MASTERY_RANKS[0]
+                  const eXp      = lbPeriod === 'weekly' ? (entry.xp || 0) : (entry.monthly_xp || 0)
+                  const medal    = label===1?'🥇':label===2?'🥈':'🥉'
+                  const avatarSz = isFirst ? 56 : 46
+                  return (
+                    <div key={entry.id} style={{ display:'flex', flexDirection:'column', alignItems:'center', flex: isFirst?'1.2':'1' }}>
+                      {isFirst
+                        ? <div style={{ fontSize:18, marginBottom:3, animation:'rkPop 0.6s 0.2s ease both' }}>👑</div>
+                        : <div style={{ height:22 }} />
+                      }
+                      <div style={{ position:'relative', marginBottom:6 }}>
+                        <div style={{ width:avatarSz, height:avatarSz, borderRadius:'50%',
+                          background: isMe ? `linear-gradient(145deg,${accent}50,${accent}28)` : `linear-gradient(145deg,${eRank.color}40,${eRank.color}18)`,
+                          border:`3px solid ${isMe?accent:eRank.color}`,
+                          display:'flex', alignItems:'center', justifyContent:'center',
+                          fontSize:Math.round(avatarSz*0.38), fontWeight:900, color:isMe?accent:eRank.color, fontFamily:'Sora, sans-serif',
+                          boxShadow: isFirst?`0 6px 22px ${eRank.color}45`:`0 3px 10px ${eRank.color}28`,
+                        }}>
+                          {entry.display_name?.[0]?.toUpperCase()||'?'}
+                        </div>
+                        <div style={{ position:'absolute', bottom:-4, right:-4, fontSize:13 }}>{medal}</div>
+                      </div>
+                      <div style={{ fontSize:11, fontWeight:isMe?900:700, color:isMe?accent:M.textPrimary, fontFamily:'Nunito, sans-serif', textAlign:'center', marginBottom:4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:80, width:'100%' }}>
+                        {isMe ? 'You' : entry.display_name}
+                      </div>
+                      <div style={{ padding:'3px 9px', background:`${accent}12`, border:`1px solid ${accent}22`, borderRadius:99, fontSize:10, fontWeight:900, color:accent, fontFamily:'Nunito, sans-serif', marginBottom:10 }}>
+                        {eXp >= 1000 ? (eXp/1000).toFixed(1)+'k' : eXp} XP
+                      </div>
+                      <div style={{ width:'100%', height:podiumHeights[pi], borderRadius:'10px 10px 0 0',
+                        background: isNova
+                          ? (isFirst ? `linear-gradient(180deg,${accent}35,${accent}18)` : 'rgba(255,255,255,0.08)')
+                          : (isFirst ? `linear-gradient(180deg,${accent}28,${accent}0E)` : `linear-gradient(180deg,${accent}12,${accent}06)`),
+                        border:`1.5px solid ${accent}25`, borderBottom:'none',
+                        display:'flex', alignItems:'center', justifyContent:'center',
+                      }}>
+                        <span style={{ fontSize:isFirst?26:20, fontWeight:900, fontFamily:'Sora, sans-serif', color:isFirst?accent:`${accent}60` }}>{label}</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           ) : (
-            <div style={{ background:cardBg, border:cardBorder, borderRadius:20, overflow:'hidden', boxShadow: isBlaze?'4px 4px 0 #0d0d0d':'0 2px 14px rgba(0,0,0,0.07)' }}>
-              {sameRankPeople.map((entry, idx) => {
-                const isMe   = entry.id === student?.id
-                const eRank  = MASTERY_RANKS.slice().reverse().find(r=>(entry.xp||0)>=r.minXp)||MASTERY_RANKS[0]
-                const eXp    = entry.monthly_xp || 0
-                const pos    = idx + 1
+            <div style={{ textAlign:'center', padding:'32px 20px', background:cardBg, border:cardBorder, borderRadius:18, marginBottom:12 }}>
+              <div style={{ fontSize:28, marginBottom:8 }}>🏅</div>
+              <div style={{ fontSize:14, fontWeight:800, color:M.textPrimary, fontFamily:'Nunito, sans-serif', marginBottom:4 }}>No classmates yet</div>
+              <div style={{ fontSize:12, color:bodyColor, fontFamily:'Nunito, sans-serif' }}>Complete more lessons to appear on the board</div>
+            </div>
+          )}
+
+          {/* ── FULL RANKED LIST ── */}
+          {sortedBoard.length > 0 && (
+            <div style={{ background:cardBg, border:cardBorder, borderRadius:20, overflow:'hidden', boxShadow: isBlaze?'4px 4px 0 #0d0d0d':'0 2px 14px rgba(0,0,0,0.06)' }}>
+              {sortedBoard.map((entry, idx) => {
+                const isMe  = entry.id === student?.id
+                const pos   = idx + 1
+                const eRank = MASTERY_RANKS.slice().reverse().find(r=>(entry.xp||0)>=r.minXp)||MASTERY_RANKS[0]
+                const eXp   = lbPeriod === 'weekly' ? (entry.xp || 0) : (entry.monthly_xp || 0)
+                const medal = pos===1?'🥇':pos===2?'🥈':pos===3?'🥉':null
                 return (
-                  <div key={entry.id} style={{
-                    display:'flex', alignItems:'center', gap:12, padding:'13px 16px',
-                    background: isMe
-                      ? isNova?`${accent}18`:`${accent}08`
-                      : 'transparent',
+                  <div key={entry.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px',
+                    background: isMe ? (isNova?`${accent}18`:`${accent}08`) : 'transparent',
                     borderLeft:`3.5px solid ${isMe?accent:'transparent'}`,
-                    borderBottom: idx<sameRankPeople.length-1
-                      ? `1px solid ${isNova?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.05)'}`
-                      : 'none',
+                    borderBottom: idx < sortedBoard.length-1 ? `1px solid ${isNova?'rgba(255,255,255,0.05)':'rgba(0,0,0,0.05)'}` : 'none',
                   }}>
-
-                    {/* Position number */}
-                    <div style={{ width:24, flexShrink:0, textAlign:'center' }}>
-                      {pos <= 3 ? (
-                        <div style={{ fontSize:15 }}>{pos===1?'🥇':pos===2?'🥈':'🥉'}</div>
-                      ) : (
-                        <div style={{ fontSize:11, fontWeight:700, color:bodyColor, fontFamily:'Nunito, sans-serif' }}>#{pos}</div>
-                      )}
+                    <div style={{ width:26, flexShrink:0, textAlign:'center' }}>
+                      {medal
+                        ? <span style={{ fontSize:15 }}>{medal}</span>
+                        : <span style={{ fontSize:11, fontWeight:700, color:bodyColor, fontFamily:'Nunito, sans-serif' }}>#{pos}</span>
+                      }
                     </div>
-
-                    {/* Avatar */}
-                    <div style={{
-                      width:38, height:38, borderRadius:'50%', flexShrink:0,
-                      background:`linear-gradient(145deg,${eRank.color}28,${eRank.color}10)`,
-                      border:`2px solid ${eRank.color}40`,
+                    <div style={{ width:36, height:36, borderRadius:'50%', flexShrink:0,
+                      background:`linear-gradient(145deg,${eRank.color}30,${eRank.color}12)`,
+                      border:`2px solid ${eRank.color}38`,
                       display:'flex', alignItems:'center', justifyContent:'center',
-                      fontSize:15, fontWeight:900, color:eRank.color,
-                      fontFamily:'Sora, sans-serif',
+                      fontSize:14, fontWeight:900, color:eRank.color, fontFamily:'Sora, sans-serif',
                     }}>
                       {entry.display_name?.[0]?.toUpperCase()||'?'}
                     </div>
-
-                    {/* Name + rank */}
                     <div style={{ flex:1, minWidth:0 }}>
                       <div style={{ fontSize:13, fontWeight:isMe?900:700, color:isMe?accent:(isNova?'#F0EFFF':M.textPrimary), fontFamily:'Nunito, sans-serif', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:5 }}>
-                        {entry.display_name}
-                        {isMe && (
-                          <span style={{ fontSize:8, fontWeight:900, color:accent, background:`${accent}18`, borderRadius:99, padding:'1px 6px', flexShrink:0 }}>YOU</span>
-                        )}
+                        {isMe ? 'You' : entry.display_name}
+                        {isMe && <span style={{ fontSize:8, fontWeight:900, color:accent, background:`${accent}18`, borderRadius:99, padding:'1px 6px', flexShrink:0 }}>YOU</span>}
                       </div>
-                      <div style={{ fontSize:10, color:eRank.color, fontFamily:'Nunito, sans-serif', fontWeight:700, marginTop:1 }}>
-                        {eRank.title}
-                      </div>
+                      <div style={{ fontSize:10, color:eRank.color, fontFamily:'Nunito, sans-serif', fontWeight:700, marginTop:1 }}>{eRank.title}</div>
                     </div>
-
-                    {/* XP */}
                     <div style={{ textAlign:'right', flexShrink:0 }}>
                       <div style={{ fontSize:14, fontWeight:900, color:isMe?accent:M.textPrimary, fontFamily:'Sora, sans-serif', lineHeight:1 }}>
                         {eXp >= 1000 ? (eXp/1000).toFixed(1)+'k' : eXp}
                       </div>
-                      <div style={{ fontSize:9, fontWeight:700, color:bodyColor, fontFamily:'Nunito, sans-serif', marginTop:2 }}>XP / mo</div>
+                      <div style={{ fontSize:9, fontWeight:700, color:bodyColor, fontFamily:'Nunito, sans-serif', marginTop:2 }}>
+                        {lbPeriod === 'weekly' ? 'XP total' : 'XP / mo'}
+                      </div>
                     </div>
                   </div>
                 )
@@ -2449,30 +2299,24 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
           )}
         </div>
 
-        {/* ═══════════════════════════════════════════════════════
-            HOW TO EARN XP — clean card
-        ═══════════════════════════════════════════════════════ */}
-        <div style={{ padding:'24px 20px 0', animation:'rkSlide 0.32s 0.24s ease both' }}>
-          <div style={{ background:cardBg, border:cardBorder, borderRadius:20, padding:'18px 20px', boxShadow: isBlaze?'4px 4px 0 #0d0d0d':'0 2px 12px rgba(0,0,0,0.06)' }}>
-            <div style={{ fontSize:11, fontWeight:900, color:bodyColor, textTransform:'uppercase', letterSpacing:1.4, fontFamily:'Nunito, sans-serif', marginBottom:14 }}>
-              How to Earn XP
-            </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:0 }}>
-              {[
-                { icon:'book',   label:'Complete a lesson',    pts:'+1–10 XP', color:'#22c55e' },
-                { icon:'pencil', label:'Practice questions',   pts:'+3 XP',    color:'#3b82f6' },
-                { icon:'puzzle', label:'Solve a puzzle',       pts:'+3 XP',    color:'#f59e0b' },
-                { icon:'flame',  label:'Daily login streak',   pts:'+1 XP/day', color:'#ef4444' },
-              ].map((item, i, arr) => (
-                <div key={item.label} style={{ display:'flex', alignItems:'center', gap:14, padding:'11px 0', borderBottom: i<arr.length-1?`1px solid ${isNova?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.05)'}`:'none' }}>
-                  <div style={{ width:36, height:36, borderRadius:11, background:`${item.color}14`, border:`1.5px solid ${item.color}28`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                    <EduIcon id={item.icon} size={16} color={item.color} />
-                  </div>
-                  <div style={{ flex:1, fontSize:13, fontWeight:700, color:isNova?'#F0EFFF':M.textPrimary, fontFamily:'Nunito, sans-serif' }}>{item.label}</div>
-                  <div style={{ fontSize:12, fontWeight:900, color:item.color, fontFamily:'Sora, sans-serif', flexShrink:0 }}>{item.pts}</div>
+        {/* ── HOW TO EARN XP ── */}
+        <div style={{ padding:'20px 20px 0', animation:'rkSlide 0.3s 0.2s ease both' }}>
+          <div style={{ background:cardBg, border:cardBorder, borderRadius:20, padding:'16px 18px', boxShadow: isBlaze?'4px 4px 0 #0d0d0d':'0 2px 12px rgba(0,0,0,0.05)' }}>
+            <div style={{ fontSize:11, fontWeight:900, color:bodyColor, textTransform:'uppercase', letterSpacing:1.4, fontFamily:'Nunito, sans-serif', marginBottom:12 }}>How to Earn XP</div>
+            {[
+              { icon:'book',   label:'Complete a lesson',   pts:'+1–10 XP', color:'#22c55e' },
+              { icon:'pencil', label:'Practice questions',  pts:'+3 XP',    color:'#3b82f6' },
+              { icon:'puzzle', label:'Solve a puzzle',      pts:'+3 XP',    color:'#f59e0b' },
+              { icon:'flame',  label:'Daily login streak',  pts:'+1 XP/day',color:'#ef4444' },
+            ].map((item, i, arr) => (
+              <div key={item.label} style={{ display:'flex', alignItems:'center', gap:12, padding:'9px 0', borderBottom: i<arr.length-1?`1px solid ${isNova?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.05)'}`:undefined }}>
+                <div style={{ width:32, height:32, borderRadius:10, background:`${item.color}14`, border:`1.5px solid ${item.color}28`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                  <EduIcon id={item.icon} size={14} color={item.color} />
                 </div>
-              ))}
-            </div>
+                <div style={{ flex:1, fontSize:12, fontWeight:700, color:isNova?'#F0EFFF':M.textPrimary, fontFamily:'Nunito, sans-serif' }}>{item.label}</div>
+                <div style={{ fontSize:12, fontWeight:900, color:item.color, fontFamily:'Sora, sans-serif', flexShrink:0 }}>{item.pts}</div>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -2481,6 +2325,243 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
     )
   })()
 
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // LEADERBOARD TAB — Exam Mode
+  // Filtered by the exam the user is preparing for (WAEC / JAMB / BECE / NECO…)
+  // ══════════════════════════════════════════════════════════════════════════
+  const LeaderboardTab = (() => {
+    const lBg        = isNova ? '#0D0B1E' : isBlaze ? '#FFFBEA' : M.lessonBg || '#F6F5F2'
+    const cardBg     = isNova ? 'rgba(255,255,255,0.06)' : '#fff'
+    const cardBorder = isNova ? '1px solid rgba(255,255,255,0.08)' : isBlaze ? '2px solid #0d0d0d' : '1px solid rgba(0,0,0,0.06)'
+
+    const examType  = student?.exam_type || 'WAEC'
+
+    // Filter overall board to only include students with matching exam_type.
+    // The API returns the top-50 overall; the exam_type column is included so
+    // we can filter client-side. If exam_type field is absent, fall back to full board.
+    const rawBoard  = boards.overall || []
+    const examBoard = rawBoard.filter(e => !e.exam_type || e.exam_type === examType)
+
+    // Period sort
+    const sortedExamBoard = [...examBoard].sort((a, b) =>
+      lbExamPeriod === 'weekly'
+        ? (b.xp || 0) - (a.xp || 0)
+        : (b.monthly_xp || 0) - (a.monthly_xp || 0)
+    ).slice(0, 50)
+
+    const top3       = sortedExamBoard.slice(0, 3)
+    const myBoardIdx = sortedExamBoard.findIndex(e => e.id === student?.id)
+    const myEntry    = myBoardIdx >= 0 ? sortedExamBoard[myBoardIdx] : null
+
+    const podiumOrder   = [top3[1], top3[0], top3[2]]
+    const podiumHeights = [80, 112, 60]
+    const podiumLabels  = [2, 1, 3]
+
+    function ExamPillToggle({ options, value, onChange }) {
+      return (
+        <div style={{ display:'flex', background: isNova?'rgba(255,255,255,0.07)':isBlaze?'rgba(0,0,0,0.06)':'rgba(0,0,0,0.05)', borderRadius:99, padding:3, gap:2 }}>
+          {options.map(o => (
+            <button key={o.v} onClick={() => onChange(o.v)} style={{ padding:'5px 13px', borderRadius:99, border:'none', cursor:'pointer', fontSize:11, fontWeight:800, fontFamily:'Nunito, sans-serif', background: value===o.v?(isBlaze?'#0d0d0d':accent):'transparent', color: value===o.v?'#fff':bodyColor, transition:'all 0.15s', whiteSpace:'nowrap' }}>{o.l}</button>
+          ))}
+        </div>
+      )
+    }
+
+    return (
+    <div style={{ height:'100%', overflowY:'auto', background: lBg }}>
+      <style>{`
+        @keyframes lbSlide { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes lbPop   { 0%{transform:scale(0.85)} 60%{transform:scale(1.07)} 100%{transform:scale(1)} }
+      `}</style>
+
+      <div style={{ maxWidth:480, margin:'0 auto', paddingBottom:'max(100px,calc(80px + env(safe-area-inset-bottom)))' }}>
+
+        {/* ── HEADER ── */}
+        <div style={{
+          background: isNova ? `linear-gradient(150deg,${accent}24 0%,rgba(13,11,30,0) 70%)` : isBlaze ? 'linear-gradient(150deg,#FFD700,#FFA500)' : `linear-gradient(150deg,${accent}22,${accent}08)`,
+          padding:'28px 20px 22px', position:'relative', overflow:'hidden',
+          borderBottom: isNova ? '1px solid rgba(255,255,255,0.07)' : `1px solid ${accent}18`,
+        }}>
+          <div style={{ position:'absolute', right:-50, top:-50, width:200, height:200, borderRadius:'50%', border:`2px solid ${accent}12`, pointerEvents:'none' }} />
+
+          {/* Title + rank chip */}
+          <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:14, animation:'lbSlide 0.28s ease both' }}>
+            <div>
+              <div style={{ fontSize:9, fontWeight:900, color: isBlaze?'#555':accent, textTransform:'uppercase', letterSpacing:2.5, fontFamily:'Nunito, sans-serif', marginBottom:6 }}>
+                {examType} Leaderboard
+              </div>
+              <div style={{ fontSize:26, fontWeight:900, fontFamily:'Sora, sans-serif', color: isBlaze?'#0d0d0d':isNova?'#F0EFFF':M.textPrimary, lineHeight:1.1 }}>Rankings</div>
+            </div>
+            {myBoardIdx >= 0 && (
+              <div style={{ padding:'8px 14px', background: isNova?`${accent}20`:`${accent}12`, border:`1.5px solid ${accent}30`, borderRadius:14, textAlign:'center', flexShrink:0 }}>
+                <div style={{ fontSize:20, fontWeight:900, fontFamily:'Sora, sans-serif', color:accent, lineHeight:1 }}>#{myBoardIdx+1}</div>
+                <div style={{ fontSize:9, fontWeight:800, color:bodyColor, fontFamily:'Nunito, sans-serif', marginTop:2, textTransform:'uppercase', letterSpacing:0.5 }}>Your rank</div>
+              </div>
+            )}
+          </div>
+
+          {/* Context banner */}
+          <div style={{ padding:'10px 14px', background: isNova?'rgba(255,255,255,0.07)':isBlaze?'rgba(0,0,0,0.07)':`${accent}0E`, border:`1.5px solid ${accent}22`, borderRadius:14, marginBottom:16, animation:'lbSlide 0.3s 0.06s ease both' }}>
+            <div style={{ display:'flex', alignItems:'flex-start', gap:10 }}>
+              <span style={{ fontSize:16, flexShrink:0, marginTop:1 }}>🎯</span>
+              <div>
+                <div style={{ fontSize:12, fontWeight:800, color: isBlaze?'#0d0d0d':M.textPrimary, fontFamily:'Nunito, sans-serif', marginBottom:2 }}>
+                  Comparing with fellow {examType} candidates
+                </div>
+                <div style={{ fontSize:11, fontWeight:600, color:bodyColor, fontFamily:'Nunito, sans-serif', lineHeight:1.5 }}>
+                  Everyone here is preparing for {examType}. Monthly XP shows how actively you're studying.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* My position detail row */}
+          {myEntry && (
+            <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', background: isNova?`${accent}18`:`${accent}10`, border:`1.5px solid ${accent}28`, borderRadius:12, animation:'lbSlide 0.3s 0.1s ease both' }}>
+              <div style={{ width:34, height:34, borderRadius:'50%', background:`${accent}28`, border:`2px solid ${accent}`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:900, color:accent, fontFamily:'Sora, sans-serif', flexShrink:0 }}>
+                {student?.display_name?.[0]?.toUpperCase()||'?'}
+              </div>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:12, fontWeight:900, color:accent, fontFamily:'Nunito, sans-serif' }}>
+                  #{myBoardIdx+1} on the {examType} leaderboard
+                </div>
+                <div style={{ fontSize:10, fontWeight:600, color:bodyColor, fontFamily:'Nunito, sans-serif', marginTop:1 }}>
+                  {lbExamPeriod === 'weekly' ? (myEntry.xp||0).toLocaleString()+' XP total' : (myEntry.monthly_xp||0).toLocaleString()+' XP this month'}
+                  {myBoardIdx > 0 && sortedExamBoard[myBoardIdx-1] && ` · ${Math.max(0,(lbExamPeriod==='weekly'?(sortedExamBoard[myBoardIdx-1].xp||0)-(myEntry.xp||0):(sortedExamBoard[myBoardIdx-1].monthly_xp||0)-(myEntry.monthly_xp||0))).toLocaleString()} XP from #${myBoardIdx}`}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── PERIOD TOGGLE ── */}
+        <div style={{ padding:'18px 20px 0', display:'flex', alignItems:'center', justifyContent:'space-between', animation:'lbSlide 0.28s 0.12s ease both' }}>
+          <div style={{ fontSize:11, fontWeight:900, color:bodyColor, textTransform:'uppercase', letterSpacing:1.4, fontFamily:'Nunito, sans-serif' }}>
+            {examType} Candidates
+          </div>
+          <ExamPillToggle
+            options={[{ v:'monthly', l:'Monthly' }, { v:'weekly', l:'Weekly' }]}
+            value={lbExamPeriod}
+            onChange={setLbExamPeriod}
+          />
+        </div>
+
+        {/* ── PODIUM ── */}
+        <div style={{ padding:'16px 20px 0', animation:'lbSlide 0.3s 0.16s ease both' }}>
+          {top3.length > 0 ? (
+            <div style={{ background:cardBg, border:cardBorder, borderRadius:22, padding:'22px 16px 0', marginBottom:12, boxShadow: isBlaze?'4px 4px 0 #0d0d0d':'0 2px 14px rgba(0,0,0,0.06)', overflow:'hidden' }}>
+              <div style={{ display:'flex', alignItems:'flex-end', justifyContent:'center', gap:8 }}>
+                {podiumOrder.map((entry, pi) => {
+                  if (!entry) return <div key={pi} style={{ flex:1 }} />
+                  const label    = podiumLabels[pi]
+                  const isFirst  = label === 1
+                  const isMe     = entry.id === student?.id
+                  const eRank    = MASTERY_RANKS.slice().reverse().find(r=>(entry.xp||0)>=r.minXp)||MASTERY_RANKS[0]
+                  const eXp      = lbExamPeriod === 'weekly' ? (entry.xp||0) : (entry.monthly_xp||0)
+                  const medal    = label===1?'🥇':label===2?'🥈':'🥉'
+                  const avatarSz = isFirst ? 56 : 46
+                  return (
+                    <div key={entry.id} style={{ display:'flex', flexDirection:'column', alignItems:'center', flex: isFirst?'1.2':'1' }}>
+                      {isFirst
+                        ? <div style={{ fontSize:18, marginBottom:3, animation:'lbPop 0.6s 0.2s ease both' }}>👑</div>
+                        : <div style={{ height:22 }} />
+                      }
+                      <div style={{ position:'relative', marginBottom:6 }}>
+                        <div style={{ width:avatarSz, height:avatarSz, borderRadius:'50%',
+                          background: isMe?`linear-gradient(145deg,${accent}50,${accent}28)`:`linear-gradient(145deg,${eRank.color}40,${eRank.color}18)`,
+                          border:`3px solid ${isMe?accent:eRank.color}`,
+                          display:'flex', alignItems:'center', justifyContent:'center',
+                          fontSize:Math.round(avatarSz*0.38), fontWeight:900, color:isMe?accent:eRank.color, fontFamily:'Sora, sans-serif',
+                          boxShadow: isFirst?`0 6px 22px ${eRank.color}45`:`0 3px 10px ${eRank.color}28`,
+                        }}>
+                          {entry.display_name?.[0]?.toUpperCase()||'?'}
+                        </div>
+                        <div style={{ position:'absolute', bottom:-4, right:-4, fontSize:13 }}>{medal}</div>
+                      </div>
+                      <div style={{ fontSize:11, fontWeight:isMe?900:700, color:isMe?accent:M.textPrimary, fontFamily:'Nunito, sans-serif', textAlign:'center', marginBottom:4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:80, width:'100%' }}>
+                        {isMe ? 'You' : entry.display_name}
+                      </div>
+                      <div style={{ padding:'3px 9px', background:`${accent}12`, border:`1px solid ${accent}22`, borderRadius:99, fontSize:10, fontWeight:900, color:accent, fontFamily:'Nunito, sans-serif', marginBottom:10 }}>
+                        {eXp >= 1000 ? (eXp/1000).toFixed(1)+'k' : eXp} XP
+                      </div>
+                      <div style={{ width:'100%', height:podiumHeights[pi], borderRadius:'10px 10px 0 0',
+                        background: isNova
+                          ? (isFirst?`linear-gradient(180deg,${accent}35,${accent}18)`:'rgba(255,255,255,0.08)')
+                          : (isFirst?`linear-gradient(180deg,${accent}28,${accent}0E)`:`linear-gradient(180deg,${accent}12,${accent}06)`),
+                        border:`1.5px solid ${accent}25`, borderBottom:'none',
+                        display:'flex', alignItems:'center', justifyContent:'center',
+                      }}>
+                        <span style={{ fontSize:isFirst?26:20, fontWeight:900, fontFamily:'Sora, sans-serif', color:isFirst?accent:`${accent}60` }}>{label}</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ) : (
+            <div style={{ textAlign:'center', padding:'32px 20px', background:cardBg, border:cardBorder, borderRadius:18, marginBottom:12 }}>
+              <div style={{ fontSize:28, marginBottom:8 }}>📋</div>
+              <div style={{ fontSize:14, fontWeight:800, color:M.textPrimary, fontFamily:'Nunito, sans-serif', marginBottom:4 }}>No {examType} candidates yet</div>
+              <div style={{ fontSize:12, color:bodyColor, fontFamily:'Nunito, sans-serif' }}>Keep studying — you'll appear here soon</div>
+            </div>
+          )}
+
+          {/* ── FULL LIST ── */}
+          {sortedExamBoard.length > 0 && (
+            <div style={{ background:cardBg, border:cardBorder, borderRadius:20, overflow:'hidden', boxShadow: isBlaze?'4px 4px 0 #0d0d0d':'0 2px 14px rgba(0,0,0,0.06)' }}>
+              {sortedExamBoard.map((entry, idx) => {
+                const isMe  = entry.id === student?.id
+                const pos   = idx + 1
+                const eRank = MASTERY_RANKS.slice().reverse().find(r=>(entry.xp||0)>=r.minXp)||MASTERY_RANKS[0]
+                const eXp   = lbExamPeriod === 'weekly' ? (entry.xp||0) : (entry.monthly_xp||0)
+                const medal = pos===1?'🥇':pos===2?'🥈':pos===3?'🥉':null
+                return (
+                  <div key={entry.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px',
+                    background: isMe?(isNova?`${accent}18`:`${accent}08`):'transparent',
+                    borderLeft:`3.5px solid ${isMe?accent:'transparent'}`,
+                    borderBottom: idx<sortedExamBoard.length-1?`1px solid ${isNova?'rgba(255,255,255,0.05)':'rgba(0,0,0,0.05)'}`:undefined,
+                  }}>
+                    <div style={{ width:26, flexShrink:0, textAlign:'center' }}>
+                      {medal
+                        ? <span style={{ fontSize:15 }}>{medal}</span>
+                        : <span style={{ fontSize:11, fontWeight:700, color:bodyColor, fontFamily:'Nunito, sans-serif' }}>#{pos}</span>
+                      }
+                    </div>
+                    <div style={{ width:36, height:36, borderRadius:'50%', flexShrink:0,
+                      background:`linear-gradient(145deg,${eRank.color}30,${eRank.color}12)`,
+                      border:`2px solid ${eRank.color}38`,
+                      display:'flex', alignItems:'center', justifyContent:'center',
+                      fontSize:14, fontWeight:900, color:eRank.color, fontFamily:'Sora, sans-serif',
+                    }}>
+                      {entry.display_name?.[0]?.toUpperCase()||'?'}
+                    </div>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:13, fontWeight:isMe?900:700, color:isMe?accent:(isNova?'#F0EFFF':M.textPrimary), fontFamily:'Nunito, sans-serif', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:5 }}>
+                        {isMe ? 'You' : entry.display_name}
+                        {isMe && <span style={{ fontSize:8, fontWeight:900, color:accent, background:`${accent}18`, borderRadius:99, padding:'1px 6px', flexShrink:0 }}>YOU</span>}
+                      </div>
+                      <div style={{ fontSize:10, color:eRank.color, fontFamily:'Nunito, sans-serif', fontWeight:700, marginTop:1 }}>{eRank.title}</div>
+                    </div>
+                    <div style={{ textAlign:'right', flexShrink:0 }}>
+                      <div style={{ fontSize:14, fontWeight:900, color:isMe?accent:M.textPrimary, fontFamily:'Sora, sans-serif', lineHeight:1 }}>
+                        {eXp >= 1000 ? (eXp/1000).toFixed(1)+'k' : eXp}
+                      </div>
+                      <div style={{ fontSize:9, fontWeight:700, color:bodyColor, fontFamily:'Nunito, sans-serif', marginTop:2 }}>
+                        {lbExamPeriod === 'weekly' ? 'XP total' : 'XP / mo'}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+      </div>
+    </div>
+    )
+  })()
 
   // ══════════════════════════════════════════════════════════════════════════
   // PROFILE TAB
@@ -2809,7 +2890,7 @@ const RightPanel = isDesktop ? (
           {[
             { iconId: 'practice',    label: 'Practice Questions', tab: 'practice',    color: accent },
             { iconId: 'challenge',   label: 'Daily Challenge',    tab: 'challenge',   color: '#FF9500' },
-            { iconId: 'shield',      label: 'Rank Journey',       tab: 'rank',        color: accent    },
+            { iconId: 'leaderboard', label: 'Leaderboard',         tab: 'rank',        color: accent    },
           ].map(a => (
             <button key={a.tab} onClick={() => setActiveTab(a.tab)}
               style={{
