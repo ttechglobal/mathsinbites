@@ -1,648 +1,708 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
-import KolaNova    from '@/components/mascots/KolaNova'
-import TayoSteady  from '@/components/mascots/TayoSteady'
-import ChinweRoots from '@/components/mascots/ChinweRoots'
-import ZapBlaze    from '@/components/mascots/ZapBlaze'
-import HalimaShine from '@/components/mascots/HalimaShine'
-import { BiteMarkIcon } from '@/components/BiteMarkIcon'
+import { useState, useEffect } from 'react'
 
-// ─── palette ──────────────────────────────────────────────────────────────────
-const C = {
-  ink:      '#0C0820',
-  deep:     '#110D2E',
-  panel:    '#1A1545',
-  chalk:    '#F0EDFF',
-  electric: '#C8F135',
-  gold:     '#FFC933',
-  coral:    '#FF5C5C',
-  orange:   '#FF8A00',
-  teal:     '#00D4C8',
-  lav:      '#A599FF',
-  dim:      'rgba(220,215,255,0.55)',
-  dim2:     'rgba(220,215,255,0.3)',
-  border:   'rgba(165,155,255,0.12)',
-  paper:    '#FAFAF7',
-  paper2:   '#F3F1FF',
-}
+// ─── Colour tokens ─────────────────────────────────────────────────────────────
+const BLUE   = '#4361EE'
+const CORAL  = '#F94144'
+const YELLOW = '#F9C74F'
+const MINT   = '#43AA8B'
+const PURPLE = '#7B2FBE'
 
-// ─── mode configs for the mascot showcase ─────────────────────────────────────
-const MODES_SHOWCASE = [
-  {
-    id: 'normal',
-    label: 'TayoSteady',
-    sub: 'Normal Mode',
-    emoji: '📗',
-    mascot: TayoSteady,
-    accent: '#0d9488',
-    bg: 'rgba(13,148,136,0.08)',
-    border: 'rgba(13,148,136,0.25)',
-    quote: "Maths is not hard — it just needs patience. Let's take it one step at a time. You've got this! 📗",
-  },
-  {
-    id: 'nova',
-    label: 'KolaNova',
-    sub: 'Nova Mode',
-    emoji: '🌌',
-    mascot: KolaNova,
-    accent: '#7C3AED',
-    bg: 'rgba(124,58,237,0.14)',
-    border: 'rgba(124,58,237,0.25)',
-    quote: '"The universe is written in the language of mathematics. Master it — and you\'ll understand everything 🌌"',
-  },
-  {
-    id: 'roots',
-    label: 'ChinweRoots',
-    sub: 'Roots Mode',
-    emoji: '🇳🇬',
-    mascot: ChinweRoots,
-    accent: '#C0392B',
-    bg: 'rgba(192,57,43,0.06)',
-    border: 'rgba(212,160,23,0.3)',
-    quote: '"Our ancestors built the Pyramids using mathematics. Maths is your heritage — own it with pride 🇳🇬"',
-  },
-  {
-    id: 'blaze',
-    label: 'ZapBlaze',
-    sub: 'Blaze Mode',
-    emoji: '💥',
-    mascot: ZapBlaze,
-    accent: '#E63946',
-    bg: 'rgba(230,57,70,0.06)',
-    border: 'rgba(230,57,70,0.28)',
-    quote: '"BOOM! Wrong answers don\'t exist — only warm-up shots before the PERFECT one! 💥"',
-  },
-  {
-    id: 'halima',
-    label: 'HalimaShine',
-    sub: 'Northern Mode',
-    emoji: '📚',
-    mascot: HalimaShine,
-    accent: '#C46428',
-    bg: 'rgba(196,100,40,0.06)',
-    border: 'rgba(196,100,40,0.28)',
-    quote: '"I love maths because every problem has an answer — you just have to find it! Let\'s go! 📚⭐"',
-  },
+// ─── Content ───────────────────────────────────────────────────────────────────
+const NAV_LINKS = ['Home', 'How It Works', 'Features', 'Exam Prep']
+
+const FEATURES = [
+  { title: 'Bite-Sized Lessons',        desc: 'Every concept broken into small, clear steps — one idea at a time so nothing gets skipped.',                                                                              bg: YELLOW,  text: '#1A1A2E' },
+  { title: 'Visual Learning',            desc: 'Diagrams, illustrations, and worked examples that make abstract concepts finally click.',                                                                                  bg: PURPLE,  text: '#ffffff' },
+  { title: 'AI-Personalised Practice',  desc: 'Adapts to how you learn — starting easy, building to medium, then pushing you to hard. Every student grows at their own pace.',                                           bg: MINT,    text: '#ffffff' },
+  { title: 'Exam Preparation',          desc: 'Practice past questions for WAEC, JAMB, and BECE topic by topic — and walk in ready.',                                                                                    bg: CORAL,   text: '#ffffff' },
 ]
 
-// ─── tiny reusable pieces ──────────────────────────────────────────────────────
-function SectionTag({ children, color = C.electric }) {
+const STEPS = [
+  { num: '01', title: 'Pick a Topic',        desc: 'Choose any concept from your class curriculum — JSS1 all the way to SS3.' },
+  { num: '02', title: 'Learn in Bites',      desc: 'Step-by-step lessons with visuals, relatable examples, and highlighted key concepts.' },
+  { num: '03', title: 'Practice and Grow',   desc: 'Adapts to where you struggle — easy to medium to hard — so you actually improve.' },
+]
+
+const TOPICS = [
+  { topic: 'Introduction to Algebra',  level: 'SS1',  difficulty: 'Medium', color: BLUE   },
+  { topic: 'Fractions & Decimals',      level: 'JSS2', difficulty: 'Easy',   color: MINT   },
+  { topic: 'Quadratic Equations',       level: 'SS2',  difficulty: 'Hard',   color: CORAL  },
+  { topic: 'Number Bases',              level: 'JSS1', difficulty: 'Easy',   color: YELLOW },
+]
+
+const TESTIMONIALS = [
+  { quote: "I finally understand quadratic equations. I used to just memorise the steps — now I actually get it.",           name: 'Chukwuemeka A.', detail: 'SS3 Student, Lagos' },
+  { quote: "MathsinBites made fractions so easy. The examples are things I see every day — it just makes sense.",            name: 'Aisha M.',       detail: 'JSS2 Student, Abuja' },
+  { quote: "I scored 87 in my maths test after two weeks on this app. Best thing I found before WAEC.",                     name: 'Tobi F.',         detail: 'SS2 Student, Ibadan' },
+]
+
+const DIFF = {
+  Easy:   { bg: '#e6f9f0', text: MINT   },
+  Medium: { bg: '#fff8e1', text: '#f59e0b' },
+  Hard:   { bg: '#ffe8e8', text: CORAL  },
+}
+
+// ─── Section layout wrapper ────────────────────────────────────────────────────
+function Section({ children, bg, style = {} }) {
   return (
-    <div style={{
-      display: 'inline-flex', alignItems: 'center', gap: 6,
-      background: `${color}14`, border: `1.5px solid ${color}33`,
-      borderRadius: 99, padding: '4px 14px',
-      fontSize: 10, fontWeight: 900, color, letterSpacing: '.7px',
-      textTransform: 'uppercase', marginBottom: 14,
-    }}>{children}</div>
+    <section style={{
+      background: bg,
+      paddingTop:    'clamp(80px,10vh,120px)',
+      paddingBottom: 'clamp(80px,10vh,120px)',
+      position: 'relative',
+      ...style,
+    }}>
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 clamp(24px,5vw,80px)' }}>
+        {children}
+      </div>
+    </section>
   )
 }
 
-function FloatingSymbols({ dark = true }) {
-  const syms = [
-    { s: 'π',  top: '8%',  left: '3%',  sz: 52, op: 0.06, dur: 8 },
-    { s: 'Σ',  top: '22%', left: '18%', sz: 30, op: 0.05, dur: 10, delay: '.6s' },
-    { s: '∫',  top: '52%', left: '4%',  sz: 44, op: 0.05, dur: 11, delay: '1.4s' },
-    { s: '∞',  top: '72%', left: '14%', sz: 28, op: 0.05, dur: 9,  delay: '2s' },
-    { s: 'x²', top: '14%', right: '12%',sz: 36, op: 0.06, dur: 7,  delay: '.9s' },
-    { s: 'θ',  top: '38%', right: '6%', sz: 50, op: 0.04, dur: 12, delay: '1.8s' },
-    { s: '√',  top: '64%', right: '18%',sz: 32, op: 0.05, dur: 9,  delay: '.3s' },
-    { s: 'Δ',  top: '82%', right: '8%', sz: 40, op: 0.04, dur: 8,  delay: '2.5s' },
-    { s: '±',  top: '28%', right: '35%',sz: 26, op: 0.05, dur: 10, delay: '1.2s' },
-  ]
-  const col = dark ? 'rgba(200,241,53,' : 'rgba(92,46,221,'
+// ─── Section heading ───────────────────────────────────────────────────────────
+function H2({ children, center, style = {} }) {
   return (
-    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden', zIndex: 0 }}>
-      {syms.map((sym, i) => (
+    <h2 style={{
+      fontFamily:    "'Baloo 2', sans-serif",
+      fontSize:      'clamp(1.8rem,3.5vw,2.6rem)',
+      fontWeight:    800,
+      letterSpacing: '-0.02em',
+      lineHeight:    1.15,
+      marginBottom:  48,
+      textAlign:     center ? 'center' : undefined,
+      ...style,
+    }}>
+      {children}
+    </h2>
+  )
+}
+
+// ─── Mascot slot ───────────────────────────────────────────────────────────────
+function MascotSlot({ pose = 'waving', width = 400, height = 460, style = {} }) {
+  return (
+    // To activate real image, replace this div with:
+    // <img src={`/mascots/halima-${pose}.png`} width={width} height={height}
+    //   alt={`Halima ${pose}`} style={{ animation:'bob 2.8s ease-in-out infinite', borderRadius:24, ...style }} />
+    <div style={{
+      width, height,
+      maxWidth: '100%',
+      borderRadius: 24,
+      background: 'linear-gradient(135deg,#e8f4ff,#f0e8ff)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      animation: 'bob 2.8s ease-in-out infinite',
+      flexShrink: 0,
+      ...style,
+    }}>
+      <p style={{ fontFamily: 'Nunito,sans-serif', fontSize: 13, color: '#888', textAlign: 'center', padding: 16, margin: 0 }}>
+        Halima — {pose} pose<br /><span style={{ opacity: .6, fontSize: 11 }}>(swap with real image)</span>
+      </p>
+    </div>
+  )
+}
+
+// ─── Floating math symbols ─────────────────────────────────────────────────────
+function FloatingSymbols() {
+  const syms = [
+    { char: '∑', top: '15%', left: '5%',  size: 32, anim: 'float0 3.2s ease-in-out infinite', color: BLUE   },
+    { char: '÷', top: '60%', left: '2%',  size: 28, anim: 'float1 3.8s ease-in-out infinite', color: CORAL  },
+    { char: 'π', top: '25%', right: '8%', size: 36, anim: 'float2 4.2s ease-in-out infinite', color: MINT   },
+    { char: '²', top: '70%', right: '5%', size: 30, anim: 'float3 3.6s ease-in-out infinite', color: YELLOW },
+    { char: '+', top: '45%', left: '8%',  size: 40, anim: 'float1 4s ease-in-out infinite',   color: PURPLE },
+    { char: '=', top: '80%', left: '15%', size: 26, anim: 'float0 3.5s ease-in-out infinite', color: BLUE   },
+  ]
+  return (
+    <div aria-hidden style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: 0 }}>
+      {syms.map((s, i) => (
         <span key={i} style={{
-          position: 'absolute',
-          top: sym.top, left: sym.left, right: sym.right,
-          fontSize: sym.sz,
-          color: `${col}${sym.op})`,
-          fontFamily: "'Courier New',monospace",
-          fontWeight: 700,
-          animation: `floatSym ${sym.dur}s ease-in-out ${sym.delay || '0s'} infinite`,
-          userSelect: 'none',
-          lineHeight: 1,
-        }}>{sym.s}</span>
+          position: 'absolute', top: s.top, left: s.left, right: s.right,
+          fontSize: s.size, color: s.color, opacity: 0.15,
+          animation: s.anim, fontFamily: "'Baloo 2',sans-serif",
+          fontWeight: 800, userSelect: 'none',
+        }}>{s.char}</span>
       ))}
     </div>
   )
 }
 
-// ─── main component ───────────────────────────────────────────────────────────
-export default function LandingPage() {
-  const [activeMode, setActiveMode] = useState('nova')
-  const [menuOpen,   setMenuOpen]   = useState(false)
-  const active = MODES_SHOWCASE.find(m => m.id === activeMode)
-  const ActiveMascot = active.mascot
+// ─── Navbar ────────────────────────────────────────────────────────────────────
+function Navbar({ isDark, toggleDark }) {
+  const [scrolled,  setScrolled]  = useState(false)
+  const [menuOpen,  setMenuOpen]  = useState(false)
+
+  useEffect(() => {
+    const fn = () => setScrolled(window.scrollY > 10)
+    window.addEventListener('scroll', fn, { passive: true })
+    return () => window.removeEventListener('scroll', fn)
+  }, [])
+
+  const bg      = isDark ? 'rgba(13,13,26,.95)' : 'rgba(248,249,255,.95)'
+  const textCol = isDark ? '#F0F0FF' : '#1A1A2E'
+  const dimCol  = isDark ? 'rgba(240,240,255,.65)' : '#475569'
 
   return (
-    <div style={{ fontFamily: 'Nunito, sans-serif', background: C.deep, color: C.chalk, overflowX: 'hidden' }}>
-
-      {/* ─── keyframes ─── */}
-      <style>{`
-        @keyframes floatMascot {
-          0%,100% { transform: translateY(0) rotate(-1.2deg); }
-          50%      { transform: translateY(-14px) rotate(1.5deg); }
-        }
-        @keyframes floatSym {
-          0%,100% { transform: translateY(0) rotate(0deg);  opacity: var(--sym-op, 0.06); }
-          50%      { transform: translateY(-18px) rotate(7deg); opacity: calc(var(--sym-op, 0.06) * 2); }
-        }
-        @keyframes ticker {
-          0%   { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
-        }
-        @keyframes shimmer {
-          0%   { background-position: -200% center; }
-          100% { background-position:  200% center; }
-        }
-        @keyframes pulse-ring {
-          0%,100% { transform: scale(1);    opacity: .4; }
-          50%      { transform: scale(1.07); opacity: .8; }
-        }
-        @keyframes bubble-pop {
-          0%   { opacity:0; transform: scale(.82) translateY(6px); }
-          68%  { transform: scale(1.04); }
-          100% { opacity:1; transform: scale(1) translateY(0); }
-        }
-        @keyframes mode-switch {
-          from { opacity:0; transform: scale(.88) translateY(10px); }
-          to   { opacity:1; transform: scale(1)   translateY(0); }
-        }
-        .mode-anim { animation: mode-switch .3s ease forwards; }
-        .mascot-float { animation: floatMascot 4s ease-in-out infinite; }
-        .mascot-float:hover { animation-play-state: paused; }
-
-        /* ── MOBILE RESPONSIVE ── */
-        @media (max-width: 768px) {
-          .lp-nav-links   { display: none !important; }
-          .lp-nav-login   { display: none !important; }
-          .lp-nav-cta     { font-size: 13px !important; padding: 8px 16px !important; }
-          .lp-hero-grid   { grid-template-columns: 1fr !important; padding: 88px 5% 48px !important; gap: 0 !important; }
-          .lp-hero-mascot { margin-top: 28px !important; }
-          .lp-hero-mascot-stage { width: 200px !important; height: 220px !important; }
-          .lp-hero-chips-float { display: none !important; }
-          .lp-hero-rings { display: none !important; }
-          .lp-hero-h1     { font-size: 34px !important; }
-          .lp-hero-btns   { flex-direction: column !important; }
-          .lp-hero-btns a { width: 100% !important; text-align: center !important; box-sizing: border-box !important; }
-          .lp-hero-chips  { flex-wrap: wrap !important; gap: 6px !important; }
-          .lp-why-grid    { grid-template-columns: 1fr !important; }
-          .lp-how-grid    { grid-template-columns: 1fr 1fr !important; }
-          .lp-mascot-tabs { grid-template-columns: repeat(3, 1fr) !important; }
-          .lp-mascot-card { padding: 22px 16px !important; }
-          .lp-testi-grid  { grid-template-columns: 1fr !important; }
-          .lp-footer-grid { grid-template-columns: 1fr 1fr !important; gap: 24px !important; }
-          .lp-footer-brand{ grid-column: 1 / -1 !important; }
-          .lp-cta-btns    { flex-direction: column !important; align-items: center !important; }
-          .lp-cta-btns a  { width: 100% !important; text-align: center !important; box-sizing: border-box !important; }
-          .lp-section     { padding: 60px 5% !important; }
-        }
-        @media (max-width: 480px) {
-          .lp-how-grid   { grid-template-columns: 1fr !important; }
-          .lp-mascot-tabs{ grid-template-columns: repeat(3, 1fr) !important; }
-          .lp-footer-grid{ grid-template-columns: 1fr !important; }
-        }
-      `}</style>
-
-      {/* ═══════════════════════════════════════════ NAV ═══ */}
+    <>
       <nav style={{
-        position: 'fixed', top: 0, left: 0, right: 0, zIndex: 300,
-        height: 64, padding: '0 5%',
+        position: 'fixed', top: 0, left: 0, right: 0, zIndex: 200,
+        height: 64,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        background: 'rgba(17,13,46,.92)', backdropFilter: 'blur(20px)',
-        borderBottom: `1px solid ${C.border}`,
+        padding: '0 clamp(20px,5vw,60px)',
+        background: bg,
+        backdropFilter: 'blur(18px)',
+        WebkitBackdropFilter: 'blur(18px)',
+        boxShadow: scrolled ? '0 2px 20px rgba(0,0,0,.1)' : 'none',
+        borderBottom: scrolled ? '1px solid rgba(67,97,238,.08)' : 'none',
+        transition: 'box-shadow .3s, border-color .3s, background .3s',
       }}>
-        <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
-          <BiteMarkIcon size={32} />
-          <span style={{ fontFamily: "'Fredoka One', sans-serif", fontSize: 19, color: C.chalk }}>
-            Maths<span style={{ color: C.electric }}>In</span>Bites
+        {/* Logo */}
+        <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 6, textDecoration: 'none' }}>
+          <span style={{ fontFamily: "'Baloo 2',sans-serif", fontSize: 22, fontWeight: 900, color: BLUE, lineHeight: 1 }}>
+            Maths<span style={{ color: CORAL }}>in</span>Bites
           </span>
         </Link>
 
-        {/* desktop links */}
-        <div style={{ display: 'flex', gap: 2 }} className="lp-nav-links">
-          {['Why it works', 'How it works', 'Mascots'].map(l => (
-            <a key={l} href={`#${l.toLowerCase().replace(/ /g, '-')}`} style={{
-              color: C.dim, textDecoration: 'none', fontWeight: 800, fontSize: 13,
-              padding: '7px 13px', borderRadius: 10,
-            }}>{l}</a>
+        {/* Desktop links */}
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }} className="lp-nav-desktop">
+          {NAV_LINKS.map(l => (
+            <a key={l} href={`#${l.toLowerCase().replace(/ /g,'-')}`}
+              className="nav-tab"
+              style={{ fontFamily: "'Nunito',sans-serif", fontWeight: 700, fontSize: 14, color: dimCol, textDecoration: 'none', padding: '6px 12px', borderRadius: 10 }}>
+              {l}
+            </a>
           ))}
         </div>
 
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <Link href="/auth/login" className="lp-nav-login" style={{
-            color: C.lav, fontWeight: 800, fontSize: 13, textDecoration: 'none',
-            padding: '8px 16px', borderRadius: 11,
-            border: '1.5px solid rgba(165,155,255,.2)',
-          }}>Log in</Link>
-          <Link href="/guest" className="lp-nav-cta" style={{
-            background: C.electric, color: C.ink,
-            fontFamily: "'Fredoka One', sans-serif", fontSize: 14,
-            padding: '9px 22px', borderRadius: 11, textDecoration: 'none',
-            boxShadow: '0 0 28px rgba(200,241,53,.28)',
-          }}>Start free ⚡</Link>
+        {/* Right actions */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* Dark mode toggle */}
+          <button
+            onClick={toggleDark}
+            aria-label="Toggle dark mode"
+            style={{
+              width: 44, height: 24, borderRadius: 999,
+              background: isDark ? BLUE : '#e2e8f0',
+              border: 'none', cursor: 'pointer', position: 'relative',
+              transition: 'background .3s',
+              flexShrink: 0,
+            }}
+          >
+            <span style={{
+              position: 'absolute', top: 3,
+              left: isDark ? 23 : 3,
+              width: 18, height: 18, borderRadius: '50%',
+              background: '#fff',
+              transition: 'left .3s',
+              display: 'block',
+            }} />
+          </button>
+
+          {/* CTA */}
+          <Link href="/guest" className="opt-btn lp-nav-cta"
+            style={{
+              background: BLUE, color: '#fff',
+              fontFamily: "'Baloo 2',sans-serif", fontWeight: 700, fontSize: 14,
+              padding: '8px 20px', borderRadius: 50, textDecoration: 'none',
+              boxShadow: '0 4px 0 rgba(0,0,0,.15)',
+              whiteSpace: 'nowrap',
+            }}>
+            Start Learning Free
+          </Link>
+
+          {/* Hamburger */}
+          <button
+            onClick={() => setMenuOpen(o => !o)}
+            aria-label="Menu"
+            className="lp-hamburger"
+            style={{ display: 'none', flexDirection: 'column', gap: 5, background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
+          >
+            {[0,1,2].map(i => (
+              <span key={i} style={{ display: 'block', width: 22, height: 2.5, background: textCol, borderRadius: 2, transition: '.3s' }} />
+            ))}
+          </button>
         </div>
       </nav>
 
-      {/* ═══════════════════════════════════════════ HERO ═══ */}
-      <header className="lp-hero-grid" style={{
-        minHeight: '100vh', paddingTop: 100, paddingBottom: 72,
-        padding: '100px 6% 72px',
-        display: 'grid', gridTemplateColumns: '1fr 1fr',
-        alignItems: 'center', gap: 32,
-        background: C.ink, position: 'relative', overflow: 'hidden',
-      }}>
-        <FloatingSymbols dark />
-
-        {/* radial glow */}
+      {/* Mobile dropdown */}
+      {menuOpen && (
         <div style={{
-          position: 'absolute', right: -140, top: '50%', transform: 'translateY(-50%)',
-          width: 600, height: 600, borderRadius: '50%', pointerEvents: 'none',
-          background: 'radial-gradient(circle,rgba(200,241,53,.07) 0%,rgba(124,58,237,.1) 40%,transparent 70%)',
-        }} />
-
-        {/* copy */}
-        <div style={{ position: 'relative', zIndex: 2 }}>
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: 8,
-            background: 'rgba(200,241,53,.1)', border: '1.5px solid rgba(200,241,53,.25)',
-            borderRadius: 99, padding: '5px 16px',
-            fontSize: 11, fontWeight: 900, color: C.electric, letterSpacing: '.6px',
-            textTransform: 'uppercase', marginBottom: 22,
-          }}>🇳🇬 &nbsp;Indigenous · Relatable · Made for Nigerian students</div>
-
-          <h1 className="lp-hero-h1" style={{
-            fontFamily: "'Fredoka One', sans-serif",
-            fontSize: 'clamp(36px,5.5vw,66px)', lineHeight: 1.07,
-            color: C.chalk, marginBottom: 20, letterSpacing: '-.5px',
-          }}>
-            Maths results<br />
-            that make<br />
-            <span style={{ color: C.gold }}>Mama proud.</span>
-          </h1>
-
-          <p style={{
-            fontSize: 'clamp(15px,1.65vw,18px)', color: C.dim,
-            lineHeight: 1.8, maxWidth: 500, marginBottom: 34, fontWeight: 700,
-          }}>
-            5 focused minutes a day. Real NERDC curriculum. Mascots that cheer, tease,
-            and absolutely refuse to let your child give up.
-          </p>
-
-          <div className="lp-hero-btns" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 28 }}>
-            <Link href="/guest" style={{
-              background: C.electric, color: C.ink,
-              fontFamily: "'Fredoka One', sans-serif", fontSize: 17,
-              padding: '15px 36px', borderRadius: 14, textDecoration: 'none',
-              boxShadow: '0 6px 32px rgba(200,241,53,.3)',
-            }}>🚀 Start for free</Link>
-            <a href="#how-it-works" style={{
-              background: 'transparent', color: C.chalk,
-              fontWeight: 800, fontSize: 15,
-              padding: '14px 24px', borderRadius: 14, textDecoration: 'none',
-              border: '1.5px solid rgba(165,155,255,.3)',
-            }}>See how it works ↓</a>
-          </div>
-
-          <div className="lp-hero-chips" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {['NERDC aligned', '5-min lessons', 'Free to start', '🇳🇬 Made in Nigeria'].map(t => (
-              <div key={t} style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                background: 'rgba(255,255,255,.04)', border: `1px solid ${C.border}`,
-                borderRadius: 99, padding: '5px 14px',
-                fontSize: 11, fontWeight: 800, color: C.dim,
-              }}>
-                {!t.startsWith('🇳🇬') && <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.electric }} />}
-                {t}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* mascot stage — KolaNova as hero */}
-        <div className="lp-hero-mascot" style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <div style={{ position: 'relative', width: 320, height: 360, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {/* pulsing rings — hidden on mobile */}
-            <div className="lp-hero-rings" style={{ position: 'contents' }}>
-            {[220, 180].map((sz, i) => (
-              <div key={i} style={{
-                position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)',
-                width: sz, height: sz, borderRadius: '50%',
-                border: `${i === 0 ? 2 : 1.5}px solid rgba(200,241,53,${i === 0 ? '.14' : '.07'})`,
-                animation: `pulse-ring 3s ease-in-out ${i * .8}s infinite`,
-              }} />
-            ))}
-            </div>
-
-            {/* speech bubble */}
-            <div style={{
-              position: 'absolute', top: 16, right: -10,
-              background: C.panel, border: `2px solid ${C.lav}`,
-              borderRadius: '18px 18px 18px 5px',
-              padding: '10px 14px', maxWidth: 186, zIndex: 5,
-              animation: 'bubble-pop .6s cubic-bezier(.34,1.56,.64,1) .9s both',
-              boxShadow: '0 8px 28px rgba(0,0,0,.4)',
-            }}>
-              <p style={{ fontSize: 12, fontWeight: 800, color: C.chalk, lineHeight: 1.5, margin: 0 }}>
-                <span style={{ color: C.electric }}>Hi! I&apos;m KolaNova ✏️</span><br />
-                Maths made fun, in bites. Let&apos;s go! 🚀
-              </p>
-            </div>
-
-            {/* floating stat chips — hidden on mobile */}
-            <div className="lp-hero-chips-float" style={{ position: 'contents' }}>
-            {[
-              { label: 'Day streak 🔥', val: '7 days', col: C.orange, style: { top: 28, left: -30 } },
-              { label: 'Class rank 🏆', val: '#3',     col: C.electric, style: { bottom: 108, right: -40 } },
-              { label: 'XP earned ⚡',  val: '+10 XP', col: C.lav,      style: { bottom: 36, left: -26 } },
-            ].map((chip, i) => (
-              <div key={i} style={{
-                position: 'absolute', ...chip.style,
-                background: C.panel, border: `1.5px solid ${C.border}`,
-                borderRadius: 14, padding: '7px 13px', zIndex: 5,
-                boxShadow: '0 8px 28px rgba(0,0,0,.4)',
-                animation: `bubble-pop .55s cubic-bezier(.34,1.56,.64,1) ${.5 + i * .25}s both`,
-              }}>
-                <div style={{ fontSize: 9, fontWeight: 900, color: C.dim2, textTransform: 'uppercase', letterSpacing: '.7px' }}>{chip.label}</div>
-                <div style={{ fontFamily: 'Fredoka One One, sans-serif', fontSize: 16, color: chip.col }}>{chip.val}</div>
-              </div>
-            ))}
-            </div>
-
-            {/* hero mascot */}
-            <div className="mascot-float" style={{
-              position: 'absolute', bottom: 45,
-              filter: 'drop-shadow(0 24px 44px rgba(124,58,237,.35)) drop-shadow(0 0 36px rgba(200,241,53,.1))',
-              zIndex: 3,
-            }}>
-              <KolaNova size={160} pose="idle" />
-            </div>
-          </div>
-
-          <div style={{ marginTop: 12, textAlign: 'center' }}>
-            <div style={{ fontFamily: 'Fredoka One One, sans-serif', fontSize: 14, color: C.electric }}>KolaNova ✏️</div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.dim2 }}>Official MathsInBites mascot</div>
-          </div>
-        </div>
-      </header>
-
-      {/* ═══════════════════════════════════════════ TICKER ═══ */}
-      <div style={{ overflow: 'hidden', padding: '11px 0', background: '#C8F135', flexShrink: 0 }}>
-        <div style={{ display: 'flex', gap: 48, whiteSpace: 'nowrap', animation: 'ticker 32s linear infinite' }}>
-          {[...Array(2)].map((_, r) => (
-            ['🇳🇬 Proudly Nigerian-built', 'NERDC-aligned curriculum', '5-minute daily lessons', 'JSS1 – SS3 covered', 'Relatable. Fun. Effective.', 'Learn maths in bites', '6 unique mascot modes', 'Free to start today'].map((t, i) => (
-              <span key={`${r}-${i}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 10, fontSize: 12, fontWeight: 900, color: 'rgba(12,8,32,0.65)', letterSpacing: 0.3 }}>
-                {t} <span style={{ color: 'rgba(12,8,32,0.3)', fontSize: 14 }}>✦</span>
-              </span>
-            ))
+          position: 'fixed', top: 64, left: 0, right: 0, zIndex: 199,
+          background: isDark ? '#161627' : '#fff',
+          borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,.08)' : '#e2e8f0'}`,
+          padding: '16px 24px',
+          display: 'flex', flexDirection: 'column', gap: 4,
+          boxShadow: '0 8px 32px rgba(0,0,0,.12)',
+          animation: 'slideUp 0.2s ease',
+        }}>
+          {NAV_LINKS.map(l => (
+            <a key={l}
+              href={`#${l.toLowerCase().replace(/ /g,'-')}`}
+              onClick={() => setMenuOpen(false)}
+              style={{ fontFamily: "'Nunito',sans-serif", fontWeight: 700, fontSize: 15, color: textCol, textDecoration: 'none', padding: '10px 8px', borderRadius: 10 }}>
+              {l}
+            </a>
           ))}
+          <Link href="/guest" onClick={() => setMenuOpen(false)}
+            style={{ background: BLUE, color: '#fff', fontFamily: "'Baloo 2',sans-serif", fontWeight: 700, fontSize: 14, padding: '12px', borderRadius: 12, textDecoration: 'none', textAlign: 'center', marginTop: 8 }}>
+            Start Learning Free
+          </Link>
+        </div>
+      )}
+
+      {/* Responsive rules scoped to navbar */}
+      <style>{`
+        @media (max-width: 768px) {
+          .lp-nav-desktop { display: none !important; }
+          .lp-nav-cta     { display: none !important; }
+          .lp-hamburger   { display: flex !important; }
+        }
+        @media (max-width: 600px) { .lp-hero-grid { flex-direction: column !important; } }
+      `}</style>
+    </>
+  )
+}
+
+// ─── Hero ──────────────────────────────────────────────────────────────────────
+function HeroSection({ isDark }) {
+  const textCol = isDark ? '#F0F0FF' : '#1A1A2E'
+  const dimCol  = isDark ? 'rgba(240,240,255,.7)' : '#475569'
+
+  return (
+    <header style={{
+      minHeight: 680, maxHeight: 820,
+      paddingTop: 'clamp(100px,14vh,140px)', paddingBottom: 'clamp(60px,8vh,96px)',
+      position: 'relative', overflow: 'hidden',
+      background: isDark ? '#0D0D1A' : '#F8F9FF',
+    }}>
+      <FloatingSymbols />
+      <div style={{
+        maxWidth: 1400, margin: '0 auto',
+        padding: '0 clamp(24px,5vw,80px)',
+        position: 'relative', zIndex: 1,
+      }}>
+        <div className="lp-hero-grid" style={{ display: 'flex', alignItems: 'center', gap: 60 }}>
+
+          {/* Copy */}
+          <div style={{ flex: '1 1 480px', minWidth: 0 }}>
+            <h1 style={{
+              fontFamily:    "'Baloo 2',sans-serif",
+              fontSize:      'clamp(2.4rem,5vw,4rem)',
+              fontWeight:    800,
+              lineHeight:    1.1,
+              letterSpacing: '-0.02em',
+              color:         textCol,
+              marginBottom:  20,
+            }}>
+              Learning Maths<br />
+              Doesn&apos;t Have to<br />
+              Be{' '}
+              <span style={{ position: 'relative', display: 'inline-block', color: CORAL }}>
+                Boring.
+                <span style={{
+                  position: 'absolute', left: 0, right: 0, bottom: -4,
+                  height: 7, background: YELLOW, borderRadius: 4, opacity: .75,
+                }} />
+              </span>
+            </h1>
+
+            <p style={{
+              fontFamily:   "'Nunito',sans-serif",
+              fontSize:      18, lineHeight: 1.8,
+              color:         dimCol,
+              marginBottom:  32, maxWidth: 520,
+            }}>
+              MathsinBites breaks every concept into bite-sized lessons — step by step,
+              with visuals and relatable examples. Practice adapts from easy to hard,
+              so you learn at your own pace and actually understand — not just memorise.
+            </p>
+
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+              <Link href="/guest" className="opt-btn" style={{
+                background:     BLUE, color: '#fff',
+                fontFamily:     "'Baloo 2',sans-serif", fontWeight: 700, fontSize: 17,
+                padding:        '14px 36px', borderRadius: 50, textDecoration: 'none',
+                boxShadow:      '0 6px 0 rgba(0,0,0,.18)',
+              }}>Start Learning Free</Link>
+
+              {/* /demo is a public route — no auth middleware */}
+              <Link href="/demo" className="opt-btn" style={{
+                background:     'transparent', color: BLUE,
+                fontFamily:     "'Baloo 2',sans-serif", fontWeight: 700, fontSize: 17,
+                padding:        '14px 36px', borderRadius: 50, textDecoration: 'none',
+                border:         `2px solid ${BLUE}`,
+                boxShadow:      '0 4px 0 rgba(67,97,238,.2)',
+              }}>See How It Works</Link>
+            </div>
+          </div>
+
+          {/* Mascot */}
+          <div style={{ flex: '0 0 auto', display: 'flex', justifyContent: 'center' }}>
+            <MascotSlot pose="waving" width={420} height={480} />
+          </div>
         </div>
       </div>
+    </header>
+  )
+}
 
-      {/* ═══════════════════════════════════════════ WHY IT WORKS ═══ */}
-      <section id="why-it-works" className="lp-section" style={{ padding: '92px 6%', background: C.deep, position: 'relative', overflow: 'hidden' }}>
-        <FloatingSymbols dark />
-        <div style={{ textAlign: 'center', position: 'relative', zIndex: 2 }}>
-          <SectionTag>Why it works</SectionTag>
-          <h2 style={{ fontFamily: "'Fredoka One', sans-serif", fontSize: 'clamp(28px,4vw,46px)', lineHeight: 1.12, marginBottom: 14 }}>
-            Your child isn't bad at maths.<br />They've just been <span style={{ color: C.electric }}>bored.</span>
-          </h2>
-          <p style={{ fontSize: 'clamp(14px,1.6vw,17px)', color: C.dim, lineHeight: 1.8, fontWeight: 700, maxWidth: 560, margin: '0 auto' }}>
-            Nigerian students don't fail maths because they lack ability — they fail because lessons are too long,
-            too abstract, and too easy to abandon.
-          </p>
-        </div>
-        <div className="lp-why-grid" style={{
-          display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 18,
-          marginTop: 52, position: 'relative', zIndex: 2,
-        }}>
-          {[
-            { ico: '🎯', col: C.electric, title: 'One idea. Every lesson.', desc: 'Hook, clear explanation, worked example, then 5 sharp questions. Done in 5 minutes. No rabbit holes.' },
-            { ico: '🏆', col: C.gold,     title: 'Competition beats lectures', desc: 'Seeing a classmate at #1 is the most powerful motivator alive. Monthly resets mean anyone can reach the top.' },
-            { ico: '💡', col: C.coral,    title: 'Mistakes become teachers', desc: 'Every wrong answer reveals the full worked solution. So every mistake becomes a free teaching moment.' },
-            { ico: '📱', col: C.lav,      title: 'In sync with school', desc: 'Every lesson maps to the NERDC curriculum for your child\'s exact class and term. Always on topic.' },
-            { ico: '⚡', col: C.teal,     title: 'XP that feels earned', desc: '10 XP per lesson. Streak bonuses. Rare badges that take real effort. The app becomes the reward itself.' },
-            { ico: '🤔', col: C.orange,   title: 'Hints, not giveaways', desc: 'Stuck? Your mascot nudges you toward the method — never the answer. The struggle is where learning sticks.' },
-          ].map((card, i) => (
-            <div key={i} style={{
-              background: C.panel, border: `1.5px solid ${C.border}`,
-              borderRadius: 22, padding: '28px 22px',
-              borderTop: `4px solid ${card.col}`,
-              transition: 'transform .2s, border-color .2s',
-            }}>
-              <div style={{
-                width: 50, height: 50, borderRadius: 13,
-                background: `${card.col}18`, border: `1.5px solid ${card.col}30`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 22, marginBottom: 14,
-              }}>{card.ico}</div>
-              <div style={{ fontFamily: "'Fredoka One', sans-serif", fontSize: 16, color: C.chalk, marginBottom: 8 }}>{card.title}</div>
-              <p style={{ fontSize: 13, color: C.dim, lineHeight: 1.75, fontWeight: 700, margin: 0 }}>{card.desc}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════════ HOW IT WORKS ═══ */}
-      <section id="how-it-works" className="lp-section" style={{ padding: '92px 6%', background: C.paper, position: 'relative', overflow: 'hidden' }}>
-        <FloatingSymbols dark={false} />
-        <div style={{ textAlign: 'center', position: 'relative', zIndex: 2 }}>
-          <SectionTag color="#5C2EDD">How it works</SectionTag>
-          <h2 style={{ fontFamily: "'Fredoka One', sans-serif", fontSize: 'clamp(28px,4vw,44px)', color: C.ink, lineHeight: 1.12, marginBottom: 14 }}>
-            From sign-up to top of class in <span style={{ background: C.gold, color: C.ink, padding: '1px 10px 4px', borderRadius: 8, display: 'inline-block', transform: 'rotate(-1.2deg)' }}>4 simple steps</span>
-          </h2>
-          <p style={{ fontSize: 'clamp(14px,1.6vw,17px)', color: 'rgba(12,8,32,.55)', lineHeight: 1.8, fontWeight: 700, maxWidth: 540, margin: '0 auto' }}>
-            No setup. No tutorials. Create an account and you're learning in under 2 minutes.
-          </p>
-        </div>
-        <div className="lp-how-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16, marginTop: 52, position: 'relative', zIndex: 2 }}>
-          {[
-            { n: '1', t: 'Sign up free', d: 'Create your account, choose your class. Your full NERDC curriculum loads instantly.' },
-            { n: '2', t: 'Pick your vibe', d: '6 unique modes, each with its own mascot personality. Switch any time.' },
-            { n: '3', t: 'Learn in 5 mins', d: 'One concept. One worked example. Five questions. Finished before boredom arrives.' },
-            { n: '4', t: 'Rise up the ranks', d: 'Collect XP, build your streak, climb the national leaderboard toward #1.' },
-          ].map((s, i) => (
-            <div key={i} style={{
-              background: '#fff', border: '1.5px solid rgba(12,8,32,.1)',
-              borderRadius: 22, padding: '26px 18px', textAlign: 'center',
-              boxShadow: '0 4px 24px rgba(12,8,32,.06)',
-            }}>
-              <div style={{
-                width: 48, height: 48, borderRadius: '50%', margin: '0 auto 14px',
-                background: 'linear-gradient(135deg,#7C3AED,#4C1D95)', color: '#fff',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontFamily: "'Fredoka One', sans-serif", fontSize: 21,
-                boxShadow: '0 6px 20px rgba(92,46,221,.35)',
-              }}>{s.n}</div>
-              <div style={{ fontFamily: "'Fredoka One', sans-serif", fontSize: 15, color: C.ink, marginBottom: 8 }}>{s.t}</div>
-              <p style={{ fontSize: 12.5, color: 'rgba(12,8,32,.55)', lineHeight: 1.7, fontWeight: 700, margin: 0 }}>{s.d}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════════ MASCOTS SHOWCASE ═══ */}
-      <section id="mascots" className="lp-section" style={{ padding: '92px 6%', background: C.paper2, position: 'relative', overflow: 'hidden' }}>
-        <FloatingSymbols dark={false} />
-        <div style={{ textAlign: 'center', position: 'relative', zIndex: 2 }}>
-          <SectionTag color={C.orange}>Meet Your Mascots</SectionTag>
-          <h2 style={{ fontFamily: "'Fredoka One', sans-serif", fontSize: 'clamp(28px,4vw,44px)', color: C.ink, lineHeight: 1.12, marginBottom: 14 }}>
-            Your mascot. Your vibe.<br /><span style={{ color: '#5C2EDD' }}>Your rules.</span>
-          </h2>
-          <p style={{ fontSize: 'clamp(14px,1.6vw,17px)', color: 'rgba(12,8,32,.55)', lineHeight: 1.8, fontWeight: 700, maxWidth: 540, margin: '0 auto' }}>
-            Every student learns differently. Pick the mascot that matches your energy — they'll guide you through every lesson in their own unique voice.
-          </p>
-        </div>
-
-        {/* mode tabs */}
-        <div className="lp-mascot-tabs" style={{
-          display: 'grid', gridTemplateColumns: `repeat(${MODES_SHOWCASE.length},1fr)`,
-          gap: 8, maxWidth: 640, margin: '40px auto 20px',
-          position: 'relative', zIndex: 2,
-        }}>
-          {MODES_SHOWCASE.map(m => (
-            <button key={m.id} onClick={() => setActiveMode(m.id)} style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-              padding: '12px 6px', borderRadius: 16, cursor: 'pointer',
-              border: activeMode === m.id ? `1.5px solid ${m.accent}55` : '1.5px solid rgba(12,8,32,.1)',
-              background: activeMode === m.id ? `${m.accent}0D` : '#fff',
-              boxShadow: activeMode === m.id ? `0 3px 0 ${m.accent}33` : '0 3px 0 rgba(12,8,32,.1)',
-              transition: 'all .2s',
-            }}>
-              <span style={{ fontSize: 22 }}>{m.emoji}</span>
-              <span style={{ fontFamily: "'Fredoka One', sans-serif", fontSize: 10, color: C.ink }}>{m.label.replace(/[A-Z]/g, c => ' ' + c).trim().split(' ')[0]}</span>
-            </button>
-          ))}
-        </div>
-
-        {/* active mode panel */}
-        <div key={activeMode} className="mode-anim lp-mascot-card" style={{
-          maxWidth: 580, margin: '0 auto',
-          background: '#fff', borderRadius: 26, padding: '32px 28px',
-          border: `1.5px solid ${active.border}`,
-          boxShadow: `0 4px 0 ${active.accent}22`,
-          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14,
-          position: 'relative', zIndex: 2,
-        }}>
-          <div style={{
-            fontFamily: "'Fredoka One', sans-serif", fontSize: 13,
-            padding: '4px 16px', borderRadius: 99,
-            background: `${active.accent}12`, border: `1.5px solid ${active.accent}33`,
-            color: active.accent,
-          }}>{active.emoji} {active.label} · {active.sub}</div>
-
-          <div className="mascot-float">
-            <ActiveMascot size={120} pose="idle" />
-          </div>
-
-          <p style={{
-            background: C.paper2, border: `1.5px solid rgba(12,8,32,.1)`,
-            borderRadius: '16px 16px 16px 5px',
-            padding: '13px 18px', maxWidth: 420, textAlign: 'center',
-            fontSize: 13.5, fontWeight: 800, color: C.ink, lineHeight: 1.65, margin: 0,
-            fontStyle: 'italic',
-          }}>{active.quote}</p>
-        </div>
-
-        <div style={{ textAlign: 'center', marginTop: 28, position: 'relative', zIndex: 2 }}>
-          <Link href="/guest" style={{
-            background: C.electric, color: C.ink,
-            fontFamily: "'Fredoka One', sans-serif", fontSize: 16,
-            padding: '14px 36px', borderRadius: 14, textDecoration: 'none',
-            boxShadow: '0 6px 28px rgba(200,241,53,.3)',
-            display: 'inline-block',
-          }}>Pick your mascot &amp; start free →</Link>
-        </div>
-      </section>
-
-
-
-      {/* ═══════════════════════════════════════════ CTA ═══ */}
-      <section className="lp-section" style={{
-        padding: '100px 6%', textAlign: 'center', position: 'relative', overflow: 'hidden',
-        background: 'linear-gradient(145deg,#0C0820 0%,#1A0A4A 50%,#0D1F1E 100%)',
+// ─── Feature blob cards ────────────────────────────────────────────────────────
+function FeatureBlobCards({ isDark }) {
+  const textCol = isDark ? '#F0F0FF' : '#1A1A2E'
+  return (
+    <Section id="features" bg={isDark ? '#111128' : '#fff'}>
+      <H2 center style={{ color: textCol }}>Everything You Need to Actually Get Maths.</H2>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))',
+        gap: 28,
       }}>
-        <div style={{
-          position: 'absolute', inset: 0, pointerEvents: 'none',
-          background: 'radial-gradient(ellipse 60% 60% at 50% 50%,rgba(200,241,53,.07) 0%,transparent 60%)',
-        }} />
-        <FloatingSymbols dark />
-
-        <div className="mascot-float" style={{ display: 'inline-block', marginBottom: 24, position: 'relative', zIndex: 2 }}>
-          <KolaNova size={96} pose="idle" />
-        </div>
-
-        <h2 style={{
-          fontFamily: "'Fredoka One', sans-serif",
-          fontSize: 'clamp(28px,5vw,52px)', color: C.chalk,
-          marginBottom: 16, position: 'relative', zIndex: 2, lineHeight: 1.1,
-        }}>
-          The maths story changes <span style={{ color: C.electric }}>right now.</span>
-        </h2>
-        <p style={{
-          fontSize: 'clamp(15px,1.8vw,18px)', color: C.dim,
-          maxWidth: 500, margin: '0 auto 36px', fontWeight: 700, lineHeight: 1.8,
-          position: 'relative', zIndex: 2,
-        }}>
-          No expensive tutors. No confusing textbooks. Just 5 focused minutes a day
-          and a mascot that refuses to let your child give up.
-        </p>
-        <div className="lp-cta-btns" style={{ display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap', position: 'relative', zIndex: 2 }}>
-          <Link href="/guest" style={{
-            background: C.electric, color: C.ink,
-            fontFamily: "'Fredoka One', sans-serif", fontSize: 19,
-            padding: '17px 46px', borderRadius: 16, textDecoration: 'none',
-            boxShadow: '0 6px 40px rgba(200,241,53,.35)',
-          }}>🚀 Create your free account</Link>
-          <Link href="/auth/login" style={{
-            background: 'rgba(255,255,255,.07)', color: C.chalk,
-            fontWeight: 800, fontSize: 15,
-            padding: '15px 28px', borderRadius: 16, textDecoration: 'none',
-            border: '1.5px solid rgba(165,153,255,.25)',
-          }}>Already have an account →</Link>
-        </div>
-        <div style={{ marginTop: 20, fontSize: 12, color: C.dim2, fontWeight: 700, position: 'relative', zIndex: 2 }}>
-          Free to start &nbsp;·&nbsp; No credit card &nbsp;·&nbsp; 🇳🇬 Made in Nigeria, for Nigeria
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════════ FOOTER ═══ */}
-      <footer style={{ background: C.ink, padding: '48px 6% 28px', borderTop: `1px solid ${C.border}` }}>
-        <div className="lp-footer-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 40, marginBottom: 36 }}>
-          <div className="lp-footer-brand">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10 }}>
-              <BiteMarkIcon size={26} />
-              <span style={{ fontFamily: "'Fredoka One', sans-serif", fontSize: 18, color: C.chalk }}>
-                Maths<span style={{ color: C.electric }}>In</span>Bites
-              </span>
-            </div>
-            <p style={{ fontSize: 13, color: C.dim2, fontWeight: 700, lineHeight: 1.75, maxWidth: 240 }}>
-              Nigeria's bite-sized maths learning platform. Built for JSS1 to SS3.
-            </p>
+        {FEATURES.map((f, i) => (
+          <div key={f.title} className="card-hover" style={{
+            borderRadius: 24, padding: '36px 32px',
+            background:   f.bg, color: f.text,
+            animation:    `slideUp 0.25s ease ${i * 0.1}s both`,
+            position:     'relative', overflow: 'hidden',
+          }}>
+            {/* Blob shape glow */}
+            <div aria-hidden style={{
+              position: 'absolute', top: -40, right: -40,
+              width: 120, height: 120, borderRadius: '50%',
+              background: 'rgba(255,255,255,.12)',
+            }} />
+            <h3 style={{ fontFamily: "'Baloo 2',sans-serif", fontSize: 20, fontWeight: 800, marginBottom: 12, marginTop: 0 }}>{f.title}</h3>
+            <p style={{ fontFamily: "'Nunito',sans-serif", fontSize: 15, lineHeight: 1.8, margin: '0 0 20px' }}>{f.desc}</p>
+            <a href="#how-it-works" style={{ fontFamily: "'Nunito',sans-serif", fontWeight: 800, fontSize: 14, color: f.text, opacity: .8, textDecoration: 'none' }}>
+              Read More →
+            </a>
           </div>
-          {[
-            { h: 'Learn',   links: [['Dashboard', '/learn'], ['Sign up free', '/auth/signup']] },
-            { h: 'Company', links: [['About us', '/about'], ['Contact', '/contact']] },
-            { h: 'Legal',   links: [['Privacy', '/privacy'], ['Terms', '/terms']] },
-          ].map(col => (
-            <div key={col.h}>
-              <h4 style={{ fontSize: 10, fontWeight: 900, color: C.dim2, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 14 }}>{col.h}</h4>
+        ))}
+      </div>
+    </Section>
+  )
+}
+
+// ─── How it works ─────────────────────────────────────────────────────────────
+function HowItWorks({ isDark }) {
+  const bg      = isDark ? '#0D0D1A' : '#F8F9FF'
+  const textCol = isDark ? '#F0F0FF' : '#1A1A2E'
+  const dimCol  = isDark ? 'rgba(240,240,255,.65)' : '#475569'
+
+  return (
+    <Section id="how-it-works" bg={bg}>
+      <H2 center style={{ color: textCol }}>Learning Maths, The Fun Way.</H2>
+      <div style={{ display: 'flex', gap: 48, flexWrap: 'wrap', justifyContent: 'center' }}>
+        {STEPS.map((s, i) => (
+          <div key={s.num} style={{ display: 'flex', alignItems: 'center' }}>
+            {/* Step card */}
+            <div style={{ position: 'relative', maxWidth: 320, textAlign: 'center', padding: '0 16px' }}>
+              {/* Big decorative number */}
+              <div aria-hidden style={{
+                position: 'absolute', top: -20, left: '50%', transform: 'translateX(-50%)',
+                fontFamily: "'Bangers',sans-serif", fontSize: 120, fontWeight: 400,
+                color: BLUE, opacity: .07, lineHeight: 1, userSelect: 'none',
+                pointerEvents: 'none',
+              }}>{s.num}</div>
+
+              {/* Badge */}
+              <div style={{
+                display:        'inline-flex', alignItems: 'center', justifyContent: 'center',
+                width: 40, height: 40, borderRadius: '50%',
+                background:     BLUE, color: '#fff',
+                fontFamily:     "'Baloo 2',sans-serif", fontWeight: 800, fontSize: 16,
+                marginBottom:   20, position: 'relative', zIndex: 1,
+                boxShadow:      '0 4px 12px rgba(67,97,238,.35)',
+              }}>{i + 1}</div>
+
+              <h3 style={{ fontFamily: "'Baloo 2',sans-serif", fontSize: 22, fontWeight: 800, color: textCol, marginBottom: 12, marginTop: 0 }}>{s.title}</h3>
+              <p style={{ fontFamily: "'Nunito',sans-serif", fontSize: 15, lineHeight: 1.8, color: dimCol, margin: 0 }}>{s.desc}</p>
+            </div>
+
+            {/* Dotted connector (not after last) */}
+            {i < STEPS.length - 1 && (
+              <div aria-hidden style={{
+                width: 48, height: 0, flexShrink: 0, alignSelf: 'flex-start', marginTop: 60,
+                borderTop: `2px dashed ${BLUE}30`,
+              }} className="lp-step-connector" />
+            )}
+          </div>
+        ))}
+      </div>
+      <style>{`.lp-step-connector{} @media(max-width:700px){.lp-step-connector{display:none!important}}`}</style>
+    </Section>
+  )
+}
+
+// ─── About ────────────────────────────────────────────────────────────────────
+function AboutSection({ isDark }) {
+  const bg      = isDark ? '#111128' : '#fff'
+  const textCol = isDark ? '#F0F0FF' : '#1A1A2E'
+  const dimCol  = isDark ? 'rgba(240,240,255,.65)' : '#475569'
+  const bullets = [
+    { col: BLUE,   text: 'Visual explanations for every concept' },
+    { col: MINT,   text: 'Practice adapts — easy to medium to hard' },
+    { col: YELLOW, text: 'Progress that builds real confidence over time' },
+  ]
+  return (
+    <Section bg={bg}>
+      <div style={{ display: 'flex', gap: 64, alignItems: 'center', flexWrap: 'wrap' }}>
+        {/* Mascot */}
+        <div style={{ flex: '0 0 auto' }}>
+          <MascotSlot pose="focused" width={320} height={360} />
+        </div>
+
+        {/* Text */}
+        <div style={{ flex: '1 1 360px', minWidth: 0 }}>
+          <h2 style={{ fontFamily: "'Baloo 2',sans-serif", fontSize: 'clamp(1.8rem,3.5vw,2.4rem)', fontWeight: 800, letterSpacing: '-0.02em', color: textCol, marginBottom: 20, marginTop: 0 }}>
+            Students Learn.<br />Not Just Cram.
+          </h2>
+          <p style={{ fontFamily: "'Nunito',sans-serif", fontSize: 16, lineHeight: 1.8, color: dimCol, marginBottom: 32, marginTop: 0 }}>
+            MathsinBites builds real understanding from the ground up. Each lesson connects to the next —
+            and practice adapts to your performance so you always improve at just the right pace.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 36 }}>
+            {bullets.map(b => (
+              <div key={b.text} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ width: 11, height: 11, borderRadius: '50%', background: b.col, flexShrink: 0 }} />
+                <span style={{ fontFamily: "'Nunito',sans-serif", fontWeight: 700, fontSize: 15, color: textCol }}>{b.text}</span>
+              </div>
+            ))}
+          </div>
+          <Link href="/guest" className="opt-btn" style={{
+            display: 'inline-flex', alignItems: 'center',
+            background: BLUE, color: '#fff',
+            fontFamily: "'Baloo 2',sans-serif", fontWeight: 700, fontSize: 16,
+            padding: '13px 32px', borderRadius: 50, textDecoration: 'none',
+            boxShadow: '0 5px 0 rgba(0,0,0,.16)',
+          }}>Start Learning Free →</Link>
+        </div>
+      </div>
+    </Section>
+  )
+}
+
+// ─── Topic cards ───────────────────────────────────────────────────────────────
+function TopicCards({ isDark }) {
+  const bg      = isDark ? '#0D0D1A' : '#F8F9FF'
+  const cardBg  = isDark ? '#161627' : '#fff'
+  const textCol = isDark ? '#F0F0FF' : '#1A1A2E'
+  const dimCol  = isDark ? 'rgba(240,240,255,.5)' : '#64748b'
+  const borderC = isDark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.08)'
+
+  return (
+    <Section id="topics" bg={bg}>
+      <H2 center style={{ color: textCol }}>Explore Topics by Class Level.</H2>
+      <p style={{ fontFamily: "'Nunito',sans-serif", fontSize: 17, lineHeight: 1.8, color: dimCol, textAlign: 'center', marginTop: -28, marginBottom: 48 }}>
+        From JSS1 to SS3 — every topic, every class, all in one place.
+      </p>
+
+      {/* Horizontal scroll on mobile, grid on desktop */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))',
+        gap: 24,
+      }} className="lp-topic-grid">
+        {TOPICS.map(t => {
+          const diff = DIFF[t.difficulty]
+          return (
+            <div key={t.topic} className="card-hover" style={{
+              background:   cardBg,
+              borderRadius: 20,
+              border:       `1.5px solid ${borderC}`,
+              overflow:     'hidden',
+              boxShadow:    isDark ? '0 2px 12px rgba(0,0,0,.35)' : '0 2px 12px rgba(0,0,0,.06)',
+            }}>
+              {/* Colour band */}
+              <div style={{ height: 8, background: t.color }} />
+              <div style={{ padding: '24px 24px 20px' }}>
+                <h3 style={{ fontFamily: "'Baloo 2',sans-serif", fontSize: 17, fontWeight: 800, color: textCol, marginBottom: 12, marginTop: 0 }}>{t.topic}</h3>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+                  <span style={{ fontFamily: "'Nunito',sans-serif", fontWeight: 800, fontSize: 12, padding: '3px 10px', borderRadius: 999, background: isDark ? 'rgba(255,255,255,.1)' : '#f1f5f9', color: dimCol }}>{t.level}</span>
+                  <span style={{ fontFamily: "'Nunito',sans-serif", fontWeight: 800, fontSize: 12, padding: '3px 10px', borderRadius: 999, background: diff.bg, color: diff.text }}>{t.difficulty}</span>
+                </div>
+                {/* All topic cards link to /demo (public route) */}
+                <Link href="/demo" style={{ fontFamily: "'Nunito',sans-serif", fontWeight: 800, fontSize: 14, color: t.color, textDecoration: 'none' }}>
+                  Start Lesson →
+                </Link>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </Section>
+  )
+}
+
+// ─── Exam prep ─────────────────────────────────────────────────────────────────
+function ExamPrepSection() {
+  return (
+    <section id="exam-prep" style={{ background: BLUE }}>
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: 'clamp(64px,8vh,100px) clamp(24px,5vw,80px)' }}>
+        <div style={{ display: 'flex', gap: 48, alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* Text */}
+          <div style={{ flex: '1 1 400px', minWidth: 0 }}>
+            <h2 style={{ fontFamily: "'Baloo 2',sans-serif", fontSize: 'clamp(1.8rem,4vw,2.8rem)', fontWeight: 800, letterSpacing: '-0.02em', color: '#fff', marginBottom: 20, marginTop: 0 }}>
+              WAEC. JAMB. BECE.<br />We&apos;ve Got You Covered.
+            </h2>
+            <p style={{ fontFamily: "'Nunito',sans-serif", fontSize: 17, lineHeight: 1.8, color: 'rgba(255,255,255,.9)', marginBottom: 36, marginTop: 0 }}>
+              Activate Exam Mode and practice past questions topic by topic.
+              See exactly where you&apos;re strong and where to focus.
+              Walk into your exam confident and ready.
+            </p>
+            <Link href="/guest" className="opt-btn" style={{
+              display: 'inline-flex', alignItems: 'center',
+              background: YELLOW, color: '#1A1A2E',
+              fontFamily: "'Baloo 2',sans-serif", fontWeight: 700, fontSize: 17,
+              padding: '14px 36px', borderRadius: 50, textDecoration: 'none',
+              boxShadow: '0 5px 0 rgba(0,0,0,.18)',
+            }}>Activate Exam Mode</Link>
+          </div>
+
+          {/* Mascot */}
+          <div style={{ flex: '0 0 auto', display: 'flex', justifyContent: 'center' }}>
+            <MascotSlot pose="thumbsup" width={300} height={340} style={{ background: 'rgba(255,255,255,.1)' }} />
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ─── Testimonials ──────────────────────────────────────────────────────────────
+function Testimonials({ isDark }) {
+  const bg      = isDark ? '#111128' : '#fff'
+  const cardBg  = isDark ? '#1A1A2E' : '#fff'
+  const textCol = isDark ? '#F0F0FF' : '#1A1A2E'
+  const dimCol  = isDark ? 'rgba(240,240,255,.5)' : '#94a3b8'
+  const borderC = isDark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.08)'
+
+  return (
+    <Section bg={bg}>
+      <H2 center style={{ color: textCol }}>Students Who Actually Get It Now.</H2>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 28 }}>
+        {TESTIMONIALS.map((t, i) => (
+          <div key={i} className="card-hover" style={{
+            background: cardBg, borderRadius: 20, padding: '32px',
+            border: `1.5px solid ${borderC}`,
+            boxShadow: isDark ? '0 2px 16px rgba(0,0,0,.35)' : '0 4px 24px rgba(0,0,0,.06)',
+          }}>
+            <div style={{ color: YELLOW, fontSize: 18, marginBottom: 16, letterSpacing: 2 }}>★★★★★</div>
+            <blockquote style={{ fontFamily: "'Nunito',sans-serif", fontStyle: 'italic', fontSize: 16, lineHeight: 1.8, color: isDark ? 'rgba(240,240,255,.85)' : '#334155', marginBottom: 20, margin: '0 0 20px' }}>
+              &ldquo;{t.quote}&rdquo;
+            </blockquote>
+            <div style={{ fontFamily: "'Baloo 2',sans-serif", fontWeight: 800, fontSize: 16, color: textCol }}>{t.name}</div>
+            <div style={{ fontFamily: "'Nunito',sans-serif", fontSize: 13, color: dimCol, marginTop: 2 }}>{t.detail}</div>
+          </div>
+        ))}
+      </div>
+    </Section>
+  )
+}
+
+// ─── Final CTA ─────────────────────────────────────────────────────────────────
+function FinalCTA({ isDark }) {
+  const bg      = isDark ? '#0D0D1A' : '#F8F9FF'
+  const textCol = isDark ? '#F0F0FF' : '#1A1A2E'
+  const dimCol  = isDark ? 'rgba(240,240,255,.6)' : '#64748b'
+  return (
+    <Section bg={bg} style={{ textAlign: 'center' }}>
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 32 }}>
+        <MascotSlot pose="celebrating" width={300} height={340} />
+      </div>
+      <H2 center style={{ color: textCol, marginBottom: 16 }}>Your Best Maths Results Start Here.</H2>
+      <p style={{ fontFamily: "'Nunito',sans-serif", fontSize: 18, lineHeight: 1.8, color: dimCol, marginBottom: 40, maxWidth: 520, margin: '0 auto 40px' }}>
+        Join thousands of Nigerian students learning smarter — one bite at a time.
+      </p>
+      <Link href="/guest" className="opt-btn" style={{
+        display: 'inline-flex', alignItems: 'center',
+        background: BLUE, color: '#fff',
+        fontFamily: "'Baloo 2',sans-serif", fontWeight: 700, fontSize: 18,
+        padding: '18px 48px', borderRadius: 50, textDecoration: 'none',
+        boxShadow: '0 6px 0 rgba(0,0,0,.18)',
+      }}>Start Learning Free — It&apos;s 100% Free</Link>
+      <div style={{ fontFamily: "'Nunito',sans-serif", fontSize: 13, color: dimCol, marginTop: 16 }}>
+        No credit card · No sign-up fee · Just learning
+      </div>
+    </Section>
+  )
+}
+
+// ─── Footer ────────────────────────────────────────────────────────────────────
+function Footer({ isDark }) {
+  const bg     = isDark ? '#0D0D1A' : '#1A1A2E'
+  const dimCol = 'rgba(255,255,255,.6)'
+
+  const cols = [
+    { heading: 'Quick Links', links: [['Home','/'],['Features','#features'],['How It Works','#how-it-works'],['Exam Prep','#exam-prep'],['Contact','/contact']] },
+    { heading: 'Support',     links: [['Privacy Policy','/privacy'],['Terms','/terms'],['FAQ','/faq']] },
+  ]
+
+  return (
+    <footer style={{ background: bg, paddingTop: 64, paddingBottom: 40 }}>
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 clamp(24px,5vw,80px)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 48, marginBottom: 48 }}>
+
+          {/* Brand */}
+          <div>
+            <div style={{ fontFamily: "'Baloo 2',sans-serif", fontSize: 22, fontWeight: 900, marginBottom: 12 }}>
+              <span style={{ color: BLUE }}>Maths</span><span style={{ color: CORAL }}>in</span><span style={{ color: '#fff' }}>Bites</span>
+            </div>
+            <p style={{ fontFamily: "'Nunito',sans-serif", fontSize: 14, color: dimCol, lineHeight: 1.75, marginBottom: 20, maxWidth: 240, marginTop: 0 }}>
+              Learning maths, one bite at a time.
+            </p>
+            {/* Social icon placeholders */}
+            <div style={{ display: 'flex', gap: 10 }}>
+              {['𝕏', 'in', 'yt', 'ig'].map(s => (
+                <div key={s} style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(255,255,255,.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Nunito,sans-serif', fontSize: 12, fontWeight: 800, color: 'rgba(255,255,255,.5)', cursor: 'pointer' }}>{s}</div>
+              ))}
+            </div>
+          </div>
+
+          {/* Link columns */}
+          {cols.map(col => (
+            <div key={col.heading}>
+              <h4 style={{ fontFamily: "'Baloo 2',sans-serif", fontWeight: 800, fontSize: 13, color: 'rgba(255,255,255,.4)', letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 16, marginTop: 0 }}>{col.heading}</h4>
               {col.links.map(([label, href]) => (
-                <Link key={label} href={href} style={{ display: 'block', fontSize: 13, color: C.dim, textDecoration: 'none', fontWeight: 700, marginBottom: 9 }}>{label}</Link>
+                <Link key={label} href={href} style={{ display: 'block', fontFamily: "'Nunito',sans-serif", fontWeight: 600, fontSize: 14, color: dimCol, textDecoration: 'none', marginBottom: 10, transition: 'color .15s' }}>{label}</Link>
               ))}
             </div>
           ))}
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: `1px solid ${C.border}`, paddingTop: 22, flexWrap: 'wrap', gap: 10 }}>
-          <p style={{ fontSize: 12, color: C.dim2, fontWeight: 700 }}>© 2025 MathsInBites. All rights reserved.</p>
-          <div style={{ fontSize: 12, color: C.dim2, fontWeight: 700 }}>🇳🇬 Proudly built in Nigeria · Serving all 36 states</div>
+
+        {/* Bottom bar */}
+        <div style={{ borderTop: '1px solid rgba(255,255,255,.1)', paddingTop: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+          <p style={{ fontFamily: "'Nunito',sans-serif", fontSize: 14, color: dimCol, margin: 0 }}>© 2026 MathsinBites · Built for Nigerian students</p>
+          <p style={{ fontFamily: "'Nunito',sans-serif", fontSize: 13, color: 'rgba(255,255,255,.35)', margin: 0 }}>🇳🇬 Made in Nigeria</p>
         </div>
-      </footer>
+      </div>
+    </footer>
+  )
+}
+
+// ─── Main export ───────────────────────────────────────────────────────────────
+export default function LandingPage() {
+  const [isDark, setIsDark] = useState(false)
+
+  return (
+    <div style={{
+      background: isDark ? '#0D0D1A' : '#F8F9FF',
+      color:      isDark ? '#F0F0FF' : '#1A1A2E',
+      transition: 'background 0.3s ease, color 0.3s ease',
+    }}>
+      <Navbar        isDark={isDark} toggleDark={() => setIsDark(d => !d)} />
+
+      {/* Spacer for fixed navbar */}
+      <div style={{ height: 64 }} aria-hidden />
+
+      <HeroSection    isDark={isDark} />
+      <FeatureBlobCards isDark={isDark} />
+      <HowItWorks     isDark={isDark} />
+      <AboutSection   isDark={isDark} />
+      <TopicCards     isDark={isDark} />
+      <ExamPrepSection />
+      <Testimonials   isDark={isDark} />
+      <FinalCTA       isDark={isDark} />
+      <Footer         isDark={isDark} />
     </div>
   )
 }
