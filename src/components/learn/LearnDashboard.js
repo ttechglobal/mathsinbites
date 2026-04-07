@@ -11,7 +11,6 @@ import ModePicker from '@/components/ModePicker'
 import ProfileSwitcher from '@/components/ProfileSwitcher'
 import WelcomeScreen from '@/components/WelcomeScreen'
 import SubjectSwitcher from '@/components/learn/SubjectSwitcher'
-import PuzzleMode from '@/components/learn/PuzzleMode'
 
 // ── Educational SVG icon system ─────────────────────────────────────────────
 // Clean, academic, consistent — no emojis anywhere
@@ -137,6 +136,7 @@ function EduIcon({ id, size = 20, color = 'currentColor', style: extraStyle }) {
 }
 // Alias for backwards compat
 const TabIcon = EduIcon
+
 
 function MathFloats({ M }) {
   const syms = M?.floatSyms || ['x²', '∑', 'π', '√', '∫', 'θ', '∞', '±', 'Δ']
@@ -268,7 +268,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
   const [activeTab,       setActiveTab]       = useState(() => {
     // Allow external navigation to open a specific tab: /learn?tab=learn
     const t = searchParams?.get('tab')
-    return ['home','learn','practice','challenge','rank','leaderboard','profile'].includes(t) ? t : 'home'
+    return ['home','learn','practice','rank','leaderboard','profile'].includes(t) ? t : 'home'
   })
   const [showModePicker,  setShowModePicker]  = useState(false)
   const [showSwitcher,    setShowSwitcher]    = useState(false)
@@ -629,11 +629,10 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
     { id: 'leaderboard', icon: 'leaderboard', label: 'Leaderboard' },
     { id: 'profile',     icon: 'profile',     label: 'Profile'     },
   ] : [
-    { id: 'learn',    icon: 'learn',    label: 'Learn'   },
-    { id: 'practice', icon: 'practice', label: 'Practice'},
-    { id: 'challenge',icon: 'challenge',label: 'Puzzles' },
+    { id: 'learn',    icon: 'learn',       label: 'Learn'       },
+    { id: 'practice', icon: 'practice',    label: 'Practice'    },
     { id: 'rank',     icon: 'leaderboard', label: 'Leaderboard' },
-    { id: 'profile',  icon: 'profile',  label: 'Profile' },
+    { id: 'profile',  icon: 'profile',     label: 'Profile'     },
   ]
 
 
@@ -826,9 +825,6 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
         }
 
         if (allDone) topicsCompletedCount++
-        if (topicsCompletedCount > 0 && topicsCompletedCount % 3 === 0 && allDone) {
-          pathItems.push({ kind: 'challenge', tAccent, topicsCompletedCount })
-        }
       })
     })
   })
@@ -1075,7 +1071,7 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
                         return (
                           <div key={m} style={{ textAlign:'center', flex: i === 0 || i === milestones.length-1 ? '0 0 auto' : 1 }}>
                             <div style={{ width:10, height:10, borderRadius:'50%', background:reached?(readinessLevel(pct).color):'rgba(0,0,0,0.1)', border:`2px solid ${reached?readinessLevel(pct).color:'rgba(0,0,0,0.12)'}`, margin:'0 auto 3px', transition:'all 0.6s' }} />
-                            <div style={{ fontSize:8, fontWeight:700, color:reached?readinessLevel(pct).color:bodyColor, fontFamily:'Nunito, sans-serif' }}>{labels[i]}</div>
+                            <div style={{ fontSize:8, fontWeight:700, color:reached?readinessLevel(pct).color:bodyColor, fontFamily:'Nunito, sans-serif' }}>{label}</div>
                           </div>
                         )
                       })}
@@ -1174,15 +1170,14 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
               </div>
             </div>
           ) : (
-            /* School mode: 4-card quick access grid */
+            /* School mode: 3-card quick access grid */
             <div style={{ marginBottom:14 }}>
               <div style={{ fontSize:10, fontWeight:900, color:bodyColor, textTransform:'uppercase', letterSpacing:1.2, fontFamily:'Nunito, sans-serif', marginBottom:10 }}>Quick Access</div>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10 }}>
                 {[
-                  { tab:'practice',  icon:'pencil', color:'#3b82f6', label:'Practice',  desc:'Sharpen your skills' },
-                  { tab:'challenge', icon:'puzzle',  color:'#f59e0b', label:'Puzzles',   desc:'Daily brain boost'  },
-                  { tab:'rank',      icon:'leaderboard', color:'#a855f7', label:'Leaderboard', desc:'See how you rank'   },
-                  { tab:'learn',     icon:'book',    color:accent,    label:'Lessons',   desc:'Continue learning'  },
+                  { tab:'practice',  icon:'pencil',      color:'#3b82f6', label:'Practice',    desc:'Sharpen your skills' },
+                  { tab:'rank',      icon:'leaderboard', color:'#a855f7', label:'Leaderboard', desc:'See how you rank'    },
+                  { tab:'learn',     icon:'book',        color:accent,    label:'Lessons',     desc:'Continue learning'   },
                 ].map(card => (
                   <button key={card.tab} onClick={() => setActiveTab(card.tab)} className="mib-press"
                     style={{ padding:'14px 12px', background: isNova?'rgba(255,255,255,0.07)':'#fff', border:`1px solid ${isNova?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)'}`, borderRadius:18, cursor:'pointer', textAlign:'left', boxShadow:'0 2px 10px rgba(0,0,0,0.05)' }}>
@@ -1719,21 +1714,6 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
               )
             }
 
-            // ── CHALLENGE BADGE ──
-            if (item.kind === 'challenge') {
-              return (
-                <div key={`challenge-${item.topicsCompletedCount}`} style={{ display: 'flex', justifyContent: 'center', padding: '24px 0', position: 'relative', zIndex: 2 }}>
-                  <button onClick={() => router.push('/learn/challenge')} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 76, height: 76, borderRadius: 24, background: 'linear-gradient(135deg,#FFD700 0%,#FF8C00 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 0 10px rgba(255,180,0,0.12), 0 10px 32px rgba(255,140,0,0.48)', animation: 'float 3s ease-in-out infinite' }}><EduIcon id='trophy' size={34} color='#fff' /></div>
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: 14, fontWeight: 900, color: '#A06000', fontFamily: 'Nunito, sans-serif' }}>Challenge Unlocked!</div>
-                      <div style={{ fontSize: 10, color: bodyColor, fontFamily: 'Nunito, sans-serif', fontWeight: 600 }}>Mixed topics · Earn bonus XP</div>
-                    </div>
-                  </button>
-                </div>
-              )
-            }
-
             return null
           })}
 
@@ -1895,7 +1875,6 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
   // PRACTICE TAB — single entry point, navigates to /learn/practice
   // ══════════════════════════════════════════════════════════════════════════
   // Practice greeting rotates daily
-
 
   // ── Route to correct tab based on mode ───────────────────────────────────
   const LearnTab = isExamMode ? ExamLearnTab : SchoolLearnTab
@@ -2306,7 +2285,6 @@ export default function LearnDashboard({ student: initialStudent, allStudents = 
             {[
               { icon:'book',   label:'Complete a lesson',   pts:'+1–10 XP', color:'#22c55e' },
               { icon:'pencil', label:'Practice questions',  pts:'+3 XP',    color:'#3b82f6' },
-              { icon:'puzzle', label:'Solve a puzzle',      pts:'+3 XP',    color:'#f59e0b' },
               { icon:'flame',  label:'Daily login streak',  pts:'+1 XP/day',color:'#ef4444' },
             ].map((item, i, arr) => (
               <div key={item.label} style={{ display:'flex', alignItems:'center', gap:12, padding:'9px 0', borderBottom: i<arr.length-1?`1px solid ${isNova?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.05)'}`:undefined }}>
@@ -2889,7 +2867,6 @@ const RightPanel = isDesktop ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {[
             { iconId: 'practice',    label: 'Practice Questions', tab: 'practice',    color: accent },
-            { iconId: 'challenge',   label: 'Daily Challenge',    tab: 'challenge',   color: '#FF9500' },
             { iconId: 'leaderboard', label: 'Leaderboard',         tab: 'rank',        color: accent    },
           ].map(a => (
             <button key={a.tab} onClick={() => setActiveTab(a.tab)}
@@ -2963,7 +2940,6 @@ const RightPanel = isDesktop ? (
           {activeTab === 'home'        && HomeTab}
           {activeTab === 'learn'       && LearnTab}
           {activeTab === 'practice'    && <div style={{ height: '100%', overflowY: 'auto' }}>{PracticeTab}</div>}
-          {activeTab === 'challenge'   && !isExamMode && <div style={{ height: '100%', overflowY: 'auto' }}>{ChallengeTab}</div>}
           {activeTab === 'rank'        && !isExamMode && <div style={{ height: '100%', overflowY: 'auto' }}>{RankTab}</div>}
           {activeTab === 'leaderboard' && isExamMode  && <div style={{ height: '100%', overflowY: 'auto' }}>{LeaderboardTab}</div>}
           {activeTab === 'profile'     && <div style={{ height: '100%', overflowY: 'auto' }}>{ProfileTab}</div>}

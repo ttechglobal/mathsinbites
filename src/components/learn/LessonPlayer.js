@@ -310,11 +310,13 @@ function MascotSpeech({ text, accent, M, pose = 'happy' }) {
       </div>
       <div style={{
         flex: 1, minWidth: 0,
-        background: M.lessonCard, border: `1.5px solid ${accent}28`,
+        background: M.lessonCard,
+        border: `1.5px solid ${accent}40`,
         borderRadius: '16px 16px 16px 4px',
-        padding: '10px 14px',
-        fontSize: 13, fontWeight: 700, color: M.textPrimary,
+        padding: '11px 15px',
+        fontSize: 13.5, fontWeight: 700, color: M.textPrimary,
         lineHeight: 1.55, fontFamily: 'Nunito, sans-serif',
+        boxShadow: `0 3px 12px ${accent}14`,
       }}>
         <MathText text={text} />
       </div>
@@ -340,33 +342,29 @@ function BackBtn({ onBack, isFirst }) {
 // ── Shared: bottom nav bar (Back + Next side by side) ────────────────────────
 function BottomBar({ onNext, onBack, isFirst, label = 'Next →', accent, M }) {
   return (
-    <div style={{ paddingTop: 14, paddingBottom: 'max(16px, env(safe-area-inset-bottom))', flexShrink: 0, display: 'flex', gap: 10 }}>
+    <div style={{ paddingTop: 14, paddingBottom: 'max(18px, env(safe-area-inset-bottom))', flexShrink: 0, display: 'flex', gap: 10 }}>
       {!isFirst && (
-        <button onClick={onBack} style={{
+        <button onClick={onBack} className="lp-next-btn" style={{
           flex: '0 0 52px', padding: '15px 0', borderRadius: 14,
           border: `1.5px solid ${M.progressTrack}`,
           background: 'transparent', cursor: 'pointer',
-          fontSize: 17, color: M.textSecondary,
+          fontSize: 18, color: M.textSecondary,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          transition: 'background 0.15s',
         }}>←</button>
       )}
       <button
         onClick={onNext}
+        className="lp-next-btn"
         style={{
-          flex: 1, padding: '16px',
-          borderRadius: 14, border: 'none',
+          flex: 1, padding: '17px',
+          borderRadius: 16, border: 'none',
           background: `linear-gradient(135deg, ${accent}, ${accent}CC)`,
           color: '#fff', fontSize: 17, fontWeight: 900,
           cursor: 'pointer', fontFamily: 'Nunito, sans-serif',
-          boxShadow: `0 5px 20px ${accent}40`,
+          boxShadow: `0 6px 24px ${accent}45`,
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-          transition: 'transform 0.1s',
+          letterSpacing: 0.2,
         }}
-        onMouseDown={e => e.currentTarget.style.transform='scale(0.98)'}
-        onMouseUp={e => e.currentTarget.style.transform='scale(1)'}
-        onTouchStart={e => e.currentTarget.style.transform='scale(0.98)'}
-        onTouchEnd={e => e.currentTarget.style.transform='scale(1)'}
       >
         {label}
       </button>
@@ -953,13 +951,20 @@ function BitePractice({ bite, accent, M, onNext, onBack, isFirst, onCorrect, sup
           const isSel  = picked === opt
           const shown  = picked !== null
           let bg = 'transparent', border = M.progressTrack, color = M.textPrimary
-          if (shown && isCor)           { bg = 'rgba(34,197,94,0.1)';  border = '#22c55e'; color = '#16a34a' }
-          if (shown && isSel && !isCor) { bg = 'rgba(239,68,68,0.08)'; border = '#EF4444'; color = '#DC2626' }
-          if (!shown && isSel)          { bg = `${accent}12`;          border = accent;    color = accent    }
+          if (shown && isCor)           { bg = 'rgba(34,197,94,0.12)';  border = '#22c55e'; color = '#16a34a' }
+          if (shown && isSel && !isCor) { bg = 'rgba(239,68,68,0.10)'; border = '#EF4444'; color = '#DC2626' }
+          if (!shown && isSel)          { bg = `${accent}14`;           border = accent;    color = accent    }
+
+          const animStyle = shown && isCor && isSel
+            ? { animation: 'correctPulse 0.6s ease both' }
+            : shown && isSel && !isCor
+            ? { animation: 'wrongShake 0.4s ease both' }
+            : {}
+
           return (
             <button key={i} onClick={() => pick(opt)}
-              style={{ padding: '13px 16px', borderRadius: 14, border: `2px solid ${border}`, background: bg, cursor: picked ? 'default' : 'pointer', textAlign: 'left', fontSize: 16, fontWeight: 700, color, fontFamily: 'Nunito, sans-serif', transition: 'all 0.18s', display: 'flex', alignItems: 'center', gap: 12, animation: `revealUp 0.4s ${0.2 + i * 0.07}s ease both` }}>
-              <div style={{ width: 28, height: 28, borderRadius: '50%', flexShrink: 0, background: `${border}18`, border: `1.5px solid ${border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 900, color: border }}>
+              style={{ padding: '14px 16px', borderRadius: 14, border: `2px solid ${border}`, background: bg, cursor: picked ? 'default' : 'pointer', textAlign: 'left', fontSize: 16, fontWeight: 700, color, fontFamily: 'Nunito, sans-serif', transition: 'border-color 0.18s, background 0.18s, color 0.18s', display: 'flex', alignItems: 'center', gap: 12, animation: `revealUp 0.4s ${0.2 + i * 0.07}s ease both`, ...animStyle }}>
+              <div style={{ width: 28, height: 28, borderRadius: '50%', flexShrink: 0, background: `${border}18`, border: `1.5px solid ${border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 900, color: border, transition: 'all 0.18s' }}>
                 {shown ? (isCor ? '✓' : isSel ? '✗' : String.fromCharCode(65+i)) : String.fromCharCode(65+i)}
               </div>
               <MathText text={opt.option_text || ''} />
@@ -989,26 +994,27 @@ function BitePractice({ bite, accent, M, onNext, onBack, isFirst, onCorrect, sup
         )}
       </div>
 
-      {/* Bottom row: Back + Next side by side */}
-      <div style={{ paddingTop: 12, flexShrink: 0 }}>
+      <div style={{ paddingTop: 12, paddingBottom: 'max(18px,env(safe-area-inset-bottom))', flexShrink: 0 }}>
         <div style={{ display: 'flex', gap: 10 }}>
           {!isFirst && (
-            <button onClick={onBack} style={{
-              flex: '0 0 56px', padding: '14px 0', borderRadius: 14,
+            <button onClick={onBack} className="lp-next-btn" style={{
+              flex: '0 0 52px', padding: '14px 0', borderRadius: 14,
               border: `1.5px solid ${M.progressTrack}`,
               background: 'transparent', cursor: 'pointer',
-              fontSize: 16, color: M.textSecondary,
+              fontSize: 18, color: M.textSecondary,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>←</button>
           )}
           {picked !== null && (
-            <button onClick={onNext} style={{
-              flex: 1, padding: '14px',
-              borderRadius: 14, border: 'none',
+            <button onClick={onNext} className="lp-next-btn" style={{
+              flex: 1, padding: '16px',
+              borderRadius: 16, border: 'none',
               background: `linear-gradient(135deg, ${accent}, ${accent}CC)`,
-              color: '#fff', fontSize: 16, fontWeight: 900,
+              color: '#fff', fontSize: 17, fontWeight: 900,
               cursor: 'pointer', fontFamily: 'Nunito, sans-serif',
-              boxShadow: `0 5px 18px ${accent}40`,
+              boxShadow: `0 6px 24px ${accent}45`,
+              animation: 'nextIn 0.35s cubic-bezier(0.34,1.4,0.64,1) both',
+              letterSpacing: 0.2,
             }}>
               {bite._isLast ? 'Finish lesson ✓' : 'Next →'}
             </button>
@@ -1305,26 +1311,40 @@ export default function LessonPlayer({ lesson, subtopic, student, nextSubtopicId
   const EntryScreen = (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '28px 24px 24px', animation: 'slideUp 0.35s ease' }}>
 
-      {/* TOPIC — at the very top, large and anchoring */}
-      <div style={{ flexShrink: 0, marginBottom: 24, animation: 'revealUp 0.35s ease both' }}>
-        <div style={{ fontSize: 10, fontWeight: 900, color: accent, textTransform: 'uppercase', letterSpacing: 1.5, fontFamily: 'Nunito, sans-serif', marginBottom: 6, textAlign: 'center', opacity: 0.8 }}>
+      {/* TOPIC — anchoring header */}
+      <div style={{ flexShrink: 0, marginBottom: 20, animation: 'revealUp 0.3s ease both' }}>
+        <div style={{ fontSize: 10, fontWeight: 900, color: accent, textTransform: 'uppercase', letterSpacing: 1.5, fontFamily: 'Nunito, sans-serif', marginBottom: 8, textAlign: 'center', opacity: 0.8 }}>
           Today's lesson
         </div>
-        <div style={{ fontSize: 26, fontWeight: 900, color: M.textPrimary, lineHeight: 1.15, fontFamily: M.headingFont, textAlign: 'center' }}>
+        <div style={{ fontSize: 27, fontWeight: 900, color: M.textPrimary, lineHeight: 1.12, fontFamily: M.headingFont, textAlign: 'center', letterSpacing: -0.5 }}>
           {lessonTitle}
+        </div>
+        {/* Lesson metadata — bites count */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: `${accent}12`, border: `1px solid ${accent}25`, borderRadius: 20, padding: '3px 11px' }}>
+            <span style={{ fontSize: 11, fontWeight: 800, color: accent, fontFamily: 'Nunito, sans-serif' }}>
+              {bites.length} steps
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: `${accent}12`, border: `1px solid ${accent}25`, borderRadius: 20, padding: '3px 11px' }}>
+            <span style={{ fontSize: 11, fontWeight: 800, color: accent, fontFamily: 'Nunito, sans-serif' }}>
+              {practiceBites.length > 0 ? `${practiceBites.length} questions` : 'No quiz'}
+            </span>
+          </div>
         </div>
       </div>
 
-      {/* MASCOT + SPEECH BUBBLE — mascot speaks naturally about the lesson */}
+      {/* MASCOT + SPEECH BUBBLE */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ animation: 'float 3s ease-in-out infinite', marginBottom: 12 }}>
-          <BicPencil pose="celebrate" size={90} />
+        <div style={{ animation: 'float 3s ease-in-out infinite', marginBottom: 14 }}>
+          <BicPencil pose="celebrate" size={96} />
         </div>
         <div style={{
-          background: M.lessonCard, border: `1.5px solid ${accent}28`,
+          background: M.lessonCard,
+          border: `1.5px solid ${accent}45`,
           borderRadius: '4px 18px 18px 18px',
-          padding: '14px 18px', maxWidth: 280,
-          boxShadow: `0 6px 20px ${accent}14`,
+          padding: '14px 18px', maxWidth: 290,
+          boxShadow: `0 6px 24px ${accent}20`,
           animation: 'revealUp 0.45s 0.18s ease both',
         }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: M.textPrimary, lineHeight: 1.65, fontFamily: 'Nunito, sans-serif' }}>
@@ -1336,7 +1356,8 @@ export default function LessonPlayer({ lesson, subtopic, student, nextSubtopicId
       {/* CTA at bottom */}
       <button
         onClick={() => setStep(0)}
-        style={{ ...M.primaryBtn, fontSize: 18, padding: '18px 32px', width: '100%', borderRadius: 18, boxShadow: `0 8px 28px ${accent}45`, flexShrink: 0 }}>
+        className="lp-next-btn"
+        style={{ ...M.primaryBtn, fontSize: 18, padding: '18px 32px', width: '100%', borderRadius: 18, boxShadow: `0 8px 32px ${accent}50`, flexShrink: 0, letterSpacing: 0.2 }}>
         {entryCTA}
       </button>
     </div>
@@ -1344,34 +1365,36 @@ export default function LessonPlayer({ lesson, subtopic, student, nextSubtopicId
 
   // ── COMPLETE SCREEN ────────────────────────────────────────────────────────
   const CompleteScreen = (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 28px 28px', background: M.lessonBg, overflow: 'hidden', position: 'relative' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 28px 32px', background: M.lessonBg, overflow: 'hidden', position: 'relative' }}>
       {[
-        { left: '10%', top: '12%', color: '#C8F135', size: 10, delay: 0 },
-        { left: '85%', top: '8%',  color: '#FFC933', size: 8,  delay: 0.1 },
-        { left: '25%', top: '18%', color: accent,    size: 12, delay: 0.2 },
-        { left: '70%', top: '20%', color: '#FF6B6B', size: 7,  delay: 0.15 },
+        { left: '8%',  top: '10%', color: '#C8F135', size: 14, delay: 0    },
+        { left: '88%', top: '8%',  color: '#FFC933', size: 10, delay: 0.1  },
+        { left: '20%', top: '16%', color: accent,    size: 16, delay: 0.2  },
+        { left: '75%', top: '18%', color: '#FF6B6B', size: 9,  delay: 0.15 },
+        { left: '50%', top: '6%',  color: '#A78BFA', size: 11, delay: 0.05 },
+        { left: '38%', top: '22%', color: '#FFC933', size: 7,  delay: 0.25 },
       ].map((c, i) => (
-        <div key={i} style={{ position: 'absolute', left: c.left, top: c.top, width: c.size, height: c.size, borderRadius: '50%', background: c.color, opacity: 0.7, animation: `float ${1.5 + i * 0.3}s ease-in-out ${c.delay}s infinite alternate`, pointerEvents: 'none' }} />
+        <div key={i} style={{ position: 'absolute', left: c.left, top: c.top, width: c.size, height: c.size, borderRadius: '50%', background: c.color, opacity: 0.85, animation: `float ${1.6 + i * 0.25}s ease-in-out ${c.delay}s infinite alternate`, pointerEvents: 'none' }} />
       ))}
 
-      <div style={{ animation: 'float 2.5s ease-in-out infinite', marginBottom: 16 }}>
+      <div style={{ animation: 'float 2.5s ease-in-out infinite', marginBottom: 18 }}>
         <BicPencil pose="celebrate" size={110} />
       </div>
 
-      <div style={{ fontFamily: M.headingFont, fontSize: 28, fontWeight: 900, color: M.textPrimary, textAlign: 'center', lineHeight: 1.15, marginBottom: 8 }}>
+      <div style={{ fontFamily: M.headingFont, fontSize: 30, fontWeight: 900, color: M.textPrimary, textAlign: 'center', lineHeight: 1.12, marginBottom: 8 }}>
         {isBlaze ? 'LESSON COMPLETE' : 'Lesson Complete! 🎉'}
       </div>
-      <div style={{ fontSize: 15, color: M.textSecondary, fontFamily: 'Nunito, sans-serif', textAlign: 'center', lineHeight: 1.65, marginBottom: 32, maxWidth: 280 }}>
+      <div style={{ fontSize: 15, color: M.textSecondary, fontFamily: 'Nunito, sans-serif', textAlign: 'center', lineHeight: 1.65, marginBottom: 28, maxWidth: 280 }}>
         {isRoots ? 'You sabi this topic! Keep going! 🇳🇬' : isBlaze ? 'ANOTHER ONE DOWN. KEEP GOING.' : 'Great work — you made it through every step!'}
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: isBlaze ? '#FFD700' : `${accent}12`, border: isBlaze ? '2px solid #0d0d0d' : `1.5px solid ${accent}30`, borderRadius: isBlaze ? 12 : 20, padding: '20px 48px', marginBottom: 32, boxShadow: isBlaze ? '3px 3px 0 #0d0d0d' : `0 4px 20px ${accent}20` }}>
-        <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase', color: isBlaze ? '#0d0d0d' : M.textSecondary, fontFamily: 'Nunito, sans-serif', marginBottom: 4 }}>XP EARNED</div>
-        <div style={{ fontSize: 52, fontWeight: 900, color: isBlaze ? '#0d0d0d' : '#FFC933', fontFamily: M.headingFont, lineHeight: 1, letterSpacing: -1 }}>
-          +{practiceBites.length > 0 ? Math.max(1, Math.round((correctCount / practiceBites.length) * 10)) : 10}<span style={{ fontSize: 22, marginLeft: 6 }}>✨</span>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: isBlaze ? '#FFD700' : `${accent}12`, border: isBlaze ? '2px solid #0d0d0d' : `1.5px solid ${accent}30`, borderRadius: isBlaze ? 12 : 22, padding: '22px 52px', marginBottom: 28, boxShadow: isBlaze ? '3px 3px 0 #0d0d0d' : `0 6px 28px ${accent}28` }}>
+        <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase', color: isBlaze ? '#0d0d0d' : M.textSecondary, fontFamily: 'Nunito, sans-serif', marginBottom: 6 }}>XP EARNED</div>
+        <div style={{ fontSize: 58, fontWeight: 900, color: isBlaze ? '#0d0d0d' : '#FFC933', fontFamily: M.headingFont, lineHeight: 1, letterSpacing: -2 }}>
+          +{practiceBites.length > 0 ? Math.max(1, Math.round((correctCount / practiceBites.length) * 10)) : 10}<span style={{ fontSize: 24, marginLeft: 6 }}>✨</span>
         </div>
         {practiceBites.length > 0 && (
-          <div style={{ fontSize: 12, fontWeight: 600, color: isBlaze ? 'rgba(0,0,0,0.5)' : M.textSecondary, fontFamily: 'Nunito, sans-serif', marginTop: 6 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: isBlaze ? 'rgba(0,0,0,0.55)' : M.textSecondary, fontFamily: 'Nunito, sans-serif', marginTop: 6 }}>
             {correctCount} of {practiceBites.length} correct
           </div>
         )}
@@ -1379,32 +1402,54 @@ export default function LessonPlayer({ lesson, subtopic, student, nextSubtopicId
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 320 }}>
         {nextSubtopicId
-          ? <button onClick={() => router.push(`/learn/lesson/${nextSubtopicId}`)} style={{ ...M.primaryBtn, fontSize: 16, padding: '16px' }}>
+          ? <button onClick={() => router.push(`/learn/lesson/${nextSubtopicId}`)} className="lp-next-btn" style={{ ...M.primaryBtn, fontSize: 17, padding: '17px', borderRadius: 16, boxShadow: `0 6px 24px ${accent}45` }}>
               {isBlaze ? '⚡ NEXT MISSION!' : isSpark ? '✨ Continue!' : isRoots ? '🇳🇬 Next Lesson' : 'Continue →'}
             </button>
-          : <button onClick={() => router.push('/learn?tab=learn')} style={{ ...M.primaryBtn, fontSize: 16, padding: '16px' }}>
+          : <button onClick={() => router.push('/learn?tab=learn')} className="lp-next-btn" style={{ ...M.primaryBtn, fontSize: 17, padding: '17px', borderRadius: 16, boxShadow: `0 6px 24px ${accent}45` }}>
               {isBlaze ? '⚡ BACK TO MAP' : '🗺️ Back to Learn Map'}
             </button>
         }
-        <button onClick={() => router.push('/learn?tab=learn')} style={{ ...M.ghostBtn, fontSize: 14 }}>Back to Learn Map</button>
+        <button onClick={() => router.push('/learn?tab=learn')} style={{ ...M.ghostBtn, fontSize: 14, borderRadius: 14 }}>Back to Learn Map</button>
       </div>
     </div>
   )
 
   // ── TOP BAR ────────────────────────────────────────────────────────────────
+  const BITE_TYPE_LABEL = {
+    hook:          '📖 Hook',
+    concept:       '💡 Concept',
+    definition:    '📝 Definition',
+    introduction:  '🌱 Intro',
+    rule:          '📐 Rule',
+    worked_example:'🔢 Example',
+    you_try:       '✏️ Your Turn',
+    observation:   '🔍 Observe',
+    practice:      '🎯 Practice',
+    quiz:          '🎯 Practice',
+    summary:       '📋 Summary',
+  }
+
   const TopBar = (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', flexShrink: 0, borderBottom: `1px solid ${accent}18`, background: M.hudBg }}>
-      <button onClick={() => setShowExit(true)} style={{ width: 34, height: 34, borderRadius: '50%', cursor: 'pointer', background: M.lessonCard, border: M.lessonBorder, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: M.textSecondary, flexShrink: 0 }}>✕</button>
-      <div style={{ flex: 1, height: 6, background: M.progressTrack, borderRadius: 99, overflow: 'hidden' }}>
-        <div style={{ width: `${progressPct}%`, height: '100%', borderRadius: 99, background: `linear-gradient(90deg,${accent},${M.accent2 || accent})`, transition: 'width 0.4s ease' }} />
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', flexShrink: 0, borderBottom: `1px solid ${accent}15`, background: M.hudBg }}>
+      <button
+        onClick={() => setShowExit(true)}
+        className="lp-next-btn"
+        style={{ width: 36, height: 36, borderRadius: '50%', cursor: 'pointer', background: M.lessonCard, border: M.lessonBorder, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: M.textSecondary, flexShrink: 0 }}>✕</button>
+      <div style={{ flex: 1, height: 7, background: M.progressTrack, borderRadius: 99, overflow: 'hidden' }}>
+        <div style={{ width: `${progressPct}%`, height: '100%', borderRadius: 99, background: `linear-gradient(90deg,${accent},${M.accent2||accent}CC)`, transition: 'width 0.45s cubic-bezier(0.4,0,0.2,1)', boxShadow: progressPct > 0 ? `0 0 6px ${accent}50` : 'none' }} />
       </div>
-      {/* Step counter — hidden on entry and complete */}
-      {!isEntry && !isComplete && (
-        <div style={{ background: M.lessonCard, border: M.lessonBorder, borderRadius: 20, padding: '4px 11px', fontSize: 11, fontWeight: 800, color: M.textSecondary, fontFamily: 'Nunito, sans-serif', flexShrink: 0, whiteSpace: 'nowrap' }}>
-          {step + 1} / {bites.length}
+      {/* Bite type label — shows current slide context */}
+      {!isEntry && !isComplete && currentBite && (
+        <div style={{ background: `${accent}12`, border: `1.5px solid ${accent}25`, borderRadius: 20, padding: '3px 10px', fontSize: 10, fontWeight: 900, color: accent, fontFamily: 'Nunito, sans-serif', flexShrink: 0, whiteSpace: 'nowrap', letterSpacing: 0.3 }}>
+          {BITE_TYPE_LABEL[currentBite.type] || currentBite.type}
         </div>
       )}
-      {/* Subject pill — shows Further Maths label so student always knows which subject */}
+      {/* Step counter */}
+      {!isEntry && !isComplete && (
+        <div style={{ background: M.lessonCard, border: M.lessonBorder, borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 800, color: M.textSecondary, fontFamily: 'Nunito, sans-serif', flexShrink: 0, whiteSpace: 'nowrap' }}>
+          {step + 1}<span style={{ opacity: 0.45 }}>/{bites.length}</span>
+        </div>
+      )}
       {isFMLesson && (
         <div style={{ background: `${accent}14`, border: `1.5px solid ${accent}30`, borderRadius: 20, padding: '3px 9px', flexShrink: 0 }}>
           <span style={{ fontSize: 10, fontWeight: 900, color: accent, fontFamily: 'Nunito, sans-serif', letterSpacing: 0.4 }}>FM</span>
@@ -1426,14 +1471,20 @@ export default function LessonPlayer({ lesson, subtopic, student, nextSubtopicId
   return (
     <div style={{ minHeight: '100dvh', background: M.lessonBg, display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
       <style>{`
-        @keyframes slideUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
-        @keyframes revealUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
-        @keyframes float { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-8px); } }
+        @keyframes slideUp      { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes revealUp     { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes revealIn     { from{opacity:0;transform:scale(0.93)}      to{opacity:1;transform:scale(1)}      }
+        @keyframes float        { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+        @keyframes correctPulse { 0%{box-shadow:0 0 0 0 rgba(34,197,94,.55)} 70%{box-shadow:0 0 0 12px rgba(34,197,94,0)} 100%{box-shadow:0 0 0 0 rgba(34,197,94,0)} }
+        @keyframes wrongShake   { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-6px)} 40%{transform:translateX(6px)} 60%{transform:translateX(-3px)} 80%{transform:translateX(3px)} }
+        @keyframes nextIn       { from{opacity:0;transform:translateY(8px) scale(0.96)} to{opacity:1;transform:translateY(0) scale(1)} }
+        .lp-next-btn { transition:transform 0.12s,box-shadow 0.12s; }
+        .lp-next-btn:active { transform:scale(0.97) !important; }
       `}</style>
     <div style={{ display: 'flex', flexDirection: 'column', fontFamily: M.font, background: M.lessonBg, position: 'relative', width: '100%', maxWidth: 680, minHeight: '100dvh' }}>
-      {/* Thin progress strip at very top */}
-      <div style={{ height: 4, background: M.progressTrack, flexShrink: 0 }}>
-        <div style={{ width: `${progressPct}%`, height: '100%', background: accent, transition: 'width 0.4s ease', borderRadius: '0 2px 2px 0' }} />
+      {/* Progress strip — 6px, glowing fill */}
+      <div style={{ height: 6, background: M.progressTrack, flexShrink: 0 }}>
+        <div style={{ width: `${progressPct}%`, height: '100%', background: `linear-gradient(90deg,${accent},${M.accent2||accent}CC)`, transition: 'width 0.45s cubic-bezier(0.4,0,0.2,1)', borderRadius: '0 3px 3px 0', boxShadow: progressPct > 0 ? `0 0 8px ${accent}60` : 'none' }} />
       </div>
 
       {TopBar}
