@@ -9,50 +9,70 @@ const CORAL  = '#F94144'
 const YELLOW = '#F9C74F'
 const MINT   = '#43AA8B'
 const PURPLE = '#7B2FBE'
+const ORANGE = '#ff751f'   // logo "in" accent
 
 // ─── Content ───────────────────────────────────────────────────────────────────
 const NAV_LINKS = ['Home', 'How It Works', 'Features', 'Exam Prep']
 
 const FEATURES = [
-  { title: 'Bite-Sized Lessons',        desc: 'Every concept broken into small, clear steps — one idea at a time so nothing gets skipped.',                                                                              bg: YELLOW,  text: '#1A1A2E' },
-  { title: 'Visual Learning',            desc: 'Diagrams, illustrations, and worked examples that make abstract concepts finally click.',                                                                                  bg: PURPLE,  text: '#ffffff' },
-  { title: 'AI-Personalised Practice',  desc: 'Adapts to how you learn — starting easy, building to medium, then pushing you to hard. Every student grows at their own pace.',                                           bg: MINT,    text: '#ffffff' },
-  { title: 'Exam Preparation',          desc: 'Practice past questions for WAEC, JAMB, and BECE topic by topic — and walk in ready.',                                                                                    bg: CORAL,   text: '#ffffff' },
+  { title: 'Bite-Sized Lessons',       desc: 'Every concept broken into small, clear steps — one idea at a time so nothing gets skipped.',                                               bg: YELLOW, text: '#1A1A2E' },
+  { title: 'Visual Learning',           desc: 'Diagrams, illustrations, and worked examples that make abstract concepts finally click.',                                                 bg: PURPLE, text: '#ffffff' },
+  { title: 'AI-Personalised Practice', desc: 'Adapts to how you learn — starting easy, building to medium, then pushing you to hard. Every student grows at their own pace.',            bg: MINT,   text: '#ffffff' },
+  { title: 'Exam Preparation',         desc: 'Practice past questions for WAEC, JAMB, and BECE topic by topic — and walk in ready.',                                                    bg: CORAL,  text: '#ffffff' },
 ]
 
 const STEPS = [
-  { num: '01', title: 'Pick a Topic',        desc: 'Choose any concept from your class curriculum — JSS1 all the way to SS3.' },
-  { num: '02', title: 'Learn in Bites',      desc: 'Step-by-step lessons with visuals, relatable examples, and highlighted key concepts.' },
-  { num: '03', title: 'Practice and Grow',   desc: 'Adapts to where you struggle — easy to medium to hard — so you actually improve.' },
+  { num: '01', title: 'Pick a Topic',      desc: 'Choose any concept from your class curriculum — JSS1 all the way to SS3.' },
+  { num: '02', title: 'Learn in Bites',    desc: 'Step-by-step lessons with visuals, relatable examples, and highlighted key concepts.' },
+  { num: '03', title: 'Practice and Grow', desc: 'Adapts to where you struggle — easy to medium to hard — so you actually improve.' },
 ]
 
 const TOPICS = [
-  { topic: 'Introduction to Algebra',  level: 'SS1',  difficulty: 'Medium', color: BLUE   },
-  { topic: 'Fractions & Decimals',      level: 'JSS2', difficulty: 'Easy',   color: MINT   },
-  { topic: 'Quadratic Equations',       level: 'SS2',  difficulty: 'Hard',   color: CORAL  },
-  { topic: 'Number Bases',              level: 'JSS1', difficulty: 'Easy',   color: YELLOW },
+  { topic: 'Introduction to Algebra', level: 'SS1',  difficulty: 'Medium', color: BLUE   },
+  { topic: 'Fractions & Decimals',    level: 'JSS2', difficulty: 'Easy',   color: MINT   },
+  { topic: 'Quadratic Equations',     level: 'SS2',  difficulty: 'Hard',   color: CORAL  },
+  { topic: 'Number Bases',            level: 'JSS1', difficulty: 'Easy',   color: YELLOW },
 ]
 
 const TESTIMONIALS = [
-  { quote: "I finally understand quadratic equations. I used to just memorise the steps — now I actually get it.",           name: 'Chukwuemeka A.', detail: 'SS3 Student, Lagos' },
-  { quote: "MathsinBites made fractions so easy. The examples are things I see every day — it just makes sense.",            name: 'Aisha M.',       detail: 'JSS2 Student, Abuja' },
-  { quote: "I scored 87 in my maths test after two weeks on this app. Best thing I found before WAEC.",                     name: 'Tobi F.',         detail: 'SS2 Student, Ibadan' },
+  { quote: "I finally understand quadratic equations. I used to just memorise the steps — now I actually get it.",  name: 'Chukwuemeka A.', detail: 'SS3 Student, Lagos'  },
+  { quote: "MathsinBites made fractions so easy. The examples are things I see every day — it just makes sense.",   name: 'Aisha M.',       detail: 'JSS2 Student, Abuja' },
+  { quote: "I scored 87 in my maths test after two weeks on this app. Best thing I found before WAEC.",             name: 'Tobi F.',        detail: 'SS2 Student, Ibadan' },
 ]
 
 const DIFF = {
-  Easy:   { bg: '#e6f9f0', text: MINT   },
+  Easy:   { bg: '#e6f9f0', text: MINT      },
   Medium: { bg: '#fff8e1', text: '#f59e0b' },
-  Hard:   { bg: '#ffe8e8', text: CORAL  },
+  Hard:   { bg: '#ffe8e8', text: CORAL     },
+}
+
+// ─── Logo wordmark ─────────────────────────────────────────────────────────────
+// "Maths" blue · "in" orange (#ff751f) · "Bites" blue
+// Used in both Navbar and Footer — single source of truth
+function Logo({ size = 22 }) {
+  return (
+    <span style={{
+      fontFamily:    "'Baloo 2', sans-serif",
+      fontWeight:    900,
+      fontSize:      size,
+      letterSpacing: '-0.02em',
+      lineHeight:    1,
+    }}>
+      <span style={{ color: BLUE }}>Maths</span>
+      <span style={{ color: ORANGE }}>in</span>
+      <span style={{ color: BLUE }}>Bites</span>
+    </span>
+  )
 }
 
 // ─── Section layout wrapper ────────────────────────────────────────────────────
-function Section({ children, bg, style = {} }) {
+function Section({ children, bg, id, style = {} }) {
   return (
-    <section style={{
-      background: bg,
+    <section id={id} style={{
+      background:    bg,
       paddingTop:    'clamp(80px,10vh,120px)',
       paddingBottom: 'clamp(80px,10vh,120px)',
-      position: 'relative',
+      position:      'relative',
       ...style,
     }}>
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 clamp(24px,5vw,80px)' }}>
@@ -77,29 +97,6 @@ function H2({ children, center, style = {} }) {
     }}>
       {children}
     </h2>
-  )
-}
-
-// ─── Mascot slot ───────────────────────────────────────────────────────────────
-function MascotSlot({ pose = 'waving', width = 400, height = 460, style = {} }) {
-  return (
-    // To activate real image, replace this div with:
-    // <img src={`/mascots/halima-${pose}.png`} width={width} height={height}
-    //   alt={`Halima ${pose}`} style={{ animation:'bob 2.8s ease-in-out infinite', borderRadius:24, ...style }} />
-    <div style={{
-      width, height,
-      maxWidth: '100%',
-      borderRadius: 24,
-      background: 'linear-gradient(135deg,#e8f4ff,#f0e8ff)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      animation: 'bob 2.8s ease-in-out infinite',
-      flexShrink: 0,
-      ...style,
-    }}>
-      <p style={{ fontFamily: 'Nunito,sans-serif', fontSize: 13, color: '#888', textAlign: 'center', padding: 16, margin: 0 }}>
-        Halima — {pose} pose<br /><span style={{ opacity: .6, fontSize: 11 }}>(swap with real image)</span>
-      </p>
-    </div>
   )
 }
 
@@ -129,8 +126,8 @@ function FloatingSymbols() {
 
 // ─── Navbar ────────────────────────────────────────────────────────────────────
 function Navbar({ isDark, toggleDark }) {
-  const [scrolled,  setScrolled]  = useState(false)
-  const [menuOpen,  setMenuOpen]  = useState(false)
+  const [scrolled, setScrolled] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
 
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 10)
@@ -152,21 +149,20 @@ function Navbar({ isDark, toggleDark }) {
         background: bg,
         backdropFilter: 'blur(18px)',
         WebkitBackdropFilter: 'blur(18px)',
-        boxShadow: scrolled ? '0 2px 20px rgba(0,0,0,.1)' : 'none',
+        boxShadow:    scrolled ? '0 2px 20px rgba(0,0,0,.1)' : 'none',
         borderBottom: scrolled ? '1px solid rgba(67,97,238,.08)' : 'none',
-        transition: 'box-shadow .3s, border-color .3s, background .3s',
+        transition:   'box-shadow .3s, border-color .3s, background .3s',
       }}>
         {/* Logo */}
-        <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 6, textDecoration: 'none' }}>
-          <span style={{ fontFamily: "'Baloo 2',sans-serif", fontSize: 22, fontWeight: 900, color: BLUE, lineHeight: 1 }}>
-            Maths<span style={{ color: CORAL }}>in</span>Bites
-          </span>
+        <Link href="/" style={{ textDecoration: 'none' }}>
+          <Logo size={22} />
         </Link>
 
         {/* Desktop links */}
         <div style={{ display: 'flex', gap: 4, alignItems: 'center' }} className="lp-nav-desktop">
           {NAV_LINKS.map(l => (
-            <a key={l} href={`#${l.toLowerCase().replace(/ /g,'-')}`}
+            <a key={l}
+              href={`#${l.toLowerCase().replace(/ /g, '-')}`}
               className="nav-tab"
               style={{ fontFamily: "'Nunito',sans-serif", fontWeight: 700, fontSize: 14, color: dimCol, textDecoration: 'none', padding: '6px 12px', borderRadius: 10 }}>
               {l}
@@ -184,29 +180,24 @@ function Navbar({ isDark, toggleDark }) {
               width: 44, height: 24, borderRadius: 999,
               background: isDark ? BLUE : '#e2e8f0',
               border: 'none', cursor: 'pointer', position: 'relative',
-              transition: 'background .3s',
-              flexShrink: 0,
+              transition: 'background .3s', flexShrink: 0,
             }}
           >
             <span style={{
               position: 'absolute', top: 3,
               left: isDark ? 23 : 3,
               width: 18, height: 18, borderRadius: '50%',
-              background: '#fff',
-              transition: 'left .3s',
-              display: 'block',
+              background: '#fff', transition: 'left .3s', display: 'block',
             }} />
           </button>
 
           {/* CTA */}
-          <Link href="/guest" className="opt-btn lp-nav-cta"
-            style={{
-              background: BLUE, color: '#fff',
-              fontFamily: "'Baloo 2',sans-serif", fontWeight: 700, fontSize: 14,
-              padding: '8px 20px', borderRadius: 50, textDecoration: 'none',
-              boxShadow: '0 4px 0 rgba(0,0,0,.15)',
-              whiteSpace: 'nowrap',
-            }}>
+          <Link href="/guest" className="opt-btn lp-nav-cta" style={{
+            background: BLUE, color: '#fff',
+            fontFamily: "'Baloo 2',sans-serif", fontWeight: 700, fontSize: 14,
+            padding: '8px 20px', borderRadius: 50, textDecoration: 'none',
+            boxShadow: '0 4px 0 rgba(0,0,0,.15)', whiteSpace: 'nowrap',
+          }}>
             Start Learning Free
           </Link>
 
@@ -217,7 +208,7 @@ function Navbar({ isDark, toggleDark }) {
             className="lp-hamburger"
             style={{ display: 'none', flexDirection: 'column', gap: 5, background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
           >
-            {[0,1,2].map(i => (
+            {[0, 1, 2].map(i => (
               <span key={i} style={{ display: 'block', width: 22, height: 2.5, background: textCol, borderRadius: 2, transition: '.3s' }} />
             ))}
           </button>
@@ -237,7 +228,7 @@ function Navbar({ isDark, toggleDark }) {
         }}>
           {NAV_LINKS.map(l => (
             <a key={l}
-              href={`#${l.toLowerCase().replace(/ /g,'-')}`}
+              href={`#${l.toLowerCase().replace(/ /g, '-')}`}
               onClick={() => setMenuOpen(false)}
               style={{ fontFamily: "'Nunito',sans-serif", fontWeight: 700, fontSize: 15, color: textCol, textDecoration: 'none', padding: '10px 8px', borderRadius: 10 }}>
               {l}
@@ -250,7 +241,7 @@ function Navbar({ isDark, toggleDark }) {
         </div>
       )}
 
-      {/* Responsive rules scoped to navbar */}
+      {/* Responsive rules */}
       <style>{`
         @media (max-width: 768px) {
           .lp-nav-desktop { display: none !important; }
@@ -308,9 +299,9 @@ function HeroSection({ isDark }) {
 
             <p style={{
               fontFamily:   "'Nunito',sans-serif",
-              fontSize:      18, lineHeight: 1.8,
-              color:         dimCol,
-              marginBottom:  32, maxWidth: 520,
+              fontSize:     18, lineHeight: 1.8,
+              color:        dimCol,
+              marginBottom: 32, maxWidth: 520,
             }}>
               MathsinBites breaks every concept into bite-sized lessons — step by step,
               with visuals and relatable examples. Practice adapts from easy to hard,
@@ -319,26 +310,39 @@ function HeroSection({ isDark }) {
 
             <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
               <Link href="/guest" className="opt-btn" style={{
-                background:     BLUE, color: '#fff',
-                fontFamily:     "'Baloo 2',sans-serif", fontWeight: 700, fontSize: 17,
-                padding:        '14px 36px', borderRadius: 50, textDecoration: 'none',
-                boxShadow:      '0 6px 0 rgba(0,0,0,.18)',
+                background: BLUE, color: '#fff',
+                fontFamily: "'Baloo 2',sans-serif", fontWeight: 700, fontSize: 17,
+                padding: '14px 36px', borderRadius: 50, textDecoration: 'none',
+                boxShadow: '0 6px 0 rgba(0,0,0,.18)',
               }}>Start Learning Free</Link>
 
               {/* /demo is a public route — no auth middleware */}
               <Link href="/demo" className="opt-btn" style={{
-                background:     'transparent', color: BLUE,
-                fontFamily:     "'Baloo 2',sans-serif", fontWeight: 700, fontSize: 17,
-                padding:        '14px 36px', borderRadius: 50, textDecoration: 'none',
-                border:         `2px solid ${BLUE}`,
-                boxShadow:      '0 4px 0 rgba(67,97,238,.2)',
+                background: 'transparent', color: BLUE,
+                fontFamily: "'Baloo 2',sans-serif", fontWeight: 700, fontSize: 17,
+                padding: '14px 36px', borderRadius: 50, textDecoration: 'none',
+                border: `2px solid ${BLUE}`,
+                boxShadow: '0 4px 0 rgba(67,97,238,.2)',
               }}>See How It Works</Link>
             </div>
           </div>
 
-          {/* Mascot */}
+          {/* Mascot — 📁 public/mascots/halima-waving.png */}
           <div style={{ flex: '0 0 auto', display: 'flex', justifyContent: 'center' }}>
-            <MascotSlot pose="waving" width={420} height={480} />
+            <img
+              src="/mascots/halima-waving.png"
+              alt="Halima waving"
+              width={600}
+              height={500}
+              onError={(e) => { e.target.style.display = 'none' }}
+              style={{
+                animation:  'bob 2.8s ease-in-out infinite',
+                objectFit:  'contain',
+                flexShrink: 0,
+                maxWidth:   '100%',
+                filter:     'drop-shadow(0px 20px 40px rgba(0,0,0,0.15))',
+              }}
+            />
           </div>
         </div>
       </div>
@@ -364,7 +368,6 @@ function FeatureBlobCards({ isDark }) {
             animation:    `slideUp 0.25s ease ${i * 0.1}s both`,
             position:     'relative', overflow: 'hidden',
           }}>
-            {/* Blob shape glow */}
             <div aria-hidden style={{
               position: 'absolute', top: -40, right: -40,
               width: 120, height: 120, borderRadius: '50%',
@@ -394,31 +397,23 @@ function HowItWorks({ isDark }) {
       <div style={{ display: 'flex', gap: 48, flexWrap: 'wrap', justifyContent: 'center' }}>
         {STEPS.map((s, i) => (
           <div key={s.num} style={{ display: 'flex', alignItems: 'center' }}>
-            {/* Step card */}
             <div style={{ position: 'relative', maxWidth: 320, textAlign: 'center', padding: '0 16px' }}>
-              {/* Big decorative number */}
               <div aria-hidden style={{
                 position: 'absolute', top: -20, left: '50%', transform: 'translateX(-50%)',
                 fontFamily: "'Bangers',sans-serif", fontSize: 120, fontWeight: 400,
-                color: BLUE, opacity: .07, lineHeight: 1, userSelect: 'none',
-                pointerEvents: 'none',
+                color: BLUE, opacity: .07, lineHeight: 1, userSelect: 'none', pointerEvents: 'none',
               }}>{s.num}</div>
-
-              {/* Badge */}
               <div style={{
-                display:        'inline-flex', alignItems: 'center', justifyContent: 'center',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                 width: 40, height: 40, borderRadius: '50%',
-                background:     BLUE, color: '#fff',
-                fontFamily:     "'Baloo 2',sans-serif", fontWeight: 800, fontSize: 16,
-                marginBottom:   20, position: 'relative', zIndex: 1,
-                boxShadow:      '0 4px 12px rgba(67,97,238,.35)',
+                background: BLUE, color: '#fff',
+                fontFamily: "'Baloo 2',sans-serif", fontWeight: 800, fontSize: 16,
+                marginBottom: 20, position: 'relative', zIndex: 1,
+                boxShadow: '0 4px 12px rgba(67,97,238,.35)',
               }}>{i + 1}</div>
-
               <h3 style={{ fontFamily: "'Baloo 2',sans-serif", fontSize: 22, fontWeight: 800, color: textCol, marginBottom: 12, marginTop: 0 }}>{s.title}</h3>
               <p style={{ fontFamily: "'Nunito',sans-serif", fontSize: 15, lineHeight: 1.8, color: dimCol, margin: 0 }}>{s.desc}</p>
             </div>
-
-            {/* Dotted connector (not after last) */}
             {i < STEPS.length - 1 && (
               <div aria-hidden style={{
                 width: 48, height: 0, flexShrink: 0, alignSelf: 'flex-start', marginTop: 60,
@@ -446,9 +441,23 @@ function AboutSection({ isDark }) {
   return (
     <Section bg={bg}>
       <div style={{ display: 'flex', gap: 64, alignItems: 'center', flexWrap: 'wrap' }}>
-        {/* Mascot */}
+
+        {/* Mascot — 📁 public/mascots/halima-focused.png */}
         <div style={{ flex: '0 0 auto' }}>
-          <MascotSlot pose="focused" width={320} height={360} />
+          <img
+            src="/mascots/halima-waving.png"
+            alt="Halima focused"
+            width={320}
+            height={360}
+            onError={(e) => { e.target.style.display = 'none' }}
+            style={{
+              animation:  'bob 2.8s ease-in-out infinite',
+              objectFit:  'contain',
+              flexShrink: 0,
+              maxWidth:   '100%',
+              filter:     'drop-shadow(0px 20px 40px rgba(0,0,0,0.15))',
+            }}
+          />
         </div>
 
         {/* Text */}
@@ -495,13 +504,7 @@ function TopicCards({ isDark }) {
       <p style={{ fontFamily: "'Nunito',sans-serif", fontSize: 17, lineHeight: 1.8, color: dimCol, textAlign: 'center', marginTop: -28, marginBottom: 48 }}>
         From JSS1 to SS3 — every topic, every class, all in one place.
       </p>
-
-      {/* Horizontal scroll on mobile, grid on desktop */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))',
-        gap: 24,
-      }} className="lp-topic-grid">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', gap: 24 }} className="lp-topic-grid">
         {TOPICS.map(t => {
           const diff = DIFF[t.difficulty]
           return (
@@ -512,7 +515,6 @@ function TopicCards({ isDark }) {
               overflow:     'hidden',
               boxShadow:    isDark ? '0 2px 12px rgba(0,0,0,.35)' : '0 2px 12px rgba(0,0,0,.06)',
             }}>
-              {/* Colour band */}
               <div style={{ height: 8, background: t.color }} />
               <div style={{ padding: '24px 24px 20px' }}>
                 <h3 style={{ fontFamily: "'Baloo 2',sans-serif", fontSize: 17, fontWeight: 800, color: textCol, marginBottom: 12, marginTop: 0 }}>{t.topic}</h3>
@@ -520,7 +522,6 @@ function TopicCards({ isDark }) {
                   <span style={{ fontFamily: "'Nunito',sans-serif", fontWeight: 800, fontSize: 12, padding: '3px 10px', borderRadius: 999, background: isDark ? 'rgba(255,255,255,.1)' : '#f1f5f9', color: dimCol }}>{t.level}</span>
                   <span style={{ fontFamily: "'Nunito',sans-serif", fontWeight: 800, fontSize: 12, padding: '3px 10px', borderRadius: 999, background: diff.bg, color: diff.text }}>{t.difficulty}</span>
                 </div>
-                {/* All topic cards link to /demo (public route) */}
                 <Link href="/demo" style={{ fontFamily: "'Nunito',sans-serif", fontWeight: 800, fontSize: 14, color: t.color, textDecoration: 'none' }}>
                   Start Lesson →
                 </Link>
@@ -558,9 +559,22 @@ function ExamPrepSection() {
             }}>Activate Exam Mode</Link>
           </div>
 
-          {/* Mascot */}
+          {/* Mascot — 📁 public/mascots/halima-thumbsup.png */}
           <div style={{ flex: '0 0 auto', display: 'flex', justifyContent: 'center' }}>
-            <MascotSlot pose="thumbsup" width={300} height={340} style={{ background: 'rgba(255,255,255,.1)' }} />
+            <img
+              src="/mascots/halima-waving.png"
+              alt="Halima waving"
+              width={300}
+              height={340}
+              onError={(e) => { e.target.style.display = 'none' }}
+              style={{
+                animation:  'bob 2.8s ease-in-out infinite',
+                objectFit:  'contain',
+                flexShrink: 0,
+                maxWidth:   '100%',
+                filter:     'drop-shadow(0px 20px 40px rgba(0,0,0,0.2))',
+              }}
+            />
           </div>
         </div>
       </div>
@@ -606,8 +620,22 @@ function FinalCTA({ isDark }) {
   const dimCol  = isDark ? 'rgba(240,240,255,.6)' : '#64748b'
   return (
     <Section bg={bg} style={{ textAlign: 'center' }}>
+      {/* Mascot — 📁 public/mascots/halima-celebrating.png */}
       <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 32 }}>
-        <MascotSlot pose="celebrating" width={300} height={340} />
+        <img
+          src="/mascots/halima-celebrating.png"
+          alt="Halima celebrating"
+          width={300}
+          height={340}
+          onError={(e) => { e.target.style.display = 'none' }}
+          style={{
+            animation:  'bob 2.8s ease-in-out infinite',
+            objectFit:  'contain',
+            flexShrink: 0,
+            maxWidth:   '100%',
+            filter:     'drop-shadow(0px 20px 40px rgba(0,0,0,0.15))',
+          }}
+        />
       </div>
       <H2 center style={{ color: textCol, marginBottom: 16 }}>Your Best Maths Results Start Here.</H2>
       <p style={{ fontFamily: "'Nunito',sans-serif", fontSize: 18, lineHeight: 1.8, color: dimCol, marginBottom: 40, maxWidth: 520, margin: '0 auto 40px' }}>
@@ -633,8 +661,8 @@ function Footer({ isDark }) {
   const dimCol = 'rgba(255,255,255,.6)'
 
   const cols = [
-    { heading: 'Quick Links', links: [['Home','/'],['Features','#features'],['How It Works','#how-it-works'],['Exam Prep','#exam-prep'],['Contact','/contact']] },
-    { heading: 'Support',     links: [['Privacy Policy','/privacy'],['Terms','/terms'],['FAQ','/faq']] },
+    { heading: 'Quick Links', links: [['Home', '/'], ['Features', '#features'], ['How It Works', '#how-it-works'], ['Exam Prep', '#exam-prep'], ['Contact', '/contact']] },
+    { heading: 'Support',     links: [['Privacy Policy', '/privacy'], ['Terms', '/terms'], ['FAQ', '/faq']] },
   ]
 
   return (
@@ -644,13 +672,12 @@ function Footer({ isDark }) {
 
           {/* Brand */}
           <div>
-            <div style={{ fontFamily: "'Baloo 2',sans-serif", fontSize: 22, fontWeight: 900, marginBottom: 12 }}>
-              <span style={{ color: BLUE }}>Maths</span><span style={{ color: CORAL }}>in</span><span style={{ color: '#fff' }}>Bites</span>
+            <div style={{ marginBottom: 12 }}>
+              <Logo size={22} />
             </div>
             <p style={{ fontFamily: "'Nunito',sans-serif", fontSize: 14, color: dimCol, lineHeight: 1.75, marginBottom: 20, maxWidth: 240, marginTop: 0 }}>
               Learning maths, one bite at a time.
             </p>
-            {/* Social icon placeholders */}
             <div style={{ display: 'flex', gap: 10 }}>
               {['𝕏', 'in', 'yt', 'ig'].map(s => (
                 <div key={s} style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(255,255,255,.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Nunito,sans-serif', fontSize: 12, fontWeight: 800, color: 'rgba(255,255,255,.5)', cursor: 'pointer' }}>{s}</div>
@@ -689,20 +716,20 @@ export default function LandingPage() {
       color:      isDark ? '#F0F0FF' : '#1A1A2E',
       transition: 'background 0.3s ease, color 0.3s ease',
     }}>
-      <Navbar        isDark={isDark} toggleDark={() => setIsDark(d => !d)} />
+      <Navbar isDark={isDark} toggleDark={() => setIsDark(d => !d)} />
 
       {/* Spacer for fixed navbar */}
       <div style={{ height: 64 }} aria-hidden />
 
-      <HeroSection    isDark={isDark} />
+      <HeroSection      isDark={isDark} />
       <FeatureBlobCards isDark={isDark} />
-      <HowItWorks     isDark={isDark} />
-      <AboutSection   isDark={isDark} />
-      <TopicCards     isDark={isDark} />
+      <HowItWorks       isDark={isDark} />
+      <AboutSection     isDark={isDark} />
+      <TopicCards       isDark={isDark} />
       <ExamPrepSection />
-      <Testimonials   isDark={isDark} />
-      <FinalCTA       isDark={isDark} />
-      <Footer         isDark={isDark} />
+      <Testimonials     isDark={isDark} />
+      <FinalCTA         isDark={isDark} />
+      <Footer           isDark={isDark} />
     </div>
   )
 }
